@@ -50,6 +50,7 @@ double StemLayout::calcDefaultStemLength(Chord* item, const LayoutContext& ctx)
 
     const StaffType* staffType = staff ? staff->staffTypeForElement(item) : nullptr;
     const StaffType* tab = (staffType && staffType->isTabStaff()) ? staffType : nullptr;
+    const bool isCipherStaff = staffType && staffType->isCipherStaff();
 
     bool isBesideTabStaff = tab && !tab->stemless() && !tab->stemThrough();
     if (isBesideTabStaff) {
@@ -60,6 +61,9 @@ double StemLayout::calcDefaultStemLength(Chord* item, const LayoutContext& ctx)
     defaultStemLength += stemLengthBeamAddition(item, ctx);
     if (tab) {
         defaultStemLength *= 1.5;
+    } else if (isCipherStaff) {
+        // Cipher staves use standard stem lengths but may need adjustments
+        // defaultStemLength remains unchanged for cipher staves
     }
     // extraHeight represents the extra vertical distance between notehead and stem start
     // eg. slashed noteheads etc
@@ -186,7 +190,7 @@ double StemLayout::stemPosX(const ChordRest* item)
 double StemLayout::stemPosX(const Chord* item)
 {
     const StaffType* staffType = item->staffType();
-    if (!staffType || !staffType->isTabStaff()) {
+    if (!staffType || (!staffType->isTabStaff() && !staffType->isCipherStaff())) {
         bool up = item->ldata()->up;
         const Note* refNote = up ? item->upNote() : item->downNote();
         PointF stemAttach = up ? refNote->stemUpSE() : refNote->stemDownNW();

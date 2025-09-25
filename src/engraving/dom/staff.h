@@ -185,6 +185,7 @@ public:
 
     bool isPitchedStaff(const Fraction&) const;
     bool isTabStaff(const Fraction&) const;
+    bool isCipherStaff(const Fraction&) const;
     bool isDrumStaff(const Fraction&) const;
 
     int lines(const Fraction&) const;

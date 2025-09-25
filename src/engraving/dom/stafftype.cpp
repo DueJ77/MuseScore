@@ -1107,7 +1107,8 @@ double StaffType::spatium() const
 static const int _defaultPreset[STAFF_GROUP_MAX] =
 { 0,                    // default pitched preset is "stdNormal"
   4,                    // default percussion preset is "perc5lines"
-  5                     // default tab preset is "tab6StrCommon"
+  5,                    // default tab preset is "tab6StrCommon"
+  26                    // default cipher preset is "cipherNormal"
 };
 
 //---------------------------------------------------------
@@ -1182,6 +1183,8 @@ void StaffType::initStaffTypes(const Color& defaultColor)
         StaffType(StaffGroup::TAB, u"tab8StrSimple",  muse::mtrc("engraving", "Tab. 8-str. simple"),  8,  0, 1.5, true,  true, true, false, false,  defaultColor, u"MuseScore Tab Modern", 15, 0, false, true,  u"MuseScore Tab Sans",                     9, 0,  TablatureSymbolRepeat::NEVER, false, TablatureMinimStyle::NONE,    true,  false, true,  false, false, false, true,  false),
         StaffType(StaffGroup::TAB, u"tab9StrSimple",  muse::mtrc("engraving", "Tab. 9-str. simple"),  9,  0, 1.5, true,  true, true, false, false,  defaultColor, u"MuseScore Tab Modern", 15, 0, false, true,  u"MuseScore Tab Sans",                     9, 0,  TablatureSymbolRepeat::NEVER, false, TablatureMinimStyle::NONE,    true,  false, true,  false, false, false, true,  false),
         StaffType(StaffGroup::TAB, u"tab10StrSimple", muse::mtrc("engraving", "Tab. 10-str. simple"), 10, 0, 1.5, true,  true, true, false, false,  defaultColor, u"MuseScore Tab Modern", 15, 0, false, true,  u"MuseScore Tab Sans",                     9, 0,  TablatureSymbolRepeat::NEVER, false, TablatureMinimStyle::NONE,    true,  false, true,  false, false, false, true,  false),
+//                         group                xml-name    human-readable-name        lin stpOff  dist clef   bars stmless time  key    ledger invis     color
+        StaffType(StaffGroup::CIPHER, u"cipherNormal", muse::mtrc("engraving", "Cipher"),         5, 0,     1,   true,  true, false, true, true, true, false,  defaultColor),
     };
 }
 /* *INDENT-ON* */

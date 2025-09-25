@@ -254,6 +254,12 @@ public:
     void setString(int val) { m_string = val; }
     int stringOrLine() const;
 
+    // Cipher notation methods
+    String getCipherString() const;
+    int getCipherGroundPitch() const;
+    int getCipherTransposition(Key key) const;
+    int getCipherOctave() const;
+
     bool ghost() const { return m_ghost; }
     void setGhost(bool val) { m_ghost = val; }
     bool deadNote() const { return m_deadNote; }

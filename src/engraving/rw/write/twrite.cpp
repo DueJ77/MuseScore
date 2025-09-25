@@ -2943,7 +2943,7 @@ void TWrite::write(const StaffType* item, XmlWriter& xml, WriteContext& ctx)
     if (item->group() == StaffGroup::STANDARD) {
         xml.tag("noteheadScheme", TConv::toXml(item->noteHeadScheme()), TConv::toXml(NoteHeadScheme::HEAD_NORMAL));
     }
-    if (item->group() == StaffGroup::STANDARD || item->group() == StaffGroup::PERCUSSION) {
+    if (item->group() == StaffGroup::STANDARD || item->group() == StaffGroup::PERCUSSION || item->group() == StaffGroup::CIPHER) {
         if (!item->genKeysig()) {
             xml.tag("keysig", item->genKeysig());
         }

@@ -3976,4 +3976,78 @@ int Note::stringOrLine() const
     // The number string() returns doesn't count spaces.  This should be used where it is expected even numbers are spaces and odd are lines
     return staff()->staffType(tick())->isTabStaff() ? string() * 2 : line();
 }
+
+//---------------------------------------------------------
+//   getCipherString
+//---------------------------------------------------------
+
+String Note::getCipherString() const
+{
+    if (!staff()->isCipherStaff(tick())) {
+        return String();
+    }
+    
+    // Get scale degree based on key signature and pitch
+    int pitchClass = pitch() % 12;
+    Key key = staff()->key(tick());
+    
+    // Simple cipher mapping (can be enhanced later)
+    // This is a basic implementation - in reality, cipher notation
+    // would be much more sophisticated
+    static const char* cipherNumbers[] = { "1", "1#", "2", "2#", "3", "4", "4#", "5", "5#", "6", "6#", "7" };
+    
+    String result = String::fromAscii(cipherNumbers[pitchClass]);
+    
+    // Add octave indication if needed
+    int octave = (pitch() / 12) - 1; // MuseScore's octave numbering
+    if (octave != 4) { // Only show octave if not middle octave
+        if (octave > 4) {
+            for (int i = 4; i < octave; ++i) {
+                result += "'"; // Higher octaves with apostrophes
+            }
+        } else {
+            for (int i = octave; i < 4; ++i) {
+                result += ","; // Lower octaves with commas
+            }
+        }
+    }
+    
+    return result;
+}
+
+//---------------------------------------------------------
+//   getCipherGroundPitch
+//---------------------------------------------------------
+
+int Note::getCipherGroundPitch() const
+{
+    if (!staff()->isCipherStaff(tick())) {
+        return 0;
+    }
+    
+    // Return the ground pitch for cipher calculation
+    // This is typically C4 (middle C) = pitch 60
+    return 60;
+}
+
+//---------------------------------------------------------
+//   getCipherTransposition  
+//---------------------------------------------------------
+
+int Note::getCipherTransposition(Key key) const
+{
+    // Get transposition offset based on key signature
+    // This is a simplified implementation
+    return static_cast<int>(key);
+}
+
+//---------------------------------------------------------
+//   getCipherOctave
+//---------------------------------------------------------
+
+int Note::getCipherOctave() const
+{
+    // Return octave information for cipher notation
+    return (pitch() / 12) - 1;
+}
 }

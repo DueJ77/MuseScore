@@ -2200,6 +2200,7 @@ void TDraw::draw(const Note* item, Painter* painter)
     Color c(negativeFret ? config->criticalColor() : item->curColor());
     painter->setPen(c);
     bool tablature = item->staff() && item->staff()->isTabStaff(item->chord()->tick());
+    bool cipherNotation = item->staff() && item->staff()->isCipherStaff(item->chord()->tick());
 
     // tablature
     if (tablature) {
@@ -2225,6 +2226,35 @@ void TDraw::draw(const Note* item, Painter* painter)
 
         double yOffset = tab->fretFontYOffset();
         painter->drawText(PointF(startPosX, yOffset * item->magS()), item->fretString());
+    }
+    // cipher notation
+    else if (cipherNotation) {
+        // skip drawing, if second note of a cross-measure value
+        if (item->chord() && item->chord()->crossMeasure() == CrossMeasure::SECOND) {
+            return;
+        }
+
+        // Get cipher string representation
+        String cipherStr = item->getCipherString();
+        if (cipherStr.isEmpty()) {
+            // Fallback: use scale degree based on pitch
+            int pitchClass = item->pitch() % 12;
+            // Convert pitch class to cipher number (simplified)
+            static const char* cipherNumbers[] = { "1", "1#", "2", "2#", "3", "4", "4#", "5", "5#", "6", "6#", "7" };
+            cipherStr = String::fromAscii(cipherNumbers[pitchClass]);
+        }
+        
+        // Set cipher font and draw
+        const StaffType* staffType = item->staff()->staffTypeForElement(item);
+        Font cipherFont = item->cipher().font();
+        cipherFont.setPointSizeF(cipherFont.pointSizeF() * item->magS());
+        painter->setFont(cipherFont);
+        
+        // Draw cipher text centered on the note position
+        double cipherWidth = item->getCipherWidth();
+        double cipherHeight = item->getCipherHeight();
+        PointF drawPos = PointF(-cipherWidth * 0.5, cipherHeight * 0.3);
+        painter->drawText(drawPos, cipherStr);
     }
     // NOT tablature
     else {
