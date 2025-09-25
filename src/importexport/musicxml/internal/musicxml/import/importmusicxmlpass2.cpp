@@ -3186,6 +3186,9 @@ void MusicXmlParserPass2::staffDetails(const String& partId, Measure* measure)
         if (stringData.strings() > 0) {
             i->setStringData(stringData);
         }
+    } else if (m_score->staff(staffIdx)->isCipherStaff(Fraction(0, 1))) {
+        // Cipher staves use standard pitched notation internally
+        // No special string data needed
     } else if (stringData.strings() > 0) {
         m_logger->logError(u"trying to change string data for non-TAB staff (not supported)", &m_e);
     }

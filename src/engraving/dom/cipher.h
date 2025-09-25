@@ -27,7 +27,9 @@
 #include "draw/types/geometry.h"
 #include "global/types/string.h"
 
-class QPainter;
+namespace muse::draw {
+class Painter;
+}
 
 namespace mu::engraving {
 
@@ -41,24 +43,24 @@ class Cipher
 public:
     Cipher() = default;
 
-    double textWidth(const muse::draw::Font& font, const String& string) const;
-    double textHeight(const muse::draw::Font& font, const String& string) const;
+    double textWidth(const Font& font, const String& string) const;
+    double textHeight(const Font& font, const String& string) const;
 
     void setRelativeSize(double size) { m_relativeSize = size; }
-    void setFretFont(const muse::draw::Font& font) { m_fretFont = font; }
+    void setFretFont(const Font& font) { m_fretFont = font; }
 
     double getRelativeSize() const { return m_relativeSize; }
-    RectF bbox(const muse::draw::Font& font, const PointF& pos, const String& string) const;
+    RectF bbox(const Font& font, const PointF& pos, const String& string) const;
     String sharpString() const { return String(u"♯"); }
     String flatString() const { return String(u"♭"); }
-    muse::draw::Font getFretFont() const { return m_fretFont; }
+    Font getFretFont() const { return m_fretFont; }
 
-    void drawSharp(muse::draw::Painter* painter, const PointF& pos, const muse::draw::Font& font) const;
-    void drawFlat(muse::draw::Painter* painter, const PointF& pos, const muse::draw::Font& font) const;
+    void drawSharp(Painter* painter, const PointF& pos, const Font& font) const;
+    void drawFlat(Painter* painter, const PointF& pos, const Font& font) const;
 
 private:
     double m_relativeSize = 1.0;
-    muse::draw::Font m_fretFont;
+    Font m_fretFont;
 };
 
 } // namespace mu::engraving
