@@ -23,12 +23,17 @@
 #ifndef MU_ENGRAVING_CIPHER_H
 #define MU_ENGRAVING_CIPHER_H
 
-#include "draw/types/font.h"
-#include "draw/types/geometry.h"
-#include "global/types/string.h"
+#include <string>
+
+namespace muse {
+    class String;
+}
 
 namespace muse::draw {
+    class Font;
     class Painter;
+    class PointF;
+    class RectF;
 }
 
 namespace mu::engraving {
@@ -41,26 +46,30 @@ namespace mu::engraving {
 class Cipher
 {
 public:
-    Cipher() = default;
+    Cipher();
+    ~Cipher();
+    Cipher(const Cipher& other);
+    Cipher& operator=(const Cipher& other);
 
     double textWidth(const muse::draw::Font& font, const muse::String& string) const;
     double textHeight(const muse::draw::Font& font, const muse::String& string) const;
 
     void setRelativeSize(double size) { m_relativeSize = size; }
-    void setFretFont(const muse::draw::Font& font) { m_fretFont = font; }
+    void setFretFont(const muse::draw::Font& font);
 
     double getRelativeSize() const { return m_relativeSize; }
     muse::draw::RectF bbox(const muse::draw::Font& font, const muse::draw::PointF& pos, const muse::String& string) const;
-    muse::String sharpString() const { return muse::String(u"♯"); }
-    muse::String flatString() const { return muse::String(u"♭"); }
-    muse::draw::Font getFretFont() const { return m_fretFont; }
+    muse::String sharpString() const;
+    muse::String flatString() const;
+    muse::draw::Font getFretFont() const;
 
     void drawSharp(muse::draw::Painter* painter, const muse::draw::PointF& pos, const muse::draw::Font& font) const;
     void drawFlat(muse::draw::Painter* painter, const muse::draw::PointF& pos, const muse::draw::Font& font) const;
 
 private:
     double m_relativeSize = 1.0;
-    muse::draw::Font m_fretFont;
+    // Use void* to avoid template instantiation issues
+    void* m_fretFont = nullptr;
 };
 
 } // namespace mu::engraving

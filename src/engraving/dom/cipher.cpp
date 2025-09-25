@@ -24,8 +24,103 @@
 
 #include "draw/painter.h"
 #include "draw/fontmetrics.h"
+#include "draw/types/font.h"
+#include "draw/types/geometry.h"
+#include "global/types/string.h"
 
 using namespace mu::engraving;
+
+//---------------------------------------------------------
+//   Cipher constructor
+//---------------------------------------------------------
+
+Cipher::Cipher()
+{
+    m_fretFont = new muse::draw::Font();
+}
+
+//---------------------------------------------------------
+//   Cipher destructor
+//---------------------------------------------------------
+
+Cipher::~Cipher()
+{
+    delete static_cast<muse::draw::Font*>(m_fretFont);
+}
+
+//---------------------------------------------------------
+//   Copy constructor
+//---------------------------------------------------------
+
+Cipher::Cipher(const Cipher& other)
+    : m_relativeSize(other.m_relativeSize)
+{
+    if (other.m_fretFont) {
+        m_fretFont = new muse::draw::Font(*static_cast<muse::draw::Font*>(other.m_fretFont));
+    } else {
+        m_fretFont = new muse::draw::Font();
+    }
+}
+
+//---------------------------------------------------------
+//   Assignment operator
+//---------------------------------------------------------
+
+Cipher& Cipher::operator=(const Cipher& other)
+{
+    if (this != &other) {
+        m_relativeSize = other.m_relativeSize;
+        delete static_cast<muse::draw::Font*>(m_fretFont);
+        if (other.m_fretFont) {
+            m_fretFont = new muse::draw::Font(*static_cast<muse::draw::Font*>(other.m_fretFont));
+        } else {
+            m_fretFont = new muse::draw::Font();
+        }
+    }
+    return *this;
+}
+
+//---------------------------------------------------------
+//   setFretFont
+//---------------------------------------------------------
+
+void Cipher::setFretFont(const muse::draw::Font& font)
+{
+    if (!m_fretFont) {
+        m_fretFont = new muse::draw::Font();
+    }
+    *static_cast<muse::draw::Font*>(m_fretFont) = font;
+}
+
+//---------------------------------------------------------
+//   getFretFont
+//---------------------------------------------------------
+
+muse::draw::Font Cipher::getFretFont() const
+{
+    if (m_fretFont) {
+        return *static_cast<muse::draw::Font*>(m_fretFont);
+    }
+    return muse::draw::Font();
+}
+
+//---------------------------------------------------------
+//   sharpString
+//---------------------------------------------------------
+
+muse::String Cipher::sharpString() const
+{
+    return muse::String(u"♯");
+}
+
+//---------------------------------------------------------
+//   flatString
+//---------------------------------------------------------
+
+muse::String Cipher::flatString() const
+{
+    return muse::String(u"♭");
+}
 
 //---------------------------------------------------------
 //   textWidth
@@ -52,7 +147,7 @@ double Cipher::textHeight(const muse::draw::Font& font, const muse::String& stri
 //   bbox
 //---------------------------------------------------------
 
-RectF Cipher::bbox(const muse::draw::Font& font, const PointF& pos, const String& string) const
+muse::draw::RectF Cipher::bbox(const muse::draw::Font& font, const muse::draw::PointF& pos, const muse::String& string) const
 {
     muse::draw::FontMetrics fm(font);
     return fm.tightBoundingRect(string).translated(pos);
