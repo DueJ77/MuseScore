@@ -25,19 +25,15 @@
 #include "draw/painter.h"
 #include "draw/fontmetrics.h"
 
-using namespace mu;
-using namespace muse;
-using namespace muse::draw;
-
-namespace mu::engraving {
+using namespace mu::engraving;
 
 //---------------------------------------------------------
 //   textWidth
 //---------------------------------------------------------
 
-double Cipher::textWidth(const Font& font, const String& string) const
+double Cipher::textWidth(const muse::draw::Font& font, const String& string) const
 {
-    FontMetrics fm(font);
+    muse::draw::FontMetrics fm(font);
     return fm.horizontalAdvance(string);
 }
 
@@ -45,9 +41,9 @@ double Cipher::textWidth(const Font& font, const String& string) const
 //   textHeight
 //---------------------------------------------------------
 
-double Cipher::textHeight(const Font& font, const String& string) const
+double Cipher::textHeight(const muse::draw::Font& font, const String& string) const
 {
-    FontMetrics fm(font);
+    muse::draw::FontMetrics fm(font);
     RectF pos = fm.tightBoundingRect(string);
     return pos.height();
 }
@@ -56,9 +52,9 @@ double Cipher::textHeight(const Font& font, const String& string) const
 //   bbox
 //---------------------------------------------------------
 
-RectF Cipher::bbox(const Font& font, const PointF& pos, const String& string) const
+RectF Cipher::bbox(const muse::draw::Font& font, const PointF& pos, const String& string) const
 {
-    FontMetrics fm(font);
+    muse::draw::FontMetrics fm(font);
     return fm.tightBoundingRect(string).translated(pos);
 }
 
@@ -66,9 +62,9 @@ RectF Cipher::bbox(const Font& font, const PointF& pos, const String& string) co
 //   drawSharp
 //---------------------------------------------------------
 
-void Cipher::drawSharp(Painter* painter, const PointF& pos, const Font& font) const
+void Cipher::drawSharp(muse::draw::Painter* painter, const PointF& pos, const muse::draw::Font& font) const
 {
-    Font fontOld = painter->font();
+    muse::draw::Font fontOld = painter->font();
     painter->setFont(font);
     painter->drawText(pos, sharpString());
     painter->setFont(fontOld);
@@ -78,12 +74,10 @@ void Cipher::drawSharp(Painter* painter, const PointF& pos, const Font& font) co
 //   drawFlat
 //---------------------------------------------------------
 
-void Cipher::drawFlat(Painter* painter, const PointF& pos, const Font& font) const
+void Cipher::drawFlat(muse::draw::Painter* painter, const PointF& pos, const muse::draw::Font& font) const
 {
-    Font fontOld = painter->font();
+    muse::draw::Font fontOld = painter->font();
     painter->setFont(font);
     painter->drawText(pos, flatString());
     painter->setFont(fontOld);
 }
-
-} // namespace mu::engraving

@@ -549,7 +549,7 @@ void SingleDraw::draw(const Note* item, Painter* painter)
         }
         
         // Set cipher font and draw
-        Font cipherFont = Font(u"FreeSerif", Font::Type::Tablature);
+        muse::draw::Font cipherFont = muse::draw::Font(u"FreeSerif", muse::draw::Font::Type::Tablature);
         painter->setFont(cipherFont);
         
         // Draw cipher text centered on the note position
