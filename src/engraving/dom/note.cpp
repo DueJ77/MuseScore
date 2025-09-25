@@ -68,6 +68,7 @@
 #include "undo.h"
 #include "utils.h"
 #include "volta.h"
+#include "cipher.h"
 
 #include "log.h"
 

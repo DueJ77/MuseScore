@@ -23,8 +23,6 @@
 #pragma once
 
 #include "containers.h"
-
-#include "cipher.h"
 #include "engravingitem.h"
 #include "noteevent.h"
 #include "noteval.h"
@@ -45,6 +43,7 @@ class NoteDot;
 class Spanner;
 class StaffType;
 class NoteEditData;
+class Cipher;
 enum class AccidentalType : unsigned char;
 enum class NoteType : unsigned char;
 
