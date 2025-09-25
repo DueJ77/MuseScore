@@ -23,10 +23,9 @@
 #ifndef MU_ENGRAVING_CIPHER_H
 #define MU_ENGRAVING_CIPHER_H
 
-#include <QFont>
-#include <QPointF>
-#include <QRectF>
-#include <QString>
+#include "draw/types/font.h"
+#include "draw/types/geometry.h"
+#include "global/types/string.h"
 
 class QPainter;
 
@@ -42,24 +41,24 @@ class Cipher
 public:
     Cipher() = default;
 
-    qreal textWidth(const QFont& font, const QString& string) const;
-    qreal textHeight(const QFont& font, const QString& string) const;
+    double textWidth(const muse::draw::Font& font, const String& string) const;
+    double textHeight(const muse::draw::Font& font, const String& string) const;
 
-    void setRelativeSize(qreal size) { m_relativeSize = size; }
-    void setFretFont(const QFont& font) { m_fretFont = font; }
+    void setRelativeSize(double size) { m_relativeSize = size; }
+    void setFretFont(const muse::draw::Font& font) { m_fretFont = font; }
 
-    qreal getRelativeSize() const { return m_relativeSize; }
-    QRectF bbox(const QFont& font, const QPointF& pos, const QString& string) const;
-    QString sharpString() const { return QString("♯"); }
-    QString flatString() const { return QString("♭"); }
-    QFont getFretFont() const { return m_fretFont; }
+    double getRelativeSize() const { return m_relativeSize; }
+    RectF bbox(const muse::draw::Font& font, const PointF& pos, const String& string) const;
+    String sharpString() const { return String(u"♯"); }
+    String flatString() const { return String(u"♭"); }
+    muse::draw::Font getFretFont() const { return m_fretFont; }
 
-    void drawSharp(QPainter* painter, const QPointF& pos, const QFont& font) const;
-    void drawFlat(QPainter* painter, const QPointF& pos, const QFont& font) const;
+    void drawSharp(muse::draw::Painter* painter, const PointF& pos, const muse::draw::Font& font) const;
+    void drawFlat(muse::draw::Painter* painter, const PointF& pos, const muse::draw::Font& font) const;
 
 private:
-    qreal m_relativeSize = 1.0;
-    QFont m_fretFont;
+    double m_relativeSize = 1.0;
+    muse::draw::Font m_fretFont;
 };
 
 } // namespace mu::engraving

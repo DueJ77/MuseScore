@@ -2125,6 +2125,10 @@ public:
     /// \param tick Tick location in the score, as a fraction.
     /// \since MuseScore 4.6
     Q_INVOKABLE bool isTabStaff(apiv1::FractionWrapper* tick);
+    /// Whether the staff is a cipher staff at a given tick.
+    /// \param tick Tick location in the score, as a fraction.
+    /// \since MuseScore 4.6
+    Q_INVOKABLE bool isCipherStaff(apiv1::FractionWrapper* tick);
     /// Whether the staff is a drum staff at a given tick.
     /// \param tick Tick location in the score, as a fraction.
     /// \since MuseScore 4.6

@@ -51,6 +51,7 @@ void TupletLayout::layout(Tuplet* item, LayoutContext& ctx)
         // is in a TAB without stems, skip any format: tuplets are not shown
         return;
     }
+    // Cipher staves show tuplets like standard staves
 
     createNumber(item, ctx);
 

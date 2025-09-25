@@ -2246,8 +2246,8 @@ void TDraw::draw(const Note* item, Painter* painter)
         
         // Set cipher font and draw
         const StaffType* staffType = item->staff()->staffTypeForElement(item);
-        Font cipherFont = item->cipher().font();
-        cipherFont.setPointSizeF(cipherFont.pointSizeF() * item->magS());
+        // Use a default font for cipher notation - we can enhance this later
+        muse::draw::Font cipherFont = muse::draw::Font(u"FreeSerif", muse::draw::Font::Type::Tablature);
         painter->setFont(cipherFont);
         
         // Draw cipher text centered on the note position

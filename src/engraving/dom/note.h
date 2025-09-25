@@ -452,6 +452,8 @@ public:
     bool drawSharp() const { return m_drawSharp; }
     void setDrawFlat(bool f) { m_drawFlat = f; }
     void setDrawSharp(bool s) { m_drawSharp = s; }
+    const Cipher& cipher() const { return m_cipher; }
+    Cipher& cipher() { return m_cipher; }
 
     TieJumpPointList* tieJumpPoints() { return &m_jumpPoints; }
     const TieJumpPointList* tieJumpPoints() const { return &m_jumpPoints; }
@@ -565,6 +567,7 @@ private:
     PointF m_cipherKlammerPos;
     bool m_drawFlat = false;
     bool m_drawSharp = false;
+    Cipher m_cipher;
 
     std::vector<LineAttachPoint> m_lineAttachPoints;
     TieJumpPointList m_jumpPoints { this };

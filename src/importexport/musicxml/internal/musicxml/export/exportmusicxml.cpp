@@ -4525,6 +4525,16 @@ void ExportMusicXml::chord(Chord* chord, staff_idx_t staff, const std::vector<Ly
                 m_xml.tag("fret", note->fret());
             }
         }
+        
+        // write cipher notation
+        if (chord->staff() && chord->staff()->isCipherStaff(Fraction(0, 1))) {
+            String cipherStr = note->getCipherString();
+            if (!cipherStr.isEmpty()) {
+                notations.tag(m_xml, note);
+                technical.tag(m_xml);
+                m_xml.tag("cipher-notation", cipherStr);
+            }
+        }
 
         writeGuitarBend(m_xml, notations, technical, note);
 
@@ -7429,6 +7439,10 @@ void ExportMusicXml::exportDefaultClef(const Part* const part, const Measure* co
                         ct = ClefType::PERC;
                         stafftype = u"perc";
                         break;
+                    case StaffGroup::CIPHER:
+                        ct = ClefType::G; // Cipher uses treble clef by default
+                        stafftype = u"cipher";
+                        break;
                     }
                     LOGD("no clef found in first measure track %zu (stafftype %s)", track, muPrintable(stafftype));
                     clef(sstaff, ct, u" print-object=\"no\"");
@@ -7835,7 +7849,7 @@ static void writeStaffDetails(XmlWriter& xml, const Part* part, const std::vecto
         const Color lineColor = st->color(Fraction(0, 1));
         const bool invis = st->isLinesInvisible(Fraction(0, 1));
         const bool needsLineDetails = invis || lineColor != engravingConfiguration()->defaultColor();
-        if (st->lines(Fraction(0, 1)) != 5 || st->isTabStaff(Fraction(0, 1)) || !muse::RealIsEqual(mag, 1.0)
+        if (st->lines(Fraction(0, 1)) != 5 || st->isTabStaff(Fraction(0, 1)) || st->isCipherStaff(Fraction(0, 1)) || !muse::RealIsEqual(mag, 1.0)
             || hidden || needsLineDetails) {
             XmlWriter::Attributes attributes;
             if (staves > 1) {
