@@ -106,6 +106,14 @@ Note* Chord::upNote() const
                 result = n;
             }
         }
+    } else if (st->isCipherStaff()) {
+        // For cipher staff, use standard note comparison like normal staff
+        // Cipher notes are positioned like standard notes
+        for (Note* n : m_notes) {
+            if (n->line() < result->line()) {
+                result = n;
+            }
+        }
     }
     return result;
 }
@@ -143,6 +151,14 @@ Note* Chord::downNote() const
                 result = n;
             }
         }
+    } else if (st->isCipherStaff()) {
+        // For cipher staff, use standard note comparison like normal staff
+        // Cipher notes are positioned like standard notes
+        for (Note* n : m_notes) {
+            if (n->line() > result->line()) {
+                result = n;
+            }
+        }
     }
     return result;
 }
@@ -153,12 +169,24 @@ Note* Chord::downNote() const
 
 int Chord::upLine() const
 {
-    return onTabStaff() ? upString() * 2 : upNote()->line();
+    if (onTabStaff()) {
+        return upString() * 2;
+    } else if (onCipherStaff()) {
+        return upNote()->line(); // Cipher uses standard line positioning
+    } else {
+        return upNote()->line();
+    }
 }
 
 int Chord::downLine() const
 {
-    return onTabStaff() ? downString() * 2 : downNote()->line();
+    if (onTabStaff()) {
+        return downString() * 2;
+    } else if (onCipherStaff()) {
+        return downNote()->line(); // Cipher uses standard line positioning  
+    } else {
+        return downNote()->line();
+    }
 }
 
 //---------------------------------------------------------
@@ -1156,6 +1184,51 @@ void Chord::cmdUpdateNotes(AccidentalState* as, staff_idx_t staffIdx)
             LOGW("no drumset");
         }
         updatePercussionNotes(this, drumset);
+        sortNotes();
+    } else if (staffGroup == StaffGroup::CIPHER) {
+        // Cipher staff processing - similar to standard but with cipher-specific handling
+        const std::vector<Chord*> gnb(graceNotesBefore());
+        for (Chord* ch : gnb) {
+            if (ch->vStaffIdx() != staffIdx) {
+                continue;
+            }
+            std::vector<Note*> notes(ch->notes());        // we need a copy!
+            for (Note* note : notes) {
+                // For cipher notation, we still update accidentals but may handle them differently
+                note->updateAccidental(as);
+                // Set cipher-specific properties
+                note->setCipherLedgerline(0); // Default, will be calculated during layout
+            }
+            ch->sortNotes();
+        }
+        std::vector<Note*> lnotes(notes());        // we need a copy!
+        for (Note* note : lnotes) {
+            if (note->tieBack() && note->tpc() == note->tieBack()->startNote()->tpc()) {
+                // same pitch
+                if (note->accidental() && note->accidental()->role() == AccidentalRole::AUTO) {
+                    // not courtesy
+                    // TODO: remove accidental only if note is not
+                    // on new system
+                    score()->undoRemoveElement(note->accidental());
+                }
+            }
+            note->updateAccidental(as);
+            // Set cipher-specific properties
+            note->setCipherLedgerline(0); // Default, will be calculated during layout
+        }
+        const std::vector<Chord*> gna(graceNotesAfter());
+        for (Chord* ch : gna) {
+            if (ch->vStaffIdx() != staffIdx) {
+                continue;
+            }
+            std::vector<Note*> notes(ch->notes());        // we need a copy!
+            for (Note* note : notes) {
+                note->updateAccidental(as);
+                // Set cipher-specific properties  
+                note->setCipherLedgerline(0); // Default, will be calculated during layout
+            }
+            ch->sortNotes();
+        }
         sortNotes();
     }
 }

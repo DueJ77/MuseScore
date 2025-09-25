@@ -99,6 +99,8 @@ void ChordLayout::layout(Chord* item, LayoutContext& ctx)
 
     if (item->onTabStaff()) {
         layoutTablature(item, ctx);
+    } else if (item->onCipherStaff()) {
+        layoutCipher(item, ctx);
     } else {
         layoutPitched(item, ctx);
     }
@@ -694,6 +696,162 @@ void ChordLayout::layoutTablature(Chord* item, LayoutContext& ctx)
 
     layoutLvArticulation(item, ctx);
 
+    fillShape(item, item->mutldata(), ctx.conf());
+}
+
+void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
+{
+    double _spatium          = item->spatium();
+    double mag_ = item->staff() ? item->staff()->staffMag(item) : 1.0;
+    double minNoteDistance = ctx.conf().styleMM(Sid::minNoteDistance) * mag_;
+    double minTieLength = ctx.conf().styleMM(Sid::minTieLength) * mag_;
+
+    // Layout grace notes first
+    for (Chord* c : item->graceNotes()) {
+        layoutCipher(c, ctx);
+    }
+
+    // Initialize spacing variables
+    double lll = 0.0;                    // space to leave at left of chord
+    double rrr = 0.0;                    // space to leave at right of chord
+    Note* upnote = item->upNote();
+    double headWidth = item->symWidth(SymId::noteheadBlack);
+    const Staff* st = item->staff();
+    const StaffType* staffType = st->staffTypeForElement(item);
+
+    size_t numOfNotes = item->notes().size();
+    double minY = 1000.0;                // just a very large value
+
+    // Layout individual notes
+    for (size_t i = 0; i < numOfNotes; ++i) {
+        Note* note = item->notes().at(i);
+        TLayout::layoutNote(note, note->mutldata());
+
+        // For cipher, notes are positioned similar to standard notation
+        // but with special cipher-specific properties
+        double y = note->line() * _spatium * 0.5;
+        note->setPos(0.0, y);
+        if (y < minY) {
+            minY = y;
+        }
+
+        // Set cipher-specific dimensions for the note
+        // These will be used for rendering cipher numbers instead of noteheads
+        note->setCipherWidth(headWidth);
+        note->setCipherHeight(_spatium);
+
+        // Handle ties (adapted from tablature logic)
+        Tie* tie = note->tieBack();
+        if (tie && tie->addToSkyline()) {
+            SlurTieLayout::calculateDirection(tie);
+            double overlap = 0.0;
+            bool shortStart = false;
+            Note* startNote = tie->startNote();
+            Chord* startChord = startNote ? startNote->chord() : nullptr;
+            if (startChord && startChord->measure() == item->measure() && startChord == prevChordRest(item)) {
+                double startNoteWidth = startNote->ldata()->bbox().width();
+                if (startChord->notes().size() > 1 || (startChord->stem() && startChord->up() == tie->up())) {
+                    shortStart = true;
+                    overlap -= startNoteWidth * 0.125;
+                } else {
+                    overlap += startNoteWidth * 0.35;
+                }
+
+                if (item->notes().size() > 1 || (item->stem() && !item->up() && !tie->up())) {
+                    if (note->ldata()->pos().x() != 0.0) {
+                        overlap += std::abs(note->ldata()->pos().x());
+                    } else {
+                        overlap -= headWidth * 0.125;
+                    }
+                } else {
+                    if (shortStart) {
+                        overlap += headWidth * 0.15;
+                    } else {
+                        overlap += headWidth * 0.35;
+                    }
+                }
+                double d = std::max(minTieLength - overlap, 0.0);
+                lll = std::max(lll, d);
+            }
+        }
+    }
+
+    // Create cipher-specific ledger lines
+    // This is based on the cipher ledger line logic from ditoe
+    if (numOfNotes > 0) {
+        Note* firstNote = item->notes()[0];
+        int ledgerCount = firstNote->getCipherLedgerline();
+        if (ledgerCount != 0) {
+            int absLedgerCount = std::abs(ledgerCount);
+            item->resizeLedgerLinesTo(absLedgerCount);
+            
+            for (int n = 0; n < absLedgerCount; n++) {
+                LedgerLine* ll = item->ledgerLines()[n];
+                ll->setLen(firstNote->getCipherWidth());
+                ll->setLineWidth(_spatium * 0.16); // Default ledger line thickness
+                
+                double x = (firstNote->getCipherWidth() * 0.5) - (ll->len() * 0.5);
+                double y = (ledgerCount < 0) 
+                    ? firstNote->getCipherHeight() * 2.0 * (n + 1)
+                    : -firstNote->getCipherHeight() * 2.0 * (n + 1);
+                
+                ll->setPos(x, y);
+            }
+        }
+    }
+
+    // Set spacing based on cipher note width
+    lll = rrr = headWidth * 0.5; // Basic spacing for cipher notation
+
+    // Set spacing values
+    item->setSpaceLw(lll);
+    item->setSpaceRw(rrr);
+
+    // Layout grace notes positioning (similar to standard)
+    std::vector<Chord*> graceNotesBefore = item->graceNotesBefore();
+    int nb = graceNotesBefore.size();
+    if (nb) {
+        double xl = -(item->spaceLw() + minNoteDistance);
+        for (int i = nb - 1; i >= 0; --i) {
+            Chord* c = graceNotesBefore[i];
+            xl -= c->spaceRw();
+            c->mutldata()->setPosX(xl);
+            xl -= c->spaceLw() + minNoteDistance;
+        }
+        if (-xl > item->spaceLw()) {
+            item->setSpaceLw(-xl);
+        }
+    }
+
+    std::vector<Chord*> graceNotesAfter = item->graceNotesAfter();
+    int na = graceNotesAfter.size();
+    if (na) {
+        double xr = item->spaceRw();
+        for (int i = 0; i < na; i++) {
+            Chord* c = graceNotesAfter[i];
+            xr += c->spaceLw() + minNoteDistance;
+            c->mutldata()->setPosX(xr);
+            xr += c->spaceRw();
+        }
+        if (xr > item->spaceRw()) {
+            item->setSpaceRw(xr);
+        }
+    }
+
+    // Layout individual note elements
+    for (size_t i = 0; i < numOfNotes; ++i) {
+        layoutNote2(item->notes().at(i), ctx);
+    }
+
+    // Handle stem slash if present
+    if (item->stemSlash()) {
+        TLayout::layoutStemSlash(item->stemSlash(), item->stemSlash()->mutldata(), ctx.conf());
+    }
+
+    // Layout articulations
+    layoutLvArticulation(item, ctx);
+
+    // Fill shape for collision detection
     fillShape(item, item->mutldata(), ctx.conf());
 }
 
