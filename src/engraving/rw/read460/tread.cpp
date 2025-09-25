@@ -3784,6 +3784,9 @@ void TRead::read(StaffType* t, XmlReader& e, ReadContext& ctx)
 
     if (t->group() == StaffGroup::TAB) {
         t->setGenKeysig(false);
+    } else if (t->group() == StaffGroup::CIPHER) {
+        // Cipher staves can have key signatures like standard staves
+        t->setGenKeysig(true);
     }
 
     while (e.readNextStartElement()) {

@@ -2505,7 +2505,9 @@ Segment* MeasureLayout::addHeaderClef(Measure* m, bool isFirstClef, const Staff*
     Segment* cSegment = m->findFirstR(SegmentType::HeaderClef, Fraction(0, 1));
     const StaffType* staffType = staff->staffType(m->tick());
 
-    const bool hideClef = staffType->isTabStaff() ? ctx.conf().styleB(Sid::hideTabClefAfterFirst) : !ctx.conf().styleB(Sid::genClef);
+    const bool hideClef = staffType->isTabStaff() ? ctx.conf().styleB(Sid::hideTabClefAfterFirst) 
+                         : staffType->isCipherStaff() ? !ctx.conf().styleB(Sid::genClef)  // Cipher uses standard clef rules
+                         : !ctx.conf().styleB(Sid::genClef);
 
     // find the clef type at the previous tick
     ClefTypeList cl = staff->clefType(m->tick() - Fraction::eps());

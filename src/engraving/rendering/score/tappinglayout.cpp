@@ -40,11 +40,12 @@ void TappingLayout::layoutTapping(Tapping* item, Tapping::LayoutData* ldata, Lay
 
     const MStyle& style = item->style();
     bool tabStaff = item->staffType()->isTabStaff();
+    bool cipherStaff = item->staffType()->isCipherStaff();
 
     if (item->hand() == TappingHand::LEFT) {
-        layoutLeftHandTapping(item, ldata, style, tabStaff, ctx);
+        layoutLeftHandTapping(item, ldata, style, tabStaff || cipherStaff, ctx);
     } else {
-        layoutRightHandTapping(item, ldata, style, tabStaff, ctx);
+        layoutRightHandTapping(item, ldata, style, tabStaff || cipherStaff, ctx);
     }
 
     if (ldata->symId != SymId::noSym) {
