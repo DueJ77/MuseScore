@@ -27,6 +27,10 @@
 #include "draw/types/geometry.h"
 #include "global/types/string.h"
 
+namespace muse::draw {
+    class Painter;
+}
+
 namespace mu::engraving {
 
 //---------------------------------------------------------

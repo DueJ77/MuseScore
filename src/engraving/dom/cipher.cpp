@@ -26,6 +26,8 @@
 #include "draw/fontmetrics.h"
 
 using namespace mu::engraving;
+using namespace muse;
+using namespace muse::draw;
 
 //---------------------------------------------------------
 //   textWidth
