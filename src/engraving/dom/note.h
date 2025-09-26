@@ -452,6 +452,11 @@ public:
     void setDrawFlat(bool f) { m_drawFlat = f; }
     void setDrawSharp(bool s) { m_drawSharp = s; }
 
+    // Cipher string generation methods
+    String getCipherString() const;
+    int getCipherGroundPitch() const;
+    int getCipherTransposition(Key key) const;
+    int getCipherOctave() const;
 
     TieJumpPointList* tieJumpPoints() { return &m_jumpPoints; }
     const TieJumpPointList* tieJumpPoints() const { return &m_jumpPoints; }

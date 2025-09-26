@@ -4051,4 +4051,3 @@ int Note::getCipherOctave() const
     // Return octave information for cipher notation
     return (pitch() / 12) - 1;
 }
-}
