@@ -56,6 +56,7 @@ set(DOM_SRC
     ${CMAKE_CURRENT_LIST_DIR}/bsymbol.cpp
     ${CMAKE_CURRENT_LIST_DIR}/bsymbol.h
     ${CMAKE_CURRENT_LIST_DIR}/check.cpp
+
     ${CMAKE_CURRENT_LIST_DIR}/chord.cpp
     ${CMAKE_CURRENT_LIST_DIR}/chord.h
     ${CMAKE_CURRENT_LIST_DIR}/chordline.cpp

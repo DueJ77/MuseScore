@@ -1218,7 +1218,8 @@ void SystemLayout::layoutSystemElements(System* system, LayoutContext& ctx)
         if (slur->isHammerOnPullOff()) {
             StaffType* staffType = slur->staff()->staffType(slur->tick());
             if ((staffType->isTabStaff() && ctx.conf().styleB(Sid::hopoAlignLettersTabStaves))
-                || (!staffType->isTabStaff() && ctx.conf().styleB(Sid::hopoAlignLettersStandardStaves))) {
+                || ((!staffType->isTabStaff() && !staffType->isCipherStaff()) && ctx.conf().styleB(Sid::hopoAlignLettersStandardStaves))
+                || (staffType->isCipherStaff() && ctx.conf().styleB(Sid::hopoAlignLettersStandardStaves))) {
                 AlignmentLayout::alignHopoLetters(toHammerOnPullOff(slur), system);
             }
         }
@@ -1534,7 +1535,7 @@ void SystemLayout::collectSpannersToLayout(ElementsToLayout& elements, const Lay
                 elements.partialLyricsLines.push_back(spanner);
                 break;
             case ElementType::OTTAVA:
-                if (!spanner->staff()->staffType()->isTabStaff()) {
+                if (!spanner->staff()->staffType()->isTabStaff() && !spanner->staff()->staffType()->isCipherStaff()) {
                     elements.ottavas.push_back(spanner);
                 }
                 break;

@@ -23,7 +23,6 @@
 #pragma once
 
 #include "containers.h"
-
 #include "engravingitem.h"
 #include "noteevent.h"
 #include "noteval.h"
@@ -44,6 +43,7 @@ class NoteDot;
 class Spanner;
 class StaffType;
 class NoteEditData;
+
 enum class AccidentalType : unsigned char;
 enum class NoteType : unsigned char;
 
@@ -253,6 +253,12 @@ public:
     void setString(int val) { m_string = val; }
     int stringOrLine() const;
 
+    // Cipher notation methods
+    String getCipherString() const;
+    int getCipherGroundPitch() const;
+    int getCipherTransposition(Key key) const;
+    int getCipherOctave() const;
+
     bool ghost() const { return m_ghost; }
     void setGhost(bool val) { m_ghost = val; }
     bool deadNote() const { return m_deadNote; }
@@ -432,6 +438,26 @@ public:
 
     void setVisible(bool v) override;
 
+    // Cipher notation methods
+    double getCipherWidth() const { return m_cipherWidth; }
+    double getCipherWidth2() const { return m_cipherWidth2; }
+    double getCipherHeight() const { return m_cipherHeight; }
+    int getCipherLedgerline() const { return m_cipherLedgerline; }
+    void setCipherWidth(double w) { m_cipherWidth = w; }
+    void setCipherWidth2(double w) { m_cipherWidth2 = w; }
+    void setCipherHeight(double h) { m_cipherHeight = h; }
+    void setCipherLedgerline(int l) { m_cipherLedgerline = l; }
+    bool drawFlat() const { return m_drawFlat; }
+    bool drawSharp() const { return m_drawSharp; }
+    void setDrawFlat(bool f) { m_drawFlat = f; }
+    void setDrawSharp(bool s) { m_drawSharp = s; }
+
+    // Cipher string generation methods
+    String getCipherString() const;
+    int getCipherGroundPitch() const;
+    int getCipherTransposition(Key key) const;
+    int getCipherOctave() const;
+
     TieJumpPointList* tieJumpPoints() { return &m_jumpPoints; }
     const TieJumpPointList* tieJumpPoints() const { return &m_jumpPoints; }
 
@@ -533,6 +559,18 @@ private:
     std::vector<Spanner*> m_spannerBack;
 
     String m_fretString;
+
+    // Cipher notation properties
+    double m_cipherWidth = 0.0;
+    double m_cipherWidth2 = 0.0;
+    double m_cipherHeight = 0.0;
+    int m_cipherLedgerline = 0;
+    PointF m_cipherAccidentalPos;
+    PointF m_cipherTextPos;
+    PointF m_cipherKlammerPos;
+    bool m_drawFlat = false;
+    bool m_drawSharp = false;
+
 
     std::vector<LineAttachPoint> m_lineAttachPoints;
     TieJumpPointList m_jumpPoints { this };

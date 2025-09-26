@@ -142,6 +142,7 @@ void BeamLayout::layout1(Beam* item, LayoutContext& ctx)
 
     const StaffType* staffType = item->staffType();
     item->setTab((staffType && staffType->isTabStaff()) ? staffType : nullptr);
+    // Cipher staves use standard beam layout (like pitched staves)
     item->setIsBesideTabStaff(item->tab() && !item->tab()->stemless() && !item->tab()->stemThrough());
 
     // TAB's with stem beside staves have special layout

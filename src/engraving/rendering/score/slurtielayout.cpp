@@ -377,6 +377,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
     }
 
     bool useTablature = item->staff() && item->staff()->isTabStaff(item->endCR()->tick());
+    bool useCipher = item->staff() && item->staff()->isCipherStaff(item->endCR()->tick());
     bool staffHasStems = true;       // assume staff uses stems
     const StaffType* stt = 0;
     if (useTablature) {
@@ -817,6 +818,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
     if (item->staffType()->isTabStaff()) {
         SlurTieLayout::avoidPreBendsOnTab(sc, ec, sp);
     }
+    // Cipher staves use standard slur positioning like pitched staves
 
     if (item->isTappingHalfSlur()) {
         adjustForTappingHalfSlurs(toTappingHalfSlur(item), sp, note2);

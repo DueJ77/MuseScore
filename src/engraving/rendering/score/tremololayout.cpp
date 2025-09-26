@@ -112,6 +112,9 @@ void TremoloLayout::layoutOneNoteTremolo(TremoloSingleChord* item, const LayoutC
 
     if (staffType && staffType->isTabStaff()) {
         x = ChordLayout::centerX(item->chord());
+    } else if (staffType && staffType->isCipherStaff()) {
+        // Cipher staves use standard tremolo positioning
+        x = ChordLayout::centerX(item->chord());
     }
 
     double staveOffset = item->staffOffsetY();

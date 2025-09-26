@@ -580,7 +580,7 @@ ClefTypeList Staff::clefType(const Fraction& tick) const
     if (ct.concertClef == ClefType::INVALID) {
         // Clef compatibility based on instrument (override StaffGroup)
         StaffGroup staffGroup = staffType(tick)->group();
-        if (staffGroup != StaffGroup::TAB) {
+        if (staffGroup != StaffGroup::TAB && staffGroup != StaffGroup::CIPHER) {
             staffGroup = part()->instrument(tick)->useDrumset() ? StaffGroup::PERCUSSION : StaffGroup::STANDARD;
         }
 
@@ -597,6 +597,9 @@ ClefTypeList Staff::clefType(const Fraction& tick) const
             break;
         case StaffGroup::PERCUSSION:
             ct = ClefTypeList(ClefType::PERC);
+            break;
+        case StaffGroup::CIPHER:
+            ct = defaultClefType(); // Cipher uses standard clefs
             break;
         }
     }
@@ -1752,7 +1755,8 @@ void Staff::setLocalSpatium(double oldVal, double newVal, Fraction tick)
 bool Staff::isPitchedStaff(const Fraction& tick) const
 {
     //return staffType(tick)->group() == StaffGroup::STANDARD;
-    return staffType(tick)->group() != StaffGroup::TAB && !part()->instrument(tick)->useDrumset();
+    StaffGroup group = staffType(tick)->group();
+    return group != StaffGroup::TAB && group != StaffGroup::CIPHER && !part()->instrument(tick)->useDrumset();
 }
 
 //---------------------------------------------------------
@@ -1762,6 +1766,15 @@ bool Staff::isPitchedStaff(const Fraction& tick) const
 bool Staff::isTabStaff(const Fraction& tick) const
 {
     return staffType(tick)->group() == StaffGroup::TAB;
+}
+
+//---------------------------------------------------------
+//   isCipherStaff
+//---------------------------------------------------------
+
+bool Staff::isCipherStaff(const Fraction& tick) const
+{
+    return staffType(tick)->group() == StaffGroup::CIPHER;
 }
 
 //---------------------------------------------------------

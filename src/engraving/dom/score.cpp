@@ -898,6 +898,9 @@ void Score::changeEnharmonicSpelling(bool both)
                 n->undoChangeProperty(Pid::FRET, fret);
                 n->undoChangeProperty(Pid::STRING, string);
             }
+        } else if (staff->isCipherStaff(n->tick())) {
+            // Cipher staves handle pitch changes like standard staves
+            // No special string/fret handling needed
         } else {
             static const int tab[36] = {
                 26, 14,  2,    // 60  B#   C   Dbb
@@ -1181,8 +1184,8 @@ bool Score::getPosition(Position* pos, const PointF& p, voice_idx_t voice) const
     staff_idx_t preferredStaffIdx = muse::nidx;
     const double spacingFactor = 0.5;
     const double preferredSpacingFactor = 0.75;
-    if (noteEntryMode() && inputState().staffGroup() != StaffGroup::TAB) {
-        // for non-tab staves, prefer the current system & staff
+    if (noteEntryMode() && inputState().staffGroup() != StaffGroup::TAB && inputState().staffGroup() != StaffGroup::CIPHER) {
+        // for non-tab and non-cipher staves, prefer the current system & staff
         // this makes it easier to add notes far above or below the staff
         // not helpful for tab since notes are not entered above or below
         Segment* seg = inputState().segment();

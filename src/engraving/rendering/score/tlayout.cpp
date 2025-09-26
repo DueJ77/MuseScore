@@ -1940,10 +1940,12 @@ void TLayout::layoutClef(const Clef* item, Clef::LayoutData* ldata, const Layout
         const StaffType* stPrev = !tickPrev.negative() ? item->staff()->staffType(tickPrev) : nullptr;
         bool show = st->genClef();            // check staff type allows clef display
         StaffGroup staffGroup = st->group();
-        const bool hideClef = st->isTabStaff() ? conf.styleB(Sid::hideTabClefAfterFirst) : !conf.styleB(Sid::genClef);
+        const bool hideClef = st->isTabStaff() ? conf.styleB(Sid::hideTabClefAfterFirst) 
+                                 : st->isCipherStaff() ? !conf.styleB(Sid::genClef)  // Cipher uses standard clef rules
+                                 : !conf.styleB(Sid::genClef);
 
-        // if not tab, use instrument->useDrumset to set staffGroup (to allow pitched to unpitched in same staff)
-        if (staffGroup != StaffGroup::TAB) {
+        // if not tab or cipher, use instrument->useDrumset to set staffGroup (to allow pitched to unpitched in same staff)
+        if (staffGroup != StaffGroup::TAB && staffGroup != StaffGroup::CIPHER) {
             staffGroup = item->staff()->part()->instrument(item->tick())->useDrumset() ? StaffGroup::PERCUSSION : StaffGroup::STANDARD;
         }
 
@@ -4376,6 +4378,7 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
     }
 
     bool useTablature = item->staff() && item->staff()->isTabStaff(item->chord()->tick());
+    bool useCipher = item->staff() && item->staff()->isCipherStaff(item->chord()->tick());
     ldata->useTablature.set_value(useTablature);
 
     RectF noteBBox;
@@ -4415,6 +4418,33 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         double height = item->deadNote() ? tab->deadFretBoxH() : tab->fretBoxH();
 
         noteBBox = RectF(0, y * mags, w, height * mags);
+    } else if (useCipher) {
+        // Cipher notation handling
+        const Staff* st = item->staff();
+        const StaffType* staffType = st->staffTypeForElement(item);
+        
+        // Set cipher dimensions
+        const_cast<Note*>(item)->setCipherWidth(item->symWidth(SymId::noteheadBlack));
+        const_cast<Note*>(item)->setCipherHeight(item->spatium());
+        
+        // Calculate cipher-specific ledger lines based on note position
+        int line = item->line();
+        int staffLines = staffType->lines();
+        int middleLine = staffLines - 1; // 0-based middle line for 5-line staff
+        
+        int ledgerCount = 0;
+        if (line < 0) {
+            ledgerCount = -(line / 2); // Above staff
+        } else if (line >= staffLines * 2) {
+            ledgerCount = -((line - staffLines * 2 + 2) / 2); // Below staff (negative)
+        }
+        
+        const_cast<Note*>(item)->setCipherLedgerline(ledgerCount);
+        
+        // Set basic cipher bounding box
+        double w = item->getCipherWidth();
+        double h = item->getCipherHeight();
+        noteBBox = RectF(0, 0, w, h);
     } else {
         if (item->deadNote()) {
             const_cast<Note*>(item)->setHeadGroup(NoteHeadGroup::HEAD_CROSS);
