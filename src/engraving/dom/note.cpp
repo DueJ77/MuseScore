@@ -555,6 +555,7 @@ Note::~Note()
     }
 
     muse::DeleteAll(m_dots);
+    delete m_cipher;
 }
 
 std::vector<Note*> Note::compoundNotes() const
