@@ -68,7 +68,7 @@
 #include "undo.h"
 #include "utils.h"
 #include "volta.h"
-#include "cipher.h"
+
 
 #include "log.h"
 
@@ -555,7 +555,6 @@ Note::~Note()
     }
 
     muse::DeleteAll(m_dots);
-    delete m_cipher;
 }
 
 std::vector<Note*> Note::compoundNotes() const

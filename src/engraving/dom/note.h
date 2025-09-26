@@ -43,7 +43,7 @@ class NoteDot;
 class Spanner;
 class StaffType;
 class NoteEditData;
-class Cipher;
+
 enum class AccidentalType : unsigned char;
 enum class NoteType : unsigned char;
 
@@ -451,13 +451,7 @@ public:
     bool drawSharp() const { return m_drawSharp; }
     void setDrawFlat(bool f) { m_drawFlat = f; }
     void setDrawSharp(bool s) { m_drawSharp = s; }
-    const Cipher* cipher() const { return m_cipher; }
-    Cipher* cipher() { 
-        if (!m_cipher) {
-            m_cipher = new Cipher();
-        }
-        return m_cipher; 
-    }
+
 
     TieJumpPointList* tieJumpPoints() { return &m_jumpPoints; }
     const TieJumpPointList* tieJumpPoints() const { return &m_jumpPoints; }
@@ -571,7 +565,7 @@ private:
     PointF m_cipherKlammerPos;
     bool m_drawFlat = false;
     bool m_drawSharp = false;
-    Cipher* m_cipher = nullptr;
+
 
     std::vector<LineAttachPoint> m_lineAttachPoints;
     TieJumpPointList m_jumpPoints { this };
