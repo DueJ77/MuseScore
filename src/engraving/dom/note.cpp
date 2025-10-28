@@ -3973,4 +3973,138 @@ int Note::stringOrLine() const
     // The number string() returns doesn't count spaces.  This should be used where it is expected even numbers are spaces and odd are lines
     return staff()->staffType(tick())->isTabStaff() ? string() * 2 : line();
 }
+
+//---------------------------------------------------------
+//   cipherString
+//   Convert chromatic pitch to cipher notation digit
+//---------------------------------------------------------
+
+String Note::cipherString(int numkro) const
+{
+    switch (numkro) {
+    case 0:
+        return u"7";
+    case 1:
+        return u"1";
+    case 2:
+        return cipherString(numkro + setAccidentalTypeBack(-1));
+    case 3:
+        return u"2";
+    case 4:
+        return cipherString(numkro + setAccidentalTypeBack(1));
+    case 5:
+        return u"3";
+    case 6:
+        return u"4";
+    case 7:
+        return cipherString(numkro + setAccidentalTypeBack(-1));
+    case 8:
+        return u"5";
+    case 9:
+        return cipherString(numkro + setAccidentalTypeBack(-1));
+    case 10:
+        return u"6";
+    case 11:
+        return cipherString(numkro + setAccidentalTypeBack(1));
+    case 12:
+        return u"7";
+    case 13:
+        return u"1";
+    default:
+        return u"0";
+    }
 }
+
+//---------------------------------------------------------
+//   cipherGroundPitch
+//   Get the base pitch for cipher notation
+//---------------------------------------------------------
+
+int Note::cipherGroundPitch() const
+{
+    if (m_drawSharp) {
+        return m_pitch - 1;
+    }
+    if (m_drawFlat) {
+        return m_pitch + 1;
+    }
+    return m_pitch;
+}
+
+//---------------------------------------------------------
+//   setAccidentalTypeBack
+//   Set draw flags for sharp/flat in cipher notation
+//---------------------------------------------------------
+
+int Note::setAccidentalTypeBack(int defaultdirection)
+{
+    int shift = defaultdirection;
+    if (shift == 1) {
+        m_drawSharp = true;
+        m_drawFlat = false;
+    }
+    if (shift == -1) {
+        m_drawFlat = true;
+        m_drawSharp = false;
+    }
+    return shift;
+}
+
+//---------------------------------------------------------
+//   cipherTrans
+//   Get transposition offset for key signature in cipher notation
+//---------------------------------------------------------
+
+int Note::cipherTrans(Key key) const
+{
+    switch (key) {
+    case Key::C_B:  return 1;
+    case Key::G_B:  return -6;
+    case Key::D_B:  return -1;
+    case Key::A_B:  return 4;
+    case Key::E_B:  return -3;
+    case Key::B_B:  return 2;
+    case Key::F:    return -5;
+    case Key::C:    return 0;
+    case Key::G:    return 5;
+    case Key::D:    return -2;
+    case Key::A:    return 3;
+    case Key::E:    return -4;
+    case Key::B:    return 1;
+    case Key::F_S:  return -6;
+    case Key::C_S:  return 1;
+    default:
+        return 0;
+    }
+}
+
+//---------------------------------------------------------
+//   cipherOktave
+//   Get octave offset based on instrument type
+//---------------------------------------------------------
+
+int Note::cipherOktave() const
+{
+    String instname = part()->instrument(chord()->tick())->id();
+    if (instname == u"voice.bass") {
+        return -1;
+    }
+    if (instname == u"voice.tenor") {
+        return -1;
+    }
+    return 0;
+}
+
+//---------------------------------------------------------
+//   cipher_setKeysigNote
+//   Set cipher notation for key signature display
+//---------------------------------------------------------
+
+void Note::cipher_setKeysigNote(KeySig* sig)
+{
+    // Implementation will be added when KeySig is updated
+    // This is a placeholder for now
+    UNUSED(sig);
+}
+}
+

@@ -44,6 +44,7 @@
 
 #include "dom/chord.h"
 #include "dom/chordline.h"
+#include "dom/cipher.h"
 #include "dom/clef.h"
 #include "dom/capo.h"
 
@@ -2223,7 +2224,26 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
         double yOffset = tab->fretFontYOffset();
         painter->drawText(PointF(startPosX, yOffset * item->magS()), item->fretString());
     }
-    // NOT tablature
+    // Cipher notation
+    else if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        // TODO: This is a placeholder implementation
+        // Full implementation would draw cipher digits, accidentals, parentheses, etc.
+        
+        double spatium = item->spatium();
+        
+        // Draw cipher digit using cipher font
+        Font cipherFont;
+        cipherFont.setFamily(item->style().styleSt(Sid::cipherFont));
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        painter->setFont(cipherFont);
+        painter->setPen(c);
+        
+        // Draw the cipher string (currently just a placeholder "1")
+        painter->drawText(PointF(0, 0), item->fretString());
+        
+        // TODO: Draw accidentals, parentheses, ledger lines, etc.
+    }
+    // NOT tablature or cipher
     else {
         // skip drawing, if second note of a cross-measure value
         if (item->chord() && item->chord()->crossMeasure() == CrossMeasure::SECOND) {
