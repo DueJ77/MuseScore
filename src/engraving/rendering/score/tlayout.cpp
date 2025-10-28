@@ -4079,13 +4079,12 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         // For now, calculate basic bounding box to prevent crashes
         
         Note* mutableItem = const_cast<Note*>(item);
-        const Score* score = item->score();
-        double spatium = score->spatium();
+        double spatium = item->spatium();
         
         // Get cipher font and calculate dimensions
         muse::draw::Font cipherFont;
-        cipherFont.setFamily(score->styleSt(Sid::cipherFont));
-        cipherFont.setPointSizeF(score->styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
+        cipherFont.setFamily(item->style().styleSt(Sid::cipherFont));
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
         
         // Calculate basic cipher note width and height
         // This is simplified - full implementation would calculate based on actual cipher string

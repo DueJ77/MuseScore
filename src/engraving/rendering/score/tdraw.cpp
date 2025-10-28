@@ -2229,13 +2229,12 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
         // TODO: This is a placeholder implementation
         // Full implementation would draw cipher digits, accidentals, parentheses, etc.
         
-        const Score* score = item->score();
-        double spatium = score->spatium();
+        double spatium = item->spatium();
         
         // Draw cipher digit using cipher font
         Font cipherFont;
-        cipherFont.setFamily(score->styleSt(Sid::cipherFont));
-        cipherFont.setPointSizeF(score->styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        cipherFont.setFamily(item->style().styleSt(Sid::cipherFont));
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
         painter->setFont(cipherFont);
         painter->setPen(c);
         
