@@ -4419,6 +4419,27 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         double height = item->deadNote() ? tab->deadFretBoxH() : tab->fretBoxH();
 
         noteBBox = RectF(0, y * mags, w, height * mags);
+    } else if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        // Cipher notation layout
+        // TODO: This is a placeholder implementation that needs complete cipher layout logic
+        // For now, calculate basic bounding box to prevent crashes
+
+        Note* mutableItem = const_cast<Note*>(item);
+        double spatium = item->spatium();
+
+        // Get cipher font and calculate dimensions
+        muse::draw::Font cipherFont;
+        cipherFont.setFamily(item->style().styleSt(Sid::cipherFont));
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
+
+        // Calculate basic cipher note width and height
+        // This is simplified - full implementation would calculate based on actual cipher string
+        double noteWidth = spatium * 0.8;   // Approximate width
+        double noteHeight = spatium * 1.0;  // Approximate height
+
+        mutableItem->setFretString(u"1");  // Placeholder - should be calculated from pitch
+
+        noteBBox = RectF(0, -noteHeight / 2, noteWidth, noteHeight);
     } else {
         if (item->deadNote()) {
             const_cast<Note*>(item)->setHeadGroup(NoteHeadGroup::HEAD_CROSS);
