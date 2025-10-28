@@ -1781,6 +1781,15 @@ bool Staff::isDrumStaff(const Fraction& tick) const
 }
 
 //---------------------------------------------------------
+//   isCipherStaff
+//---------------------------------------------------------
+
+bool Staff::isCipherStaff(const Fraction& tick) const
+{
+    return staffType(tick)->isCipherStaff();
+}
+
+//---------------------------------------------------------
 //   lines
 //---------------------------------------------------------
 
