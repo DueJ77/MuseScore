@@ -24,6 +24,7 @@
 
 #include "containers.h"
 
+#include "cipher.h"
 #include "engravingitem.h"
 #include "noteevent.h"
 #include "noteval.h"
@@ -44,6 +45,7 @@ class NoteDot;
 class Spanner;
 class StaffType;
 class NoteEditData;
+class KeySig;
 enum class AccidentalType : unsigned char;
 enum class NoteType : unsigned char;
 
@@ -435,6 +437,18 @@ public:
     TieJumpPointList* tieJumpPoints() { return &m_jumpPoints; }
     const TieJumpPointList* tieJumpPoints() const { return &m_jumpPoints; }
 
+    // Cipher notation methods
+    void cipher_setKeysigNote(KeySig* sig);
+    double cipherWidth() const { return m_cipherWidth; }
+    double cipherWidth2() const { return m_cipherWidth2; }
+    double cipherHeight() const { return m_cipherHeight; }
+    int cipherLedgerline() const { return m_cipherLedgerline; }
+    int cipherGroundPitch() const;
+    String cipherString(int numkro) const;
+    int setAccidentalTypeBack(int defaultdirection);
+    int cipherTrans(Key key) const;
+    int cipherOktave() const;
+
     struct LayoutData : public EngravingItem::LayoutData {
         ld_field<bool> useTablature = { "[Note] useTablature", false };
         ld_field<SymId> cachedNoteheadSym = { "[Note] cachedNoteheadSym", SymId::noSym };    // use in draw to avoid recomputing at every update
@@ -533,6 +547,19 @@ private:
     std::vector<Spanner*> m_spannerBack;
 
     String m_fretString;
+
+    // Cipher notation fields
+    double m_cipherWidth = 0.0;
+    double m_cipherWidth2 = 0.0;
+    double m_cipherHeight = 0.0;
+    double m_trackthick = 1.0;
+    muse::PointF m_cipherAccidentalPos;
+    muse::PointF m_cipherTextPos;
+    muse::PointF m_cipherKlammerPos;
+    Cipher m_cipher;
+    int m_cipherLedgerline = 0;
+    bool m_drawFlat = false;
+    bool m_drawSharp = false;
 
     std::vector<LineAttachPoint> m_lineAttachPoints;
     TieJumpPointList m_jumpPoints { this };
