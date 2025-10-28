@@ -50,6 +50,7 @@
 
 #include "dom/chord.h"
 #include "dom/chordline.h"
+#include "dom/cipher.h"
 #include "dom/clef.h"
 #include "dom/capo.h"
 
