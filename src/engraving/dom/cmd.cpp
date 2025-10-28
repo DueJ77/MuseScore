@@ -1980,6 +1980,8 @@ void Score::upDown(bool up, UpDownMode mode)
             }
         }
         break;
+        case StaffGroup::CIPHER:
+            [[fallthrough]];
         case StaffGroup::STANDARD:
             switch (mode) {
             case UpDownMode::OCTAVE:

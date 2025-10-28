@@ -597,6 +597,9 @@ ClefTypeList Staff::clefType(const Fraction& tick) const
         case StaffGroup::PERCUSSION:
             ct = ClefTypeList(ClefType::PERC);
             break;
+        case StaffGroup::CIPHER:
+            ct = defaultClefType();
+            break;
         }
     }
     return ct;

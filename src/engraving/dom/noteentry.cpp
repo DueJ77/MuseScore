@@ -132,6 +132,9 @@ NoteVal Score::noteValForPosition(Position pos, AccidentalType at, bool& error)
         break;
     }
 
+    case StaffGroup::CIPHER:
+        // Cipher notation behaves like standard notation for note entry
+        [[fallthrough]];
     case StaffGroup::STANDARD: {
         AccidentalVal acci
             = (at == AccidentalType::NONE ? s->measure()->findAccidental(s, staffIdx, line, error) : Accidental::subtype2value(at));
@@ -408,6 +411,8 @@ Ret Score::putNote(const Position& p, bool replace)
         stringData = st->part()->stringData(s->tick(), st->idx());
         m_is.setDrumNote(-1);
         break;
+    case StaffGroup::CIPHER:
+        [[fallthrough]];
     case StaffGroup::STANDARD:
         m_is.setDrumNote(-1);
         break;
