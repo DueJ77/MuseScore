@@ -4430,7 +4430,7 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
 
         // Get cipher font and calculate dimensions
         muse::draw::Font cipherFont;
-        cipherFont.setFamily(item->style().styleSt(Sid::cipherFont));
+        cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
         cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
 
         // Calculate basic cipher note width and height
