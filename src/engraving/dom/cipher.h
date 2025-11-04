@@ -25,8 +25,11 @@
 #include "draw/types/font.h"
 #include "draw/types/geometry.h"
 
-namespace mu::engraving {
+namespace muse::draw {
 class Painter;
+}
+
+namespace mu::engraving {
 
 //---------------------------------------------------------
 //   Cipher
@@ -50,8 +53,8 @@ public:
     muse::String flatString() const { return u"♭"; }
     muse::draw::Font fretFont() const { return m_fretFont; }
 
-    void drawSharp(Painter* painter, const muse::PointF& pos, const muse::draw::Font& font) const;
-    void drawFlat(Painter* painter, const muse::PointF& pos, const muse::draw::Font& font) const;
+    void drawSharp(muse::draw::Painter* painter, const muse::PointF& pos, const muse::draw::Font& font) const;
+    void drawFlat(muse::draw::Painter* painter, const muse::PointF& pos, const muse::draw::Font& font) const;
 
 private:
     double m_relativeSize = 1.0;

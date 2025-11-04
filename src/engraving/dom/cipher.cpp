@@ -62,7 +62,7 @@ RectF Cipher::bbox(const Font& font, const PointF& pos, const String& string) co
 //   drawSharp
 //---------------------------------------------------------
 
-void Cipher::drawSharp(Painter* painter, const PointF& pos, const Font& font) const
+void Cipher::drawSharp(muse::draw::Painter* painter, const PointF& pos, const Font& font) const
 {
     Font oldFont = painter->font();
     painter->setFont(font);
@@ -74,7 +74,7 @@ void Cipher::drawSharp(Painter* painter, const PointF& pos, const Font& font) co
 //   drawFlat
 //---------------------------------------------------------
 
-void Cipher::drawFlat(Painter* painter, const PointF& pos, const Font& font) const
+void Cipher::drawFlat(muse::draw::Painter* painter, const PointF& pos, const Font& font) const
 {
     Font oldFont = painter->font();
     painter->setFont(font);
