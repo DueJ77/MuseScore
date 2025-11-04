@@ -444,7 +444,7 @@ public:
     double cipherHeight() const { return m_cipherHeight; }
     int cipherLedgerline() const { return m_cipherLedgerline; }
     int cipherGroundPitch() const;
-    String cipherString(int numkro) const;
+    String cipherString(int numkro);
     int setAccidentalTypeBack(int defaultdirection);
     int cipherTrans(Key key) const;
     int cipherOktave() const;

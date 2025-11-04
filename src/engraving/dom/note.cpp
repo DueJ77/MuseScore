@@ -3981,7 +3981,7 @@ int Note::stringOrLine() const
 //   Convert chromatic pitch to cipher notation digit
 //---------------------------------------------------------
 
-String Note::cipherString(int numkro) const
+String Note::cipherString(int numkro)
 {
     switch (numkro) {
     case 0:
