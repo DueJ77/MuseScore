@@ -597,6 +597,9 @@ ClefTypeList Staff::clefType(const Fraction& tick) const
         case StaffGroup::PERCUSSION:
             ct = ClefTypeList(ClefType::PERC);
             break;
+        case StaffGroup::CIPHER:
+            ct = defaultClefType();
+            break;
         }
     }
     return ct;
@@ -1774,6 +1777,15 @@ bool Staff::isDrumStaff(const Fraction& tick) const
 {
     //check for instrument instead of staffType (for pitched to unpitched instr. changes)
     return part()->instrument(tick)->useDrumset();
+}
+
+//---------------------------------------------------------
+//   isCipherStaff
+//---------------------------------------------------------
+
+bool Staff::isCipherStaff(const Fraction& tick) const
+{
+    return staffType(tick)->isCipherStaff();
 }
 
 //---------------------------------------------------------

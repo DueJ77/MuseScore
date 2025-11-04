@@ -194,6 +194,7 @@ void EditStaffType::setInstrument(const Instrument& instrument)
     int idx           = 0;
     for (const mu::engraving::StaffType& t : mu::engraving::StaffType::presets()) {
         if ((t.group() == mu::engraving::StaffGroup::STANDARD && bStandard)
+            || (t.group() == mu::engraving::StaffGroup::CIPHER && bStandard)
             || (t.group() == mu::engraving::StaffGroup::PERCUSSION && bPerc)
             || (t.group() == mu::engraving::StaffGroup::TAB && bTab && t.lines() <= instrument.stringData()->frettedStrings())) {
             templateCombo->addItem(t.name(), idx);
@@ -313,6 +314,10 @@ void EditStaffType::setValues()
 
     mu::engraving::StaffGroup group = staffType.group();
     int i = int(group);
+    // CIPHER uses the same page as STANDARD (page 0)
+    if (group == mu::engraving::StaffGroup::CIPHER) {
+        i = 0;
+    }
     stack->setCurrentIndex(i);
     groupName->setText(TConv::translatedUserName(group));
 
@@ -325,6 +330,14 @@ void EditStaffType::setValues()
 
     switch (group) {
     case mu::engraving::StaffGroup::STANDARD:
+        genKeysigPitched->setChecked(staffType.genKeysig());
+        showLedgerLinesPitched->setChecked(staffType.showLedgerLines());
+        stemlessPitched->setChecked(staffType.stemless());
+        noteHeadScheme->setCurrentIndex(int(staffType.noteHeadScheme()));
+        break;
+
+    case mu::engraving::StaffGroup::CIPHER:
+        // Cipher staff uses similar settings to standard staff for now
         genKeysigPitched->setChecked(staffType.genKeysig());
         showLedgerLinesPitched->setChecked(staffType.showLedgerLines());
         stemlessPitched->setChecked(staffType.stemless());
@@ -527,6 +540,12 @@ void EditStaffType::setFromDlg()
         staffType.setStemless(stemlessPitched->isChecked());
         staffType.setNoteHeadScheme(static_cast<NoteHeadScheme>(noteHeadScheme->currentData().toInt()));
     }
+    if (staffType.group() == mu::engraving::StaffGroup::CIPHER) {
+        staffType.setGenKeysig(genKeysigPitched->isChecked());
+        staffType.setShowLedgerLines(showLedgerLinesPitched->isChecked());
+        staffType.setStemless(stemlessPitched->isChecked());
+        staffType.setNoteHeadScheme(static_cast<NoteHeadScheme>(noteHeadScheme->currentData().toInt()));
+    }
     if (staffType.group() == mu::engraving::StaffGroup::PERCUSSION) {
         staffType.setGenKeysig(genKeysigPercussion->isChecked());
         staffType.setShowLedgerLines(showLedgerLinesPercussion->isChecked());
@@ -713,7 +732,7 @@ void EditStaffType::updatePreview()
     ExampleView* preview = nullptr;
     if (staffType.group() == mu::engraving::StaffGroup::TAB) {
         preview = tabPreview;
-    } else if (staffType.group() == mu::engraving::StaffGroup::STANDARD) {
+    } else if (staffType.group() == mu::engraving::StaffGroup::STANDARD || staffType.group() == mu::engraving::StaffGroup::CIPHER) {
         preview = standardPreview;
     }
     if (preview) {
@@ -742,6 +761,9 @@ QString EditStaffType::createUniqueStaffTypeName(mu::engraving::StaffGroup group
             break;
         case mu::engraving::StaffGroup::TAB:
             sn = QString("Tab-%1 [*]").arg(idx);
+            break;
+        case mu::engraving::StaffGroup::CIPHER:
+            sn = QString("Cipher-%1 [*]").arg(idx);
             break;
         }
         bool found = false;
