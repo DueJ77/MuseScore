@@ -2233,7 +2233,7 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
         
         // Draw cipher digit using cipher font
         Font cipherFont;
-        cipherFont.setFamily(item->style().styleSt(Sid::cipherFont));
+        cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
         cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
         painter->setFont(cipherFont);
         painter->setPen(c);
