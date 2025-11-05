@@ -99,6 +99,8 @@ void ChordLayout::layout(Chord* item, LayoutContext& ctx)
 
     if (item->onTabStaff()) {
         layoutTablature(item, ctx);
+    } else if (item->onCipherStaff()) {
+        layoutCipher(item, ctx);
     } else {
         layoutPitched(item, ctx);
     }
@@ -694,6 +696,63 @@ void ChordLayout::layoutTablature(Chord* item, LayoutContext& ctx)
 
     layoutLvArticulation(item, ctx);
 
+    fillShape(item, item->mutldata(), ctx.conf());
+}
+
+void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
+{
+    // Cipher notation layout - similar to pitched but with different note positioning
+    for (Chord* c : item->graceNotes()) {
+        layoutCipher(c, ctx);
+    }
+
+    double mag_ = item->staff() ? item->staff()->staffMag(item) : 1.0;
+    double dotNoteDistance = ctx.conf().styleMM(Sid::dotNoteDistance) * mag_;
+    double minNoteDistance = ctx.conf().styleMM(Sid::minNoteDistance) * mag_;
+    
+    double lll = 0.0;  // space to leave at left of chord
+    double rrr = 0.0;  // space to leave at right of chord
+    
+    // Layout all notes
+    for (Note* note : item->notes()) {
+        TLayout::layoutNote(note, note->mutldata());
+        
+        // Position note horizontally - cipher notes don't stack horizontally like standard notation
+        // All notes in a chord share the same x position
+        double x = 0.0;
+        
+        // Position note vertically - cipher notation uses a single line, so all notes at y=0
+        // (The cipher digit itself will be rendered at the appropriate staff position)
+        double y = 0.0;
+        
+        note->setPos(x, y);
+        
+        // Track maximum widths for chord spacing
+        double noteWidth = note->cipherWidth2();  // Total width including accidentals
+        if (noteWidth > rrr) {
+            rrr = noteWidth;
+        }
+    }
+
+    // Handle dots
+    if (item->dots()) {
+        double dotWidth = item->symWidth(SymId::augmentationDot);
+        // Position dots to the right of the notes
+        for (int i = 0; i < item->dots(); ++i) {
+            for (Note* note : item->notes()) {
+                if (NoteDot* dot = note->dot(i)) {
+                    TLayout::layoutNoteDot(dot, dot->mutldata());
+                    double x = rrr + dotNoteDistance + i * (dotWidth + dotNoteDistance);
+                    dot->setPos(x, 0);
+                }
+            }
+        }
+        rrr += dotNoteDistance + item->dots() * (dotWidth + dotNoteDistance);
+    }
+
+    // Layout other elements
+    layoutLvArticulation(item, ctx);
+    
     fillShape(item, item->mutldata(), ctx.conf());
 }
 
