@@ -4422,25 +4422,68 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         noteBBox = RectF(0, y * mags, w, height * mags);
     } else if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
         // Cipher notation layout
-        // TODO: This is a placeholder implementation that needs complete cipher layout logic
-        // For now, calculate basic bounding box to prevent crashes
-
         Note* mutableItem = const_cast<Note*>(item);
         double spatium = item->spatium();
+        
+        // Reset draw flags
+        mutableItem->m_drawSharp = false;
+        mutableItem->m_drawFlat = false;
 
         // Get cipher font and calculate dimensions
         muse::draw::Font cipherFont;
         cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
         cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
 
-        // Calculate basic cipher note width and height
-        // This is simplified - full implementation would calculate based on actual cipher string
-        double noteWidth = spatium * 0.8;   // Approximate width
-        double noteHeight = spatium * 1.0;  // Approximate height
+        // Get the key signature to calculate transposition
+        Key key = item->staff() ? item->staff()->key(item->chord()->tick()) : Key::C;
+        
+        // Calculate the cipher string based on pitch and key
+        int groundPitch = item->pitch();
+        int trans = item->cipherTrans(key);
+        int oktaveOffset = item->cipherOktave();
+        
+        // Calculate the chromatic pitch class (0-11) for cipher conversion
+        int chromaticPitchClass = (groundPitch + trans) % 12;
+        
+        // Get the cipher digit string (this also sets m_drawSharp/m_drawFlat as needed)
+        String cipherDigit = mutableItem->cipherString(chromaticPitchClass);
+        mutableItem->setFretString(cipherDigit);
 
-        mutableItem->setFretString(u"1");  // Placeholder - should be calculated from pitch
-
-        noteBBox = RectF(0, -noteHeight / 2, noteWidth, noteHeight);
+        // Calculate text dimensions using the Cipher helper
+        Cipher& cipher = mutableItem->m_cipher;
+        double digitWidth = cipher.textWidth(cipherFont, cipherDigit);
+        double digitHeight = cipher.textHeight(cipherFont, cipherDigit);
+        
+        // Calculate accidental dimensions if needed
+        double accidentalWidth = 0.0;
+        double accidentalHeight = 0.0;
+        if (mutableItem->m_drawSharp || mutableItem->m_drawFlat) {
+            String accSymbol = mutableItem->m_drawSharp ? cipher.sharpString() : cipher.flatString();
+            accidentalWidth = cipher.textWidth(cipherFont, accSymbol) * item->style().styleD(Sid::cipherSizeSignSharp);
+            accidentalHeight = cipher.textHeight(cipherFont, accSymbol);
+        }
+        
+        // Position calculations
+        double totalWidth = digitWidth;
+        if (accidentalWidth > 0) {
+            totalWidth += accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium;
+        }
+        
+        // Calculate height displacement for positioning
+        double heightDisplacement = item->style().styleD(Sid::cipherHeightDisplacement) * spatium;
+        
+        // Store cipher dimensions in Note fields
+        mutableItem->m_cipherWidth = digitWidth;
+        mutableItem->m_cipherWidth2 = totalWidth;
+        mutableItem->m_cipherHeight = digitHeight;
+        
+        // Set positions for text and accidentals
+        mutableItem->m_cipherTextPos = PointF(accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0, heightDisplacement);
+        mutableItem->m_cipherAccidentalPos = PointF(0, heightDisplacement + item->style().styleD(Sid::cipherHeigthSignSharp) * spatium);
+        
+        // Calculate bounding box
+        double boxHeight = std::max(digitHeight, accidentalHeight);
+        noteBBox = RectF(0, -boxHeight / 2 + heightDisplacement, totalWidth, boxHeight);
     } else {
         if (item->deadNote()) {
             const_cast<Note*>(item)->setHeadGroup(NoteHeadGroup::HEAD_CROSS);

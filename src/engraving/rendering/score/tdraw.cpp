@@ -2229,22 +2229,26 @@ void TDraw::draw(const Note* item, Painter* painter)
     }
     // Cipher notation
     else if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
-        // TODO: This is a placeholder implementation
-        // Full implementation would draw cipher digits, accidentals, parentheses, etc.
-
         double spatium = item->spatium();
 
-        // Draw cipher digit using cipher font
+        // Get cipher font
         Font cipherFont;
         cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
         cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        
         painter->setFont(cipherFont);
         painter->setPen(c);
 
-        // Draw the cipher string (currently just a placeholder "1")
-        painter->drawText(PointF(0, 0), item->fretString());
+        // Draw accidentals if needed (sharp or flat)
+        const Cipher& cipher = item->cipher();
+        if (item->drawSharp()) {
+            cipher.drawSharp(painter, item->cipherAccidentalPos(), cipherFont);
+        } else if (item->drawFlat()) {
+            cipher.drawFlat(painter, item->cipherAccidentalPos(), cipherFont);
+        }
 
-        // TODO: Draw accidentals, parentheses, ledger lines, etc.
+        // Draw the cipher digit at calculated position
+        painter->drawText(item->cipherTextPos(), item->fretString());
     }
     // NOT tablature or cipher
     else {

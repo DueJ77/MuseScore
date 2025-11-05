@@ -448,6 +448,11 @@ public:
     int setAccidentalTypeBack(int defaultdirection);
     int cipherTrans(Key key) const;
     int cipherOktave() const;
+    const Cipher& cipher() const { return m_cipher; }
+    const muse::PointF& cipherTextPos() const { return m_cipherTextPos; }
+    const muse::PointF& cipherAccidentalPos() const { return m_cipherAccidentalPos; }
+    bool drawSharp() const { return m_drawSharp; }
+    bool drawFlat() const { return m_drawFlat; }
 
     struct LayoutData : public EngravingItem::LayoutData {
         ld_field<bool> useTablature = { "[Note] useTablature", false };
