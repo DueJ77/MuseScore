@@ -105,6 +105,36 @@ void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const Lay
             delete item->tabDur();
             const_cast<Rest*>(item)->setTabDur(nullptr);
         }
+    } else if (stt && stt->isCipherStaff()) {
+        // Cipher notation rest layout
+        // Use standard rest symbols but position them appropriately for cipher staff
+        // Cipher staves typically use a single line, so rests are centered on that line
+        
+        const_cast<Rest*>(item)->setDotLine(Rest::getDotline(item->durationType().type()));
+        
+        // Position rest at y=0 (cipher staff center line)
+        ldata->setPosY(0.0);
+        
+        // Use standard rest symbol
+        ldata->sym = item->getSymbol(item->durationType().type(), 0, 1);
+        
+        // Calculate bounding box
+        fillShape(item, ldata, ctx.conf());
+        
+        // Layout dots
+        const_cast<Rest*>(item)->checkDots();
+        double visibleX = item->symWidthNoLedgerLines(ldata) + ctx.conf().styleMM(Sid::dotNoteDistance) * item->mag();
+        double visibleDX = ctx.conf().styleMM(Sid::dotDotDistance) * item->mag();
+        double y = 0.0;  // Center line for cipher
+        for (NoteDot* dot : item->dotList()) {
+            NoteDot::LayoutData* dotldata = dot->mutldata();
+            TLayout::layoutNoteDot(dot, dotldata);
+            if (dot->visible()) {
+                dotldata->setPos(visibleX, y);
+                visibleX += visibleDX;
+            }
+        }
+        return;
     }
 
     const_cast<Rest*>(item)->setDotLine(Rest::getDotline(item->durationType().type()));
