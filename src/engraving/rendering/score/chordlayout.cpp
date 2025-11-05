@@ -750,6 +750,16 @@ void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
         rrr += dotNoteDistance + item->dots() * (dotWidth + dotNoteDistance);
     }
 
+    // Layout note2 for additional elements
+    for (Note* note : item->notes()) {
+        layoutNote2(note, ctx);
+    }
+
+    // Handle stem slash if present
+    if (item->stemSlash()) {
+        TLayout::layoutStemSlash(item->stemSlash(), item->stemSlash()->mutldata(), ctx.conf());
+    }
+
     // Layout other elements
     layoutLvArticulation(item, ctx);
     
