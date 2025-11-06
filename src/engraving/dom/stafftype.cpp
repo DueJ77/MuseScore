@@ -1107,7 +1107,8 @@ double StaffType::spatium() const
 static const int _defaultPreset[STAFF_GROUP_MAX] =
 { 0,                    // default pitched preset is "stdNormal"
   4,                    // default percussion preset is "perc5lines"
-  5                     // default tab preset is "tab6StrCommon"
+  5,                    // default tab preset is "tab6StrCommon"
+  27                    // default cipher preset is "cipherStandard" (index 27 in presets array)
 };
 
 //---------------------------------------------------------

@@ -142,10 +142,12 @@ enum class StaffTypes : signed char {
     TAB_ITALIAN, TAB_FRENCH,
     TAB_7COMMON, TAB_8COMMON, TAB_9COMMON, TAB_10COMMON,
     TAB_7SIMPLE, TAB_8SIMPLE, TAB_9SIMPLE, TAB_10SIMPLE,
+    CIPHER_STANDARD,
     STAFF_TYPES,
     // some useful shorthands:
     PERC_DEFAULT = StaffTypes::PERC_5LINE,
     TAB_DEFAULT = StaffTypes::TAB_6COMMON,
+    CIPHER_DEFAULT = StaffTypes::CIPHER_STANDARD,
 };
 
 enum class ShowTiedFret : unsigned char {
