@@ -4426,8 +4426,8 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         double spatium = item->spatium();
         
         // Reset draw flags
-        mutableItem->m_drawSharp = false;
-        mutableItem->m_drawFlat = false;
+        mutableItem->setDrawSharp(false);
+        mutableItem->setDrawFlat(false);
 
         // Get cipher font and calculate dimensions
         muse::draw::Font cipherFont;
@@ -4440,25 +4440,24 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         // Calculate the cipher string based on pitch and key
         int groundPitch = item->pitch();
         int trans = item->cipherTrans(key);
-        int oktaveOffset = item->cipherOktave();
         
         // Calculate the chromatic pitch class (0-11) for cipher conversion
         int chromaticPitchClass = (groundPitch + trans) % 12;
         
-        // Get the cipher digit string (this also sets m_drawSharp/m_drawFlat as needed)
+        // Get the cipher digit string (this also sets drawSharp/drawFlat as needed)
         String cipherDigit = mutableItem->cipherString(chromaticPitchClass);
         mutableItem->setFretString(cipherDigit);
 
         // Calculate text dimensions using the Cipher helper
-        Cipher& cipher = mutableItem->m_cipher;
+        Cipher& cipher = mutableItem->cipher();
         double digitWidth = cipher.textWidth(cipherFont, cipherDigit);
         double digitHeight = cipher.textHeight(cipherFont, cipherDigit);
         
         // Calculate accidental dimensions if needed
         double accidentalWidth = 0.0;
         double accidentalHeight = 0.0;
-        if (mutableItem->m_drawSharp || mutableItem->m_drawFlat) {
-            String accSymbol = mutableItem->m_drawSharp ? cipher.sharpString() : cipher.flatString();
+        if (mutableItem->drawSharp() || mutableItem->drawFlat()) {
+            String accSymbol = mutableItem->drawSharp() ? cipher.sharpString() : cipher.flatString();
             accidentalWidth = cipher.textWidth(cipherFont, accSymbol) * item->style().styleD(Sid::cipherSizeSignSharp);
             accidentalHeight = cipher.textHeight(cipherFont, accSymbol);
         }
@@ -4473,13 +4472,13 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         double heightDisplacement = item->style().styleD(Sid::cipherHeightDisplacement) * spatium;
         
         // Store cipher dimensions in Note fields
-        mutableItem->m_cipherWidth = digitWidth;
-        mutableItem->m_cipherWidth2 = totalWidth;
-        mutableItem->m_cipherHeight = digitHeight;
+        mutableItem->setCipherWidth(digitWidth);
+        mutableItem->setCipherWidth2(totalWidth);
+        mutableItem->setCipherHeight(digitHeight);
         
         // Set positions for text and accidentals
-        mutableItem->m_cipherTextPos = PointF(accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0, heightDisplacement);
-        mutableItem->m_cipherAccidentalPos = PointF(0, heightDisplacement + item->style().styleD(Sid::cipherHeigthSignSharp) * spatium);
+        mutableItem->setCipherTextPos(PointF(accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0, heightDisplacement));
+        mutableItem->setCipherAccidentalPos(PointF(0, heightDisplacement + item->style().styleD(Sid::cipherHeigthSignSharp) * spatium));
         
         // Calculate bounding box
         double boxHeight = std::max(digitHeight, accidentalHeight);

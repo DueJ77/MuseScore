@@ -449,10 +449,20 @@ public:
     int cipherTrans(Key key) const;
     int cipherOktave() const;
     const Cipher& cipher() const { return m_cipher; }
+    Cipher& cipher() { return m_cipher; }
     const muse::PointF& cipherTextPos() const { return m_cipherTextPos; }
     const muse::PointF& cipherAccidentalPos() const { return m_cipherAccidentalPos; }
     bool drawSharp() const { return m_drawSharp; }
     bool drawFlat() const { return m_drawFlat; }
+    
+    // Cipher notation setters (for layout phase)
+    void setCipherWidth(double w) { m_cipherWidth = w; }
+    void setCipherWidth2(double w) { m_cipherWidth2 = w; }
+    void setCipherHeight(double h) { m_cipherHeight = h; }
+    void setCipherTextPos(const muse::PointF& pos) { m_cipherTextPos = pos; }
+    void setCipherAccidentalPos(const muse::PointF& pos) { m_cipherAccidentalPos = pos; }
+    void setDrawSharp(bool val) { m_drawSharp = val; }
+    void setDrawFlat(bool val) { m_drawFlat = val; }
 
     struct LayoutData : public EngravingItem::LayoutData {
         ld_field<bool> useTablature = { "[Note] useTablature", false };
