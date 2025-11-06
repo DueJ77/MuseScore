@@ -4042,12 +4042,12 @@ int Note::setAccidentalTypeBack(int defaultdirection)
 {
     int shift = defaultdirection;
     if (shift == 1) {
-        m_drawSharp = true;
-        m_drawFlat = false;
+        setDrawSharp(true);
+        setDrawFlat(false);
     }
     if (shift == -1) {
-        m_drawFlat = true;
-        m_drawSharp = false;
+        setDrawFlat(true);
+        setDrawSharp(false);
     }
     return shift;
 }
