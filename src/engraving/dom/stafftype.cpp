@@ -253,6 +253,8 @@ StaffTypes StaffType::type() const
         { u"tab8StrSimple", StaffTypes::TAB_8SIMPLE },
         { u"tab9StrSimple", StaffTypes::TAB_9SIMPLE },
         { u"tab10StrSimple", StaffTypes::TAB_10SIMPLE },
+
+        { u"cipherStandard", StaffTypes::CIPHER_STANDARD },
     };
 
     return muse::value(xmlNameToType, m_xmlName, StaffTypes::STANDARD);
