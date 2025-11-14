@@ -452,6 +452,8 @@ public:
     Cipher& cipher() { return m_cipher; }
     const muse::PointF& cipherTextPos() const { return m_cipherTextPos; }
     const muse::PointF& cipherAccidentalPos() const { return m_cipherAccidentalPos; }
+    const muse::PointF& cipherKlammerPos() const { return m_cipherKlammerPos; }
+    double trackThick() const { return m_trackthick; }
     bool drawSharp() const { return m_drawSharp; }
     bool drawFlat() const { return m_drawFlat; }
     
@@ -459,8 +461,11 @@ public:
     void setCipherWidth(double w) { m_cipherWidth = w; }
     void setCipherWidth2(double w) { m_cipherWidth2 = w; }
     void setCipherHeight(double h) { m_cipherHeight = h; }
+    void setCipherLedgerline(int val) { m_cipherLedgerline = val; }
     void setCipherTextPos(const muse::PointF& pos) { m_cipherTextPos = pos; }
     void setCipherAccidentalPos(const muse::PointF& pos) { m_cipherAccidentalPos = pos; }
+    void setCipherKlammerPos(const muse::PointF& pos) { m_cipherKlammerPos = pos; }
+    void setTrackThick(double val) { m_trackthick = val; }
     void setDrawSharp(bool val) { m_drawSharp = val; }
     void setDrawFlat(bool val) { m_drawFlat = val; }
 

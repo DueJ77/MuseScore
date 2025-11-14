@@ -4496,10 +4496,17 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
             mutableItem->setDrawSharp(false);
             mutableItem->setDrawFlat(false);
 
-            // Get cipher font and calculate dimensions
+            // Calculate track thickness first (voices 2-4 are displayed smaller with parentheses)
+            double trackThick = 1.0;
+            if (item->track() % VOICES > 0) {
+                trackThick = 0.7;
+            }
+            mutableItem->setTrackThick(trackThick);
+
+            // Get cipher font with trackThick scaling
             muse::draw::Font cipherFont;
             cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
-            cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
+            cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20 * trackThick);
 
             // Get transposition and key signature
             int numTransposeInterval = item->part()->instrument(item->chord()->tick())->transpose().chromatic;
@@ -4577,6 +4584,12 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
             totalWidth += accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium;
         }
         
+        // Add parentheses width for non-main voices
+        if (trackThick != 1.0) {
+            double parenWidth = cipher.textWidth(cipherFont, u"(");
+            totalWidth += parenWidth * 2; // for both parentheses
+        }
+        
         // Calculate octave-based vertical position
         // IMPORTANT: Use MINUS accidentalShift (corrected formula from MS3)
         int cipherLedgerline = ((item->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 5 - clefShift) / 2;
@@ -4587,11 +4600,21 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         mutableItem->setCipherWidth(digitWidth);
         mutableItem->setCipherWidth2(totalWidth);
         mutableItem->setCipherHeight(digitHeight);
+        mutableItem->setCipherLedgerline(cipherLedgerline);
         
         // Set positions for text and accidentals
-        mutableItem->setCipherTextPos(PointF(accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0, -fretStringYShift));
+        double textXOffset = accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0;
+        if (trackThick != 1.0) {
+            textXOffset += cipher.textWidth(cipherFont, u"(");
+        }
+        mutableItem->setCipherTextPos(PointF(textXOffset, -fretStringYShift));
         double accHeightAdjust = item->style().styleD(mutableItem->drawSharp() ? Sid::cipherHeigthSignSharp : Sid::cipherHeigthSignFlat) * spatium;
-        mutableItem->setCipherAccidentalPos(PointF(0, -fretStringYShift + accHeightAdjust));
+        mutableItem->setCipherAccidentalPos(PointF(trackThick != 1.0 ? cipher.textWidth(cipherFont, u"(") : 0, -fretStringYShift + accHeightAdjust));
+        
+        // Set parenthesis position for non-main voices
+        if (trackThick != 1.0) {
+            mutableItem->setCipherKlammerPos(PointF(0, -fretStringYShift));
+        }
         
         // Calculate bounding box
         double boxHeight = std::max(digitHeight, accidentalHeight);

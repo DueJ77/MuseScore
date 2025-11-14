@@ -2270,25 +2270,47 @@ void TDraw::draw(const Note* item, Painter* painter)
     // Cipher notation
     else if (item->staff() && item->chord() && item->staff()->isCipherStaff(item->chord()->tick())) {
         double spatium = item->spatium();
+        double trackThick = item->trackThick();
 
-        // Get cipher font
+        // Get cipher font with trackThick scaling already applied in layout
         Font cipherFont;
         cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
-        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20 * trackThick);
         
         painter->setFont(cipherFont);
         painter->setPen(c);
 
-        // Draw accidentals if needed (sharp or flat)
+        // Draw accidentals if needed (sharp or flat) with trackThick scaling
         const Cipher& cipher = item->cipher();
         if (item->drawSharp()) {
-            cipher.drawSharp(painter, item->cipherAccidentalPos(), cipherFont);
+            Font accFont = cipherFont;
+            double accSize = item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignSharp) 
+                           * spatium * MScore::pixelRatio / SPATIUM20 * trackThick;
+            accFont.setPointSizeF(accSize);
+            cipher.drawSharp(painter, item->cipherAccidentalPos(), accFont);
         } else if (item->drawFlat()) {
-            cipher.drawFlat(painter, item->cipherAccidentalPos(), cipherFont);
+            Font accFont = cipherFont;
+            double accSize = item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) 
+                           * spatium * MScore::pixelRatio / SPATIUM20 * trackThick;
+            accFont.setPointSizeF(accSize);
+            cipher.drawFlat(painter, item->cipherAccidentalPos(), accFont);
+        }
+
+        // Draw opening parenthesis for non-main voices
+        if (trackThick != 1.0) {
+            painter->drawText(item->cipherKlammerPos(), u"(");
         }
 
         // Draw the cipher digit at calculated position
         painter->drawText(item->cipherTextPos(), item->fretString());
+
+        // Draw closing parenthesis for non-main voices
+        if (trackThick != 1.0) {
+            // Position after the digit text (cipherWidth is the width of the digit itself)
+            PointF closeParenPos(item->cipherTextPos().x() + item->cipherWidth(), 
+                                item->cipherTextPos().y());
+            painter->drawText(closeParenPos, u")");
+        }
 
         // Draw duration strokes above the note
         // Only for notes with duration < quarter note (eighth, sixteenth, etc.)
