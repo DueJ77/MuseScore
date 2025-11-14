@@ -878,6 +878,59 @@ void TDraw::draw(const Beam* item, Painter* painter)
     if (item->beamSegments().empty()) {
         return;
     }
+    
+    // Cipher notation: draw horizontal hook lines for each beamed note instead of beams
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        // For each chord in the beam, draw individual hook lines
+        for (const ChordRest* cr : item->elements()) {
+            if (!cr->isChord()) {
+                continue;
+            }
+            const Chord* chord = toChord(cr);
+            if (chord->notes().empty()) {
+                continue;
+            }
+            
+            int hooks = chord->durationType().hooks();
+            if (hooks <= 0) {
+                continue;
+            }
+            
+            // Get the first note for dimensions and position
+            const Note* note = chord->notes()[0];
+            double cipherHeight = note->cipherHeight();
+            double cipherWidth = note->cipherWidth();
+            
+            // Calculate line properties
+            double lineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
+            double lineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1.0);
+            double lineLength = cipherWidth * item->style().styleD(Sid::cipherWideLine);
+            double offsetLine = item->style().styleD(Sid::cipherOffsetLine);
+            
+            // Get positions: note position relative to beam, plus cipher text offset
+            PointF notePos = note->pagePos();
+            PointF beamPos = item->pagePos();
+            PointF cipherTextPos = note->cipherTextPos();
+            PointF relativePos = notePos - beamPos + cipherTextPos;
+            
+            // Lines should be above the cipher text
+            // cipherTextPos.y() is the baseline, we need to go up by the text height plus a bit more
+            double textHeight = cipherHeight;
+            double yAboveText = relativePos.y() - textHeight * 1.2; // Go above the text
+            
+            painter->setPen(Pen(item->curColor(), lineThick));
+            
+            // Draw horizontal lines for each hook
+            for (int i = 0; i < hooks; ++i) {
+                double xStart = relativePos.x() + offsetLine;
+                double xEnd = relativePos.x() + offsetLine + lineLength;
+                double y = yAboveText - (i * std::abs(lineSpace));
+                painter->drawLine(LineF(xStart, y, xEnd, y));
+            }
+        }
+        return;
+    }
+    
     painter->setBrush(Brush(item->curColor()));
     painter->setNoPen();
 
@@ -1890,6 +1943,51 @@ void TDraw::draw(const Hook* item, Painter* painter)
         return;
     }
 
+    // Cipher notation: draw horizontal lines instead of hooks
+    if (item->staff() && item->chord() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        const Chord* chord = item->chord();
+        int hookType = item->hookType();
+        if (hookType == 0 || chord->notes().empty()) {
+            return;
+        }
+        
+        // Only draw hook lines once per chord (for the upNote)
+        // In cipher notation, all notes in a chord share the same hook lines
+        const Note* upNote = chord->upNote();
+        if (!upNote) {
+            return;
+        }
+        
+        double cipherHeight = upNote->cipherHeight();
+        double cipherWidth = upNote->cipherWidth();
+        
+        // Calculate line properties based on style settings
+        double lineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
+        double lineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1.0);
+        double lineLength = cipherWidth * item->style().styleD(Sid::cipherWideLine);
+        double offsetLine = item->style().styleD(Sid::cipherOffsetLine);
+        
+        // Get cipher text position (includes offset for accidentals and parentheses)
+        PointF cipherTextPos = upNote->cipherTextPos();
+        
+        // Lines should be above the cipher text
+        // cipherTextPos.y() is the baseline, we need to go up by the text height plus a bit more
+        double textHeight = cipherHeight;
+        double yAboveText = cipherTextPos.y() - textHeight * 1.2; // Go above the text
+        
+        painter->setPen(Pen(item->curColor(), lineThick));
+        
+        // Draw horizontal lines for each hook
+        int numLines = std::abs(hookType);
+        for (int i = 0; i < numLines; ++i) {
+            double xStart = cipherTextPos.x() + offsetLine;
+            double xEnd = cipherTextPos.x() + offsetLine + lineLength;
+            double y = yAboveText - (i * std::abs(lineSpace));
+            painter->drawLine(LineF(xStart, y, xEnd, y));
+        }
+        return;
+    }
+
     painter->setPen(item->curColor());
     item->drawSymbol(item->sym(), painter);
 }
@@ -2316,35 +2414,6 @@ void TDraw::draw(const Note* item, Painter* painter)
             PointF closeParenPos(item->cipherTextPos().x() + item->cipherWidth(), 
                                 item->cipherTextPos().y());
             painter->drawText(closeParenPos, u")");
-        }
-
-        // Draw duration strokes above the note
-        // Only for notes with duration < quarter note (eighth, sixteenth, etc.)
-        Chord* chord = item->chord();
-        if (chord && !chord->beam()) {
-            int hooks = chord->durationType().hooks();
-            if (hooks > 0) {
-                // Get text bounds to position strokes above
-                muse::draw::FontMetrics fm(cipherFont);
-                double textWidth = fm.width(item->fretString());
-                double textHeight = fm.height();
-                
-                // Position strokes above the digit
-                double xStart = item->cipherTextPos().x();
-                double xEnd = xStart + textWidth;
-                double yBase = item->cipherTextPos().y() - textHeight * 0.3; // above the text
-                
-                double strokeSpacing = spatium * 0.2; // spacing between strokes
-                double strokeWidth = spatium * 0.1;   // thickness of strokes
-                
-                painter->setPen(Pen(c, strokeWidth));
-                
-                // Draw horizontal strokes for each hook
-                for (int i = 0; i < hooks; ++i) {
-                    double y = yBase - (i * strokeSpacing);
-                    painter->drawLine(LineF(xStart, y, xEnd, y));
-                }
-            }
         }
     }
     // NOT tablature or cipher
