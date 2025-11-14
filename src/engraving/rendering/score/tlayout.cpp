@@ -100,6 +100,7 @@
 #include "dom/note.h"
 #include "dom/notedot.h"
 #include "dom/noteline.h"
+#include "dom/pitchspelling.h"
 
 #include "dom/ornament.h"
 #include "dom/ottava.h"
@@ -180,6 +181,22 @@ using namespace muse::draw;
 using namespace mu::engraving;
 using namespace mu::engraving::rtti;
 using namespace mu::engraving::rendering::score;
+
+namespace mu::engraving {
+extern const char* CipherString[15][2];
+
+// Cipher duration markers - defined inline
+// MS3 logic: WHOLE notes (index 2) get ",,", HALF notes (index 3) get ","
+// DurationType: V_LONG=0, V_BREVE=1, V_WHOLE=2, V_HALF=3, V_QUARTER=4, V_EIGHTH=5, V_16TH=6, V_32ND=7, ...
+static const char16_t* cipherDuration_internal[16] = {
+    u"", u"", u",,", u",", u"", u"", u"", u"",
+    u"", u"", u"", u"", u"", u"", u"", u""
+};
+
+static const char16_t* cipherDurationDot_internal[3] = {
+    u"", u".", u".."
+};
+}
 
 #define LAYOUT_CALL_ITEM(item) LAYOUT_CALL() << LAYOUT_ITEM_INFO(item);
 
@@ -3699,6 +3716,46 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
         return;
     }
 
+    // Cipher notation handling
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        if (!item->segment()->isKeySigAnnounceType()) {
+            Fraction tick = item->tick();
+            if ((tick.isZero() || item->staff()->key(tick - Fraction::fromTicks(1)) != item->key()) 
+                && item->staff() && item->staff()->idx() < 1) {
+                double cipherHeight = item->staff()->staffType(item->tick())->fretBoxH() * item->mag() 
+                                      * conf.styleD(Sid::cipherKeySigSize);
+                
+                int sigMode = int(item->mode()) - 1;
+                if (sigMode < 0 || sigMode > 2) {
+                    sigMode = 0;
+                }
+                String cipherString = String::fromUtf8(CipherString[int(item->key()) + 7][sigMode]);
+                
+                muse::draw::Font cipherFont;
+                cipherFont.setFamily(muse::draw::Font::FontFamily(conf.styleSt(Sid::cipherKeySigFont)), 
+                                     muse::draw::Font::Type::Text);
+                cipherFont.setPointSizeF(conf.styleD(Sid::cipherFontSize) * spatium 
+                                         * conf.styleD(Sid::cipherKeySigSize) / SPATIUM20);
+                cipherFont.setItalic(true);
+                
+                muse::draw::FontMetrics fm(cipherFont);
+                double textWidth = fm.width(cipherString);
+                
+                double leftAdjust = cipherHeight * -conf.styleD(Sid::cipherKeySigHorizontalShift);
+                double yPos = cipherHeight * -conf.styleD(Sid::cipherKeySigHigth);
+                
+                RectF textRect(leftAdjust, yPos - cipherHeight, textWidth, cipherHeight);
+                ldata->setBbox(textRect);
+                
+                // Set shape for cipher key signature
+                Shape cipherKeyShape;
+                cipherKeyShape.add(textRect, item);
+                ldata->setShape(cipherKeyShape);
+            }
+        }
+        return;
+    }
+
     // determine current clef for this staff
     ClefType clef = ClefType::G;
     if (item->staff()) {
@@ -4420,45 +4477,97 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         double height = item->deadNote() ? tab->deadFretBoxH() : tab->fretBoxH();
 
         noteBBox = RectF(0, y * mags, w, height * mags);
-    } else if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
-        // Cipher notation layout
-        Note* mutableItem = const_cast<Note*>(item);
-        double spatium = item->spatium();
-        
-        // Reset draw flags
-        mutableItem->setDrawSharp(false);
-        mutableItem->setDrawFlat(false);
+    } else if (item->staff() && item->chord() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        // Cipher notation layout - with comprehensive safety checks
+        try {
+            Note* mutableItem = const_cast<Note*>(item);
+            double spatium = item->spatium();
+            
+            // Safety check for part and instrument
+            if (!item->part() || !item->part()->instrument(item->chord()->tick())) {
+                // Fallback to simple layout if part/instrument not available
+                noteBBox = RectF(0, 0, spatium, spatium);
+                ldata->setBbox(noteBBox);
+                fillNoteShape(item, ldata);
+                return;
+            }
+            
+            // Reset draw flags
+            mutableItem->setDrawSharp(false);
+            mutableItem->setDrawFlat(false);
 
-        // Get cipher font and calculate dimensions
-        muse::draw::Font cipherFont;
-        cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
-        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
+            // Get cipher font and calculate dimensions
+            muse::draw::Font cipherFont;
+            cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
+            cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
 
-        // Get the key signature to calculate transposition
+            // Get transposition and key signature
+            int numTransposeInterval = item->part()->instrument(item->chord()->tick())->transpose().chromatic;
         Key key = item->staff() ? item->staff()->key(item->chord()->tick()) : Key::C;
+        int clefShift = mutableItem->cipherOktave();
+        int groundToneShift = mutableItem->cipherTrans(key);
         
-        // Calculate the cipher string based on pitch and key
-        int groundPitch = item->pitch();
-        int trans = item->cipherTrans(key);
+        // Calculate accidental shift using TPC (Tonal Pitch Class)
+        int accidentalShift = 0;
+        int step = tpc2stepByKey(item->tpc(), key, accidentalShift);
         
-        // Calculate the chromatic pitch class (0-11) for cipher conversion
-        int chromaticPitchClass = (groundPitch + trans) % 12;
+        // Limit accidental shift to valid range
+        if (accidentalShift > 1 || accidentalShift < -1) {
+            accidentalShift = 0;
+        }
         
-        // Get the cipher digit string (this also sets drawSharp/drawFlat as needed)
-        String cipherDigit = mutableItem->cipherString(chromaticPitchClass);
-        mutableItem->setFretString(cipherDigit);
+        // Set draw flags based on accidental shift
+        if (accidentalShift == 1) {
+            mutableItem->setDrawSharp(true);
+        } else if (accidentalShift == -1) {
+            mutableItem->setDrawFlat(true);
+        }
+        
+        // Calculate chromatic pitch class for cipher string
+        // IMPORTANT: Use MINUS accidentalShift (not plus) for correct octave calculation
+        int chromaticPitch = ((item->pitch() - accidentalShift + groundToneShift + numTransposeInterval) % 12) + 1;
+        
+        // Get the cipher digit string
+        String cipherDigit = mutableItem->cipherString(chromaticPitch);
+        
+        // Add duration markers (commas and dots) using the internal arrays
+        String durationMarker = u"";
+        String dotMarker = u"";
+        
+        if (item->chord()) {
+            DurationType durType = item->chord()->durationType().type();
+            int durTypeIndex = int(durType);
+            LOGD() << "Cipher duration layout: durType=" << durTypeIndex << " dots=" << item->chord()->dots();
+            if (durTypeIndex >= 0 && durTypeIndex < 16) {
+                durationMarker = cipherDuration_internal[durTypeIndex];
+            }
+            
+            int dots = item->chord()->dots();
+            if (dots >= 0 && dots <= 2) {
+                dotMarker = cipherDurationDot_internal[dots];
+            } else if (dots > 2) {
+                // For triple dots or more, use maximum of two dots
+                dotMarker = cipherDurationDot_internal[2];
+            }
+        }
+        
+        mutableItem->setFretString(cipherDigit + durationMarker + dotMarker);
 
         // Calculate text dimensions using the Cipher helper
         Cipher& cipher = mutableItem->cipher();
-        double digitWidth = cipher.textWidth(cipherFont, cipherDigit);
-        double digitHeight = cipher.textHeight(cipherFont, cipherDigit);
+        cipher.setFretFont(cipherFont);
+        double digitWidth = cipher.textWidth(cipherFont, mutableItem->fretString());
+        double digitHeight = cipher.textHeight(cipherFont, u"1234567890");
         
         // Calculate accidental dimensions if needed
         double accidentalWidth = 0.0;
         double accidentalHeight = 0.0;
         if (mutableItem->drawSharp() || mutableItem->drawFlat()) {
             String accSymbol = mutableItem->drawSharp() ? cipher.sharpString() : cipher.flatString();
-            accidentalWidth = cipher.textWidth(cipherFont, accSymbol) * item->style().styleD(Sid::cipherSizeSignSharp);
+            double accSizeMultiplier = mutableItem->drawSharp() ? 
+                item->style().styleD(Sid::cipherSizeSignSharp) : 
+                item->style().styleD(Sid::cipherSizeSignFlat);
+            accidentalWidth = cipher.textWidth(cipherFont, accSymbol) * accSizeMultiplier;
             accidentalHeight = cipher.textHeight(cipherFont, accSymbol);
         }
         
@@ -4468,8 +4577,11 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
             totalWidth += accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium;
         }
         
-        // Calculate height displacement for positioning
-        double heightDisplacement = item->style().styleD(Sid::cipherHeightDisplacement) * spatium;
+        // Calculate octave-based vertical position
+        // IMPORTANT: Use MINUS accidentalShift (corrected formula from MS3)
+        int cipherLedgerline = ((item->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 5 - clefShift) / 2;
+        double fretStringYShift = ((item->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 5 - clefShift) 
+                                  * digitHeight * item->style().styleD(Sid::cipherDistanceOctave);
         
         // Store cipher dimensions in Note fields
         mutableItem->setCipherWidth(digitWidth);
@@ -4477,12 +4589,20 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         mutableItem->setCipherHeight(digitHeight);
         
         // Set positions for text and accidentals
-        mutableItem->setCipherTextPos(PointF(accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0, heightDisplacement));
-        mutableItem->setCipherAccidentalPos(PointF(0, heightDisplacement + item->style().styleD(Sid::cipherHeigthSignSharp) * spatium));
+        mutableItem->setCipherTextPos(PointF(accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0, -fretStringYShift));
+        double accHeightAdjust = item->style().styleD(mutableItem->drawSharp() ? Sid::cipherHeigthSignSharp : Sid::cipherHeigthSignFlat) * spatium;
+        mutableItem->setCipherAccidentalPos(PointF(0, -fretStringYShift + accHeightAdjust));
         
         // Calculate bounding box
         double boxHeight = std::max(digitHeight, accidentalHeight);
-        noteBBox = RectF(0, -boxHeight / 2 + heightDisplacement, totalWidth, boxHeight);
+        noteBBox = RectF(0, -fretStringYShift - boxHeight / 2, totalWidth, boxHeight);
+        
+        } catch (const std::exception& e) {
+            // If anything goes wrong, fall back to simple layout
+            double fallbackSpatium = item->spatium();
+            noteBBox = RectF(0, 0, fallbackSpatium, fallbackSpatium);
+            LOGE() << "Cipher layout error: " << e.what();
+        }
     } else {
         if (item->deadNote()) {
             const_cast<Note*>(item)->setHeadGroup(NoteHeadGroup::HEAD_CROSS);

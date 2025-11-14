@@ -328,7 +328,7 @@ public:
     void setOffTimeOffset(int v);
 
     int customizeVelocity(int velo) const;
-    NoteDot* dot(int n) { return m_dots.at(n); }
+    NoteDot* dot(int n) { return (n >= 0 && n < static_cast<int>(m_dots.size())) ? m_dots[n] : nullptr; }
     const std::vector<NoteDot*>& dots() const { return m_dots; }
     std::vector<NoteDot*>& dots() { return m_dots; }
 

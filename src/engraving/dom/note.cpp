@@ -77,6 +77,7 @@ using namespace mu::engraving;
 using namespace mu::engraving::rendering::score;
 
 namespace mu::engraving {
+
 //---------------------------------------------------------
 //   noteHeads
 //    notehead groups
@@ -2048,6 +2049,8 @@ EngravingItem* Note::drop(EditData& data)
 void Note::setDotRelativeLine(int dotMove)
 {
     double y = dotMove / 2.0;
+    bool isCipher = staff() && staff()->isCipherStaff(chord()->tick());
+    
     if (staff()->isTabStaff(chord()->tick())) {
         // with TAB's, dotPosX is not set:
         // get dot X from width of fret text and use TAB default spacing
@@ -2083,7 +2086,11 @@ void Note::setDotRelativeLine(int dotMove)
         NoteDot* dot = Factory::createNoteDot(this);
         dot->setParent(this);
         dot->setTrack(track());      // needed to know the staff it belongs to (and detect tablature)
-        dot->setVisible(visible());
+        if (isCipher) {
+            dot->setVisible(false);
+        } else {
+            dot->setVisible(visible());
+        }
         score()->undoAddElement(dot);
     }
     if (n < 0) {
@@ -2094,6 +2101,9 @@ void Note::setDotRelativeLine(int dotMove)
 
     for (NoteDot* dot : m_dots) {
         renderer()->layoutItem(dot);
+        if (isCipher) {
+            dot->setVisible(false);
+        }
         dot->mutldata()->setPosY(y);
     }
 }
@@ -4045,7 +4055,7 @@ int Note::setAccidentalTypeBack(int defaultdirection)
         setDrawSharp(true);
         setDrawFlat(false);
     }
-    if (shift == -1) {
+    else if (shift == -1) {
         setDrawFlat(true);
         setDrawSharp(false);
     }

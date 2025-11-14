@@ -1365,8 +1365,19 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
         stepOffset = st->staffType(tick)->stepOffset();
     }
 
+    // For Cipher notation, only show ledger lines for notes >= 2 octaves away from staff
+    int ledgerThreshold = 1; // default: 1 line outside staff
+    bool isCipher = item->staff() && item->staff()->isCipherStaff(item->tick());
+    if (isCipher) {
+        // Cipher: 2 octaves = 14 steps (7 steps per octave in diatonic scale)
+        // lineBelow = 8 for 5-line staff (bottom line)
+        // So 2 octaves below = lineBelow + 14 = 22
+        // And 2 octaves above = -1 - 14 = -15
+        ledgerThreshold = 14; // 2 octaves from staff boundaries
+    }
+
     // need ledger lines?
-    if (item->downLine() + stepOffset <= lineBelow + 1 && item->upLine() + stepOffset >= -1) {
+    if (item->downLine() + stepOffset <= lineBelow + ledgerThreshold && item->upLine() + stepOffset >= -ledgerThreshold) {
         muse::DeleteAll(item->ledgerLines());
         item->ledgerLines().clear();
         return;
@@ -1406,8 +1417,10 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
             int l = note->line() + stepOffset;
 
             // if 1st pass and note not below staff or 2nd pass and note not above staff
-            if ((!topToBottom && l <= lineBelow + 1)
-                || (topToBottom && l >= -1)) {
+            // For cipher, use 2-octave threshold instead of 1 line
+            int checkThreshold = isCipher ? ledgerThreshold : 1;
+            if ((!topToBottom && l <= lineBelow + checkThreshold)
+                || (topToBottom && l >= -checkThreshold)) {
                 break; // stop this pass
             }
             // round line number to even number toward 0
@@ -1453,6 +1466,10 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
             // and, if so, add data for new line(s)
             if (l < minLine) {
                 for (int i1 = l; i1 < minLine; i1 += 2) {
+                    // For cipher, skip lines within the 2-octave zone
+                    if (isCipher && i1 > -ledgerThreshold) {
+                        continue;
+                    }
                     vecLines.emplace_back(LedgerLineData {
                         /*line=*/ i1,
                         /*minX=*/ minX,
@@ -1465,6 +1482,10 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
             }
             if (l > maxLine) {
                 for (int i1 = maxLine + 2; i1 <= l; i1 += 2) {
+                    // For cipher, skip lines within the 2-octave zone
+                    if (isCipher && i1 < lineBelow + ledgerThreshold) {
+                        continue;
+                    }
                     vecLines.emplace_back(LedgerLineData {
                         /*line=*/ i1,
                         /*minX=*/ minX,
