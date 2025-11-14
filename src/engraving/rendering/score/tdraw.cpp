@@ -439,6 +439,12 @@ void TDraw::draw(const Accidental* item, Painter* painter)
         return;
     }
 
+    // Don't draw accidentals for cipher staves (they use text representation)
+    Note* n = item->note();
+    if (n && n->chord() && n->staff() && n->staff()->isCipherStaff(n->chord()->tick())) {
+        return;
+    }
+
     painter->setPen(item->curColor());
     for (const Accidental::LayoutData::Sym& e : item->ldata()->syms) {
         item->drawSymbol(e.sym, painter, PointF(e.x, e.y));
@@ -2389,8 +2395,11 @@ void TDraw::draw(const NoteDot* item, Painter* painter)
     }
     const Note* n = item->note();
     Fraction tick = n ? n->chord()->tick() : item->rest()->tick();
-    // always draw dot for non-tab
-    // for tab, draw if on a note and stems through staff or on a rest and rests shown
+    // Don't draw dots for tab or cipher staves (they use text representation)
+    // For tab, draw if on a note and stems through staff or on a rest and rests shown
+    if (item->staff()->isCipherStaff(tick)) {
+        return;
+    }
     if (!item->staff()->isTabStaff(tick)
         || (n && item->staff()->staffType(tick)->stemThrough())
         || (!n && item->staff()->staffType(tick)->showRests())) {
