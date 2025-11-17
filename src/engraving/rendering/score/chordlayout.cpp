@@ -42,6 +42,7 @@
 
 #include "dom/ledgerline.h"
 #include "dom/lyrics.h"
+#include "dom/pitchspelling.h"
 
 #include "dom/measure.h"
 
@@ -1365,19 +1366,104 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
         stepOffset = st->staffType(tick)->stepOffset();
     }
 
-    // For Cipher notation, only show ledger lines for notes >= 2 octaves away from staff
-    int ledgerThreshold = 1; // default: 1 line outside staff
+    // For Cipher notation, use completely different ledger line logic (based on MS3 fork)
     bool isCipher = item->staff() && item->staff()->isCipherStaff(item->tick());
     if (isCipher) {
-        // Cipher: 2 octaves = 14 steps (7 steps per octave in diatonic scale)
-        // lineBelow = 8 for 5-line staff (bottom line)
-        // So 2 octaves below = lineBelow + 14 = 22
-        // And 2 octaves above = -1 - 14 = -15
-        ledgerThreshold = 14; // 2 octaves from staff boundaries
+        // For cipher: create ledger lines based on calculated cipherLedgerline value
+        // Each ledger line represents 2 octaves distance
+        const Note* firstNote = item->notes().empty() ? nullptr : item->notes()[0];
+        if (!firstNote) {
+            muse::DeleteAll(item->ledgerLines());
+            item->ledgerLines().clear();
+            return;
+        }
+        
+        // Calculate cipherLedgerline value (same formula as in tlayout.cpp)
+        // This ensures we always have the current value, even when notes are moved
+        int clefShift = firstNote->cipherOktave();
+        Key key = item->staff() ? item->staff()->key(item->tick()) : Key::C;
+        int groundToneShift = firstNote->cipherTrans(key);
+        int numTransposeInterval = 0;
+        if (item->part() && item->part()->instrument(item->tick())) {
+            numTransposeInterval = item->part()->instrument(item->tick())->transpose().chromatic;
+        }
+        
+        int accidentalShift = 0;
+        tpc2stepByKey(firstNote->tpc(), key, accidentalShift);
+        if (accidentalShift > 1 || accidentalShift < -1) {
+            accidentalShift = 0;
+        }
+        
+        // Calculate octave distance (before division by 2)
+        // MS3 uses -5 (C5 as reference), but in MS4 cipher line might be at C4, so try -4
+        int octaveDistance = (firstNote->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 4 - clefShift;
+        
+        // Number of ledger lines = abs(octaveDistance) / 2
+        // This gives: 0-1 octaves = 0 lines, 2-3 octaves = 1 line, 4-5 octaves = 2 lines, etc.
+        int cipherLedgerline = octaveDistance / 2;
+        int anzahl = std::abs(cipherLedgerline);
+        
+        LOGD() << "updateLedgerLines CIPHER: pitch=" << firstNote->pitch()
+               << " ground=" << groundToneShift << " accid=" << accidentalShift
+               << " transp=" << numTransposeInterval << " clef=" << clefShift
+               << " => octaveDist=" << octaveDistance << " ledgerlines=" << anzahl;
+        
+        if (anzahl == 0) {
+            muse::DeleteAll(item->ledgerLines());
+            item->ledgerLines().clear();
+            return;
+        }
+        
+        // Create ledger lines (one per 2 octaves distance)
+        item->resizeLedgerLinesTo(anzahl);
+        
+        // Get cipher dimensions
+        double cipherHeight = firstNote->cipherHeight();
+        double cipherWidth = firstNote->cipherWidth();
+        
+        // If cipher dimensions are not yet calculated (e.g., first switch from notes to cipher),
+        // skip ledger lines for now. They will be created after the note is properly laid out.
+        if (cipherHeight <= 0.0 || cipherWidth <= 0.0) {
+            LOGD() << "updateLedgerLines CIPHER: dimensions not yet available (h=" << cipherHeight 
+                   << " w=" << cipherWidth << "), deleting any existing lines";
+            muse::DeleteAll(item->ledgerLines());
+            item->ledgerLines().clear();
+            return;
+        }
+        
+        LOGD() << "updateLedgerLines CIPHER: creating " << anzahl << " ledger lines with h=" 
+               << cipherHeight << " w=" << cipherWidth;
+        
+        for (int n = 0; n < anzahl; n++) {
+            LedgerLine* h = item->ledgerLines()[n];
+            h->setParent(item);
+            h->setTrack(track);
+            h->setVisible(item->visible() && staffVisible);
+            h->setLen(cipherWidth * ctx.conf().styleD(Sid::cipherLedgerlineLength));
+            
+            double x = (cipherWidth * 0.5) - (cipherWidth * ctx.conf().styleD(Sid::cipherLedgerlineLength) * 0.5)
+                       + ctx.conf().styleD(Sid::cipherLedgerlineShift);
+            double y;
+            // Position ledger lines every 2 octaves
+            // Calculate based on octaveDistance, not cipherLedgerline
+            int lineOctaveDistance = (n + 1) * 2;  // First line at 2 octaves, second at 4, etc.
+            if (octaveDistance < 0) {
+                lineOctaveDistance = -lineOctaveDistance;
+            }
+            y = -lineOctaveDistance * cipherHeight * ctx.conf().styleD(Sid::cipherDistanceOctave);
+            h->setPos(x, y);
+            
+            // Layout the ledger line and set its lineWidth
+            TLayout::layoutLedgerLine(h, ctx);
+            h->mutldata()->lineWidth = cipherHeight * ctx.conf().styleD(Sid::cipherLedgerlineThick);
+        }
+        
+        return;
     }
-
+    
+    // Standard notation ledger lines
     // need ledger lines?
-    if (item->downLine() + stepOffset <= lineBelow + ledgerThreshold && item->upLine() + stepOffset >= -ledgerThreshold) {
+    if (item->downLine() + stepOffset <= lineBelow + 1 && item->upLine() + stepOffset >= -1) {
         muse::DeleteAll(item->ledgerLines());
         item->ledgerLines().clear();
         return;
@@ -1417,10 +1503,8 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
             int l = note->line() + stepOffset;
 
             // if 1st pass and note not below staff or 2nd pass and note not above staff
-            // For cipher, use 2-octave threshold instead of 1 line
-            int checkThreshold = isCipher ? ledgerThreshold : 1;
-            if ((!topToBottom && l <= lineBelow + checkThreshold)
-                || (topToBottom && l >= -checkThreshold)) {
+            if ((!topToBottom && l <= lineBelow + 1)
+                || (topToBottom && l >= -1)) {
                 break; // stop this pass
             }
             // round line number to even number toward 0
@@ -1466,10 +1550,6 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
             // and, if so, add data for new line(s)
             if (l < minLine) {
                 for (int i1 = l; i1 < minLine; i1 += 2) {
-                    // For cipher, skip lines within the 2-octave zone
-                    if (isCipher && i1 > -ledgerThreshold) {
-                        continue;
-                    }
                     vecLines.emplace_back(LedgerLineData {
                         /*line=*/ i1,
                         /*minX=*/ minX,
@@ -1482,10 +1562,6 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
             }
             if (l > maxLine) {
                 for (int i1 = maxLine + 2; i1 <= l; i1 += 2) {
-                    // For cipher, skip lines within the 2-octave zone
-                    if (isCipher && i1 < lineBelow + ledgerThreshold) {
-                        continue;
-                    }
                     vecLines.emplace_back(LedgerLineData {
                         /*line=*/ i1,
                         /*minX=*/ minX,
@@ -1505,6 +1581,7 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
     double _spatium = item->spatium();
     double stepDistance = lineDistance * 0.5;
     item->resizeLedgerLinesTo(ledgerLineData.size());
+    
     for (size_t i = 0; i < ledgerLineData.size(); ++i) {
         LedgerLineData lld = ledgerLineData[i];
         LedgerLine* h = item->ledgerLines()[i];
@@ -2364,6 +2441,7 @@ void ChordLayout::layoutChords1(LayoutContext& ctx, Segment* segment, staff_idx_
     }
 
     if (!isTab) {
+        LOGD() << "layoutChords1: Calling layoutLedgerLines for staff " << staffIdx;
         layoutLedgerLines(posInfo.chords, ctx);
         AccidentalsLayout::layoutAccidentals(posInfo.chords, ctx);
         for (Chord* chord : posInfo.chords) {
@@ -2371,6 +2449,8 @@ void ChordLayout::layoutChords1(LayoutContext& ctx, Segment* segment, staff_idx_
                 AccidentalsLayout::layoutAccidentals({ grace }, ctx);
             }
         }
+    } else {
+        LOGD() << "layoutChords1: Skipping layoutLedgerLines for TAB staff " << staffIdx;
     }
 
     layoutSegmentElements(segment, partStartTrack, partEndTrack, staffIdx, ctx);
@@ -2431,9 +2511,10 @@ double ChordLayout::layoutChords2(std::vector<Note*>& notes, bool up, LayoutCont
         const Staff* st = note->staff();
         const StaffType* tab = st->staffTypeForElement(note);
         const bool isTab = note->staff() && note->staff()->isTabStaff(note->chord()->tick());
+        const bool isCipher = note->staff() && note->staff()->isCipherStaff(note->chord()->tick());
 
-        if (isTab) {
-            // TAB notes need to be laid out to set the fret string so we can calulate their width
+        if (isTab || isCipher) {
+            // TAB and Cipher notes need to be laid out to set dimensions for ledger lines
             // Standard staves can get this information from the notehead symbol, so no need to lay out
             TLayout::layoutNote(note, note->mutldata());
         }
@@ -2862,6 +2943,16 @@ void ChordLayout::layoutChords3(const std::vector<Chord*>& chords,
 void ChordLayout::layoutLedgerLines(const std::vector<Chord*>& chords, LayoutContext& ctx)
 {
     for (Chord* item : chords) {
+        // For cipher notation, ensure notes are laid out before creating ledger lines
+        if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+            for (Note* note : item->notes()) {
+                if (note->cipherHeight() <= 0.0 || note->cipherWidth() <= 0.0) {
+                    LOGD() << "layoutLedgerLines: Pre-laying out cipher note";
+                    TLayout::layoutNote(note, note->mutldata());
+                }
+            }
+        }
+        
         updateLedgerLines(item, ctx);
         for (Chord* grace : item->graceNotes()) {
             updateLedgerLines(grace, ctx);

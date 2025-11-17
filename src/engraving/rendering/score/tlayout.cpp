@@ -4596,6 +4596,13 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         double fretStringYShift = ((item->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 5 - clefShift) 
                                   * digitHeight * item->style().styleD(Sid::cipherDistanceOctave);
         
+        LOGD() << "Cipher ledger calc: pitch=" << item->pitch() 
+               << " groundToneShift=" << groundToneShift 
+               << " accidentalShift=" << accidentalShift
+               << " numTransposeInterval=" << numTransposeInterval
+               << " clefShift=" << clefShift
+               << " => cipherLedgerline=" << cipherLedgerline;
+        
         // Store cipher dimensions in Note fields
         mutableItem->setCipherWidth(digitWidth);
         mutableItem->setCipherWidth2(totalWidth);
