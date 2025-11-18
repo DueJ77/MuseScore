@@ -33,6 +33,18 @@ using namespace muse;
 using namespace mu::engraving;
 
 namespace mu::engraving::rendering::score {
+
+// Duration markers for cipher notation RESTS (different from notes!)
+// Index 14 (V_MEASURE / whole measure rest) = ",,"
+static const char16_t* cipherDurationRest_internal[16] = {
+    u"", u"", u",,", u",", u"", u"", u"", u"",
+    u"", u"", u"", u"", u"", u"", u",,", u""
+};
+
+static const char16_t* cipherDurationDotRest_internal[3] = {
+    u"", u".", u".."
+};
+
 void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const LayoutContext& ctx)
 {
     if (item->isGap()) {
@@ -106,34 +118,68 @@ void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const Lay
             const_cast<Rest*>(item)->setTabDur(nullptr);
         }
     } else if (stt && stt->isCipherStaff()) {
-        // Cipher notation rest layout
-        // Use standard rest symbols but position them appropriately for cipher staff
-        // Cipher staves typically use a single line, so rests are centered on that line
-        
-        const_cast<Rest*>(item)->setDotLine(Rest::getDotline(item->durationType().type()));
-        
-        // Position rest at y=0 (cipher staff center line)
-        ldata->setPosY(0.0);
-        
-        // Use standard rest symbol
-        ldata->sym = item->getSymbol(item->durationType().type(), 0, 1);
-        
-        // Calculate bounding box
-        fillShape(item, ldata, ctx.conf());
-        
-        // Layout dots
-        const_cast<Rest*>(item)->checkDots();
-        double visibleX = item->symWidthNoLedgerLines(ldata) + ctx.conf().styleMM(Sid::dotNoteDistance) * item->mag();
-        double visibleDX = ctx.conf().styleMM(Sid::dotDotDistance) * item->mag();
-        double y = 0.0;  // Center line for cipher
-        for (NoteDot* dot : item->dotList()) {
-            NoteDot::LayoutData* dotldata = dot->mutldata();
-            TLayout::layoutNoteDot(dot, dotldata);
-            if (dot->visible()) {
-                dotldata->setPos(visibleX, y);
-                visibleX += visibleDX;
-            }
+        // Cipher notation rest layout (based on MS3 fork)
+        // In cipher notation, rests are displayed as "0" with duration markers
+
+        // Position at Y=0 initially (will be adjusted)
+        const_cast<Rest*>(item)->setPos(0.0, 0.0);
+
+        // Get cipher font - IMPORTANT: use MScore::pixelRatio like MS3
+        muse::draw::Font cipherFont;
+        cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+
+        // Calculate actual text dimensions using Cipher class
+        Cipher tempCipher;
+        tempCipher.setFretFont(cipherFont);
+
+        // Build rest string to calculate proper width
+        String baseChar = u"0";
+        String durationMarker = u"";
+        String dotMarker = u"";
+
+        DurationType durType = item->durationType().type();
+        int durTypeIndex = int(durType);
+        if (durTypeIndex >= 0 && durTypeIndex < 16) {
+            durationMarker = cipherDurationRest_internal[durTypeIndex];
         }
+
+        int dots = item->durationType().dots();
+        if (dots >= 0 && dots <= 2) {
+            dotMarker = cipherDurationDotRest_internal[dots];
+        } else if (dots > 2) {
+            dotMarker = cipherDurationDotRest_internal[2];
+        }
+
+        String fretString = baseChar + durationMarker + dotMarker;
+
+        // Get actual dimensions from Cipher helper
+        double cipherHeight = tempCipher.textHeight(cipherFont, baseChar);
+        double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar);
+        double cipherWidth = tempCipher.textWidth(cipherFont, fretString);
+
+        // Position rest slightly less than two whole tones higher than the center line
+        // Two whole tones = 4 semitones, but we use 3.7 semitones for optimal positioning
+        // 3.7 semitones = 3.7/12 octave
+        // Negative Y moves up in the score
+        double restYShift = -(8.0 / 12.0) * cipherHeight * item->style().styleD(Sid::cipherDistanceOctave);
+        ldata->setPosY(restYShift);
+
+        // Calculate bounding box with hook lines (exactly as MS3)
+        double cipherLineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
+        double cipherLineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
+        double cipherHeightLine = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement)
+                                 - cipherHeight
+                                 - cipherHeight * item->style().styleD(Sid::cipherHeigthLine);
+
+        int hooks = std::abs(item->durationType().hooks());
+        double distance = cipherWidth * item->style().styleD(Sid::cipherRestDistanc);
+        double hookLineY = cipherHeightLine + ((hooks - 1) * cipherLineSpace) - cipherLineThick;
+        double hookBoxHeight = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement) + (hookLineY * -1);
+
+        RectF bbox(0.0 - distance / 2, hookLineY, cipherWidth + distance, hookBoxHeight);
+        ldata->setBbox(bbox);
+
         return;
     }
 

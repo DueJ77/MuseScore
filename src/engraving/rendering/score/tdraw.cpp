@@ -174,6 +174,16 @@ using namespace muse::draw;
 
 namespace mu::engraving {
 extern const char* CipherString[15][2];
+
+// Duration markers for cipher notation rests
+static const char16_t* cipherDuration_internal[16] = {
+    u"", u"", u",,", u",", u"", u"", u"", u"",
+    u"", u"", u"", u"", u"", u"", u"", u""
+};
+
+static const char16_t* cipherDurationDot_internal[3] = {
+    u"", u".", u".."
+};
 }
 
 void TDraw::drawItem(const EngravingItem* item, Painter* painter)
@@ -2645,22 +2655,73 @@ void TDraw::draw(const Rest* item, Painter* painter)
 
     painter->setPen(item->curColor());
 
-    // Check if this is a cipher staff - draw "0" instead of rest symbol
+    // Check if this is a cipher staff - draw "0" with duration markers
     const StaffType* stt = item->staff() ? item->staff()->staffTypeForElement(item) : nullptr;
     if (stt && stt->isCipherStaff()) {
         double spatium = item->spatium();
         
-        // Get cipher font
+        // Get cipher font - IMPORTANT: use MScore::pixelRatio like MS3
         Font cipherFont;
         cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
-        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
         
         painter->setFont(cipherFont);
         painter->setPen(item->curColor());
         
-        // Draw "0" at the center position
-        double heightDisplacement = item->style().styleD(Sid::cipherHeightDisplacement) * spatium;
-        painter->drawText(PointF(0, heightDisplacement), u"0");
+        // Calculate actual dimensions using Cipher
+        Cipher tempCipher;
+        tempCipher.setFretFont(cipherFont);
+        
+        // Build rest string: "0" + duration markers + dots
+        String baseChar = u"0";
+        String durationMarker = u"";
+        String dotMarker = u"";
+        
+        // Get duration marker (commas for shorter durations)
+        DurationType durType = item->durationType().type();
+        int durTypeIndex = int(durType);
+        if (durTypeIndex >= 0 && durTypeIndex < 16) {
+            durationMarker = cipherDuration_internal[durTypeIndex];
+        }
+        
+        // Get dot marker
+        int dots = item->durationType().dots();
+        if (dots >= 0 && dots <= 2) {
+            dotMarker = cipherDurationDot_internal[dots];
+        } else if (dots > 2) {
+            dotMarker = cipherDurationDot_internal[2];
+        }
+        
+        String restString = baseChar + durationMarker + dotMarker;
+        
+        // Get actual cipher height
+        double cipherHeight = tempCipher.textHeight(cipherFont, baseChar);
+        
+        // Draw the "0" character with duration markers at correct position
+        double heightDisplacement = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement);
+        painter->drawText(PointF(0, heightDisplacement), restString);
+        
+        // Draw hook lines (commas) for shorter note values
+        int hooks = std::abs(item->durationType().hooks());
+        if (hooks > 0) {
+            double cipherLineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
+            double cipherLineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
+            double cipherHeightLine = heightDisplacement - cipherHeight 
+                                     - cipherHeight * item->style().styleD(Sid::cipherHeigthLine);
+            
+            // Get actual line width
+            double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar);
+            
+            painter->setPen(Pen(item->curColor(), cipherLineThick));
+            
+            for (int i = 0; i < hooks; ++i) {
+                double lineY = cipherHeightLine + (i * cipherLineSpace);
+                double lineWidth = cipherLineWidth * item->style().styleD(Sid::cipherWideLine);
+                double lineX1 = cipherLineWidth / 2 - lineWidth / 2;
+                double lineX2 = cipherLineWidth / 2 + lineWidth / 2;
+                painter->drawLine(LineF(lineX1, lineY, lineX2, lineY));
+            }
+        }
         
         return;
     }
@@ -3288,9 +3349,57 @@ void TDraw::draw(const TimeSig* item, Painter* painter)
     if (!item->showOnThisStaff()) {
         return;
     }
-    painter->setPen(item->curColor());
-
+    
     const TimeSig::LayoutData* ldata = item->ldata();
+    
+    // Check if this is a cipher staff
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        // Draw cipher time signature (numbers with line between)
+        double spatium = item->spatium();
+        
+        // Get cipher font - IMPORTANT: use MScore::pixelRatio like MS3
+        Font cipherFont;
+        cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherTimeSigFont)), Font::Type::Text);
+        double fontSize = item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherTimeSigSize) * spatium * MScore::pixelRatio / SPATIUM20;
+        cipherFont.setPointSizeF(fontSize);
+        
+        painter->setFont(cipherFont);
+        painter->setPen(item->curColor());
+        
+        // Use Cipher to get accurate dimensions
+        Cipher tempCipher;
+        tempCipher.setFretFont(cipherFont);
+        
+        // Get strings
+        String numStr = item->numeratorString().isEmpty() 
+                       ? String::number(item->sig().numerator()) 
+                       : item->numeratorString();
+        String denStr = item->denominatorString().isEmpty() 
+                       ? String::number(item->sig().denominator()) 
+                       : item->denominatorString();
+        
+        // Draw numerator (above the line)
+        painter->drawText(ldata->pz, numStr);
+        
+        // Draw denominator (below the line)
+        painter->drawText(ldata->pn, denStr);
+        
+        // Draw horizontal line between numbers
+        double numHeight = tempCipher.textHeight(cipherFont, numStr);
+        double lineThick = numHeight * item->style().styleD(Sid::cipherTimeSigLineThick);
+        double lineY = (ldata->pz.y() + ldata->pn.y()) / 2;
+        
+        double numWidth = tempCipher.textWidth(cipherFont, numStr);
+        double denWidth = tempCipher.textWidth(cipherFont, denStr);
+        double lineWidth = std::max(numWidth, denWidth);
+        
+        painter->setPen(Pen(item->curColor(), lineThick));
+        painter->drawLine(LineF(0, lineY, lineWidth, lineY));
+        
+        return;
+    }
+    
+    painter->setPen(item->curColor());
 
     item->drawSymbols(ldata->ns, painter, ldata->pz, item->scale());
     item->drawSymbols(ldata->ds, painter, ldata->pn, item->scale());

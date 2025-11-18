@@ -6829,6 +6829,64 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
         ldata->ns.clear();
         ldata->ns.push_back(sym);
         ldata->ds.clear();
+    } else if (staff && staff->isCipherStaff(tick)) {
+        // Cipher notation time signature (based on MS3 fork)
+        // Skip if this is an announce time signature
+        if (seg && seg->isTimeSigAnnounceType()) {
+            ldata->setBbox(RectF());
+            return;
+        }
+        
+        // Get cipher font for time signature - IMPORTANT: use MScore::pixelRatio like MS3
+        muse::draw::Font cipherFont;
+        cipherFont.setFamily(muse::draw::Font::FontFamily(style.styleSt(Sid::cipherTimeSigFont)), muse::draw::Font::Type::Text);
+        double fontSize = style.styleD(Sid::cipherFontSize) * style.styleD(Sid::cipherTimeSigSize) * spatium * MScore::pixelRatio / SPATIUM20;
+        cipherFont.setPointSizeF(fontSize);
+        
+        // Use Cipher class to get accurate text dimensions
+        Cipher tempCipher;
+        tempCipher.setFretFont(cipherFont);
+        
+        // Get numerator and denominator strings
+        String numStr = item->numeratorString().isEmpty() 
+                       ? String::number(item->sig().numerator()) 
+                       : item->numeratorString();
+        String denStr = item->denominatorString().isEmpty() 
+                       ? String::number(item->sig().denominator()) 
+                       : item->denominatorString();
+        
+        // Calculate actual text dimensions using Cipher
+        double numHeight = tempCipher.textHeight(cipherFont, numStr);
+        double denHeight = tempCipher.textHeight(cipherFont, denStr);
+        double numWidth = tempCipher.textWidth(cipherFont, numStr);
+        double denWidth = tempCipher.textWidth(cipherFont, denStr);
+        
+        // Calculate displacement (line position) - exactly as MS3
+        double displ = numHeight * style.styleD(Sid::cipherTimeSigLineThick) * 1.5;
+        
+        // Position relative to yoff (staff center)
+        double pzY = yoff + displ + numHeight;
+        double pnY = yoff - displ;
+        
+        // Center the smaller one if they have different widths
+        if (numWidth >= denWidth) {
+            ldata->pz = PointF(0.0, pzY);
+            ldata->pn = PointF((numWidth - denWidth) * 0.5, pnY);
+        } else {
+            ldata->pz = PointF((denWidth - numWidth) * 0.5, pzY);
+            ldata->pn = PointF(0.0, pnY);
+        }
+        
+        // Store the strings for drawing
+        ldata->ns = timeSigSymIdsFromString(numStr, timeSigStyle);
+        ldata->ds = timeSigSymIdsFromString(denStr, timeSigStyle);
+        
+        // Calculate bounding box
+        double boxWidth = std::max(numWidth, denWidth);
+        RectF bbox(0.0, pnY, boxWidth, pzY - pnY + numHeight);
+        ldata->setBbox(bbox);
+        
+        return;
     } else {
         if (item->numeratorString().isEmpty()) {
             ldata->ns = timeSigSymIdsFromString(item->numeratorString().isEmpty()
