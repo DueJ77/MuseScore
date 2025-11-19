@@ -138,6 +138,15 @@ public:
         PointF pn;
         PointF pointLargeLeftParen;
         PointF pointLargeRightParen;
+        
+        // Cipher notation fields
+        bool cipherVisible = true;
+        bool cipherBegin = false;
+        String cipherNumeratorStr;
+        String cipherDenominatorStr;
+        LineF cipherLine;
+        LineF cipherBarLine;
+        double cipherLineThick = 0.0;
     };
     DECLARE_LAYOUTDATA_METHODS(TimeSig)
 
