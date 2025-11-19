@@ -328,7 +328,7 @@ public:
     void setOffTimeOffset(int v);
 
     int customizeVelocity(int velo) const;
-    NoteDot* dot(int n) { return m_dots.at(n); }
+    NoteDot* dot(int n) { return (n >= 0 && n < static_cast<int>(m_dots.size())) ? m_dots[n] : nullptr; }
     const std::vector<NoteDot*>& dots() const { return m_dots; }
     std::vector<NoteDot*>& dots() { return m_dots; }
 
@@ -448,6 +448,26 @@ public:
     int setAccidentalTypeBack(int defaultdirection);
     int cipherTrans(Key key) const;
     int cipherOktave() const;
+    const Cipher& cipher() const { return m_cipher; }
+    Cipher& cipher() { return m_cipher; }
+    const muse::PointF& cipherTextPos() const { return m_cipherTextPos; }
+    const muse::PointF& cipherAccidentalPos() const { return m_cipherAccidentalPos; }
+    const muse::PointF& cipherKlammerPos() const { return m_cipherKlammerPos; }
+    double trackThick() const { return m_trackthick; }
+    bool drawSharp() const { return m_drawSharp; }
+    bool drawFlat() const { return m_drawFlat; }
+    
+    // Cipher notation setters (for layout phase)
+    void setCipherWidth(double w) { m_cipherWidth = w; }
+    void setCipherWidth2(double w) { m_cipherWidth2 = w; }
+    void setCipherHeight(double h) { m_cipherHeight = h; }
+    void setCipherLedgerline(int val) { m_cipherLedgerline = val; }
+    void setCipherTextPos(const muse::PointF& pos) { m_cipherTextPos = pos; }
+    void setCipherAccidentalPos(const muse::PointF& pos) { m_cipherAccidentalPos = pos; }
+    void setCipherKlammerPos(const muse::PointF& pos) { m_cipherKlammerPos = pos; }
+    void setTrackThick(double val) { m_trackthick = val; }
+    void setDrawSharp(bool val) { m_drawSharp = val; }
+    void setDrawFlat(bool val) { m_drawFlat = val; }
 
     struct LayoutData : public EngravingItem::LayoutData {
         ld_field<bool> useTablature = { "[Note] useTablature", false };
