@@ -271,7 +271,15 @@ void BarLine::calcY()
     double lineWidth = style().styleS(Sid::staffLineWidth).val() * spatium1 * .5;
 
     double y1 = offset + from * lineDistance * .5 - lineWidth;
-    double y2 = offset + (staffType1->lines() * 2 - 2 + to) * lineDistance * .5 + lineWidth;
+    // For cipher staves that are part of a span (up or down), use to=0 to prevent overhang
+    bool isPartOfSpan = spanStaff || (staffIdx() > 0 && prevVisibleSpannedStaff(this) != staffIdx());
+    int effectiveTo = (staffType1->isCipherStaff() && isPartOfSpan) ? 0 : to;
+    double y2 = offset + (staffType1->lines() * 2 - 2 + effectiveTo) * lineDistance * .5 + lineWidth;
+
+    // For cipher staves, adjust barline to align with cipher line at top when spanning
+    if (staffType1->isCipherStaff() && spanStaff && isTop()) {
+        y1 = offset - lineWidth;
+    }
 
     if (spanStaff) {
         // we need spatium and line distance of bottom staff
@@ -282,11 +290,27 @@ void BarLine::calcY()
         double lineDistance2 = staffType2->lineDistance().val() * spatium2;
         double startStaffY = system->staff(staffIdx1)->y();
 
-        y2 = measure->staffLines(staffIdx2)->y1() - startStaffY - to * lineDistance2 * 0.5;
+        // For cipher staves, ignore the 'to' parameter to prevent overhang below the cipher line
+        int effectiveTo = staffType2->isCipherStaff() ? 0 : to;
+        y2 = measure->staffLines(staffIdx2)->y1() - startStaffY - effectiveTo * lineDistance2 * 0.5;
 
         // if bottom staff is single line, set span-to zeropoint to the top of the standard barline
-        if (staffType2->lines() <= 1) {
+        if (staffType2->lines() <= 1 && !staffType2->isCipherStaff()) {
             y2 += BARLINE_SPAN_1LINESTAFF_FROM * lineDistance2 * 0.5;
+        }
+        
+        // Additional adjustment for cipher staves to ensure no overhang
+        if (staffType2->isCipherStaff()) {
+            // The barline drawn at y2 has a line width, and we need to ensure
+            // the BOTTOM of the barline (y2 + lineWidth/2) doesn't extend below the cipher line
+            // So we need to subtract MORE than just lineWidth
+            double lineWidth2 = style().styleS(Sid::staffLineWidth).val() * spatium2 * .5;
+            double barLineWidth = style().styleMM(Sid::barWidth).val() * mag();
+            
+            // Subtract both the staff line width and the barline width to ensure no overhang
+            y2 -= (lineWidth2 + barLineWidth);
+            
+            qDebug() << "Cipher adjustment: lineWidth2=" << lineWidth2 << "barLineWidth=" << barLineWidth << "final y2=" << y2;
         }
     }
 
