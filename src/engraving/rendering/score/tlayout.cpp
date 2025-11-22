@@ -3747,9 +3747,11 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
                 RectF textRect(leftAdjust, yPos - cipherHeight, textWidth, cipherHeight);
                 ldata->setBbox(textRect);
                 
-                // Set shape for cipher key signature
+                // Set minimal shape for cipher key signature to avoid pushing following ciphers too far right
+                // Use only a small width instead of the full text width
                 Shape cipherKeyShape;
-                cipherKeyShape.add(textRect, item);
+                RectF minimalRect(leftAdjust, yPos - cipherHeight, spatium * 0.5, cipherHeight);
+                cipherKeyShape.add(minimalRect, item);
                 ldata->setShape(cipherKeyShape);
             }
         }
