@@ -270,10 +270,22 @@ void BarLine::calcY()
     double offset = staffType1->yoffset().val() * spatium1;
     double lineWidth = style().styleS(Sid::staffLineWidth).val() * spatium1 * .5;
 
-    double y1 = offset + from * lineDistance * .5 - lineWidth;
-    // For cipher staves that are part of a span (up or down), use to=0 to prevent overhang
+    // For cipher staves: adjust barline length
+    // - If part of a span: use to=0 to prevent overhang below the cipher line
+    // - If not spanned: reduce from/to by half to make barline shorter
     bool isPartOfSpan = spanStaff || (staffIdx() > 0 && prevVisibleSpannedStaff(this) != staffIdx());
-    int effectiveTo = (staffType1->isCipherStaff() && isPartOfSpan) ? 0 : to;
+    int effectiveFrom = from;
+    int effectiveTo = to;
+    if (staffType1->isCipherStaff()) {
+        if (isPartOfSpan) {
+            effectiveTo = 0;  // No overhang when spanned
+        } else {
+            effectiveFrom = from / 2;  // Half length above
+            effectiveTo = to / 2;      // Half length below
+        }
+    }
+    
+    double y1 = offset + effectiveFrom * lineDistance * .5 - lineWidth;
     double y2 = offset + (staffType1->lines() * 2 - 2 + effectiveTo) * lineDistance * .5 + lineWidth;
 
     // For cipher staves, adjust barline to align with cipher line at top when spanning
