@@ -359,4 +359,31 @@ muse::TranslatableString KeySig::subtypeUserName() const
 {
     return TConv::userName(key(), isAtonal(), isCustom());
 }
+
+//---------------------------------------------------------
+//   Cipher notation methods
+//---------------------------------------------------------
+
+void KeySig::setCipherNote(const String& noteStr, int accidental, double yShift)
+{
+    KeySig::LayoutData* ldata = mutldata();
+    ldata->cipherNoteString = noteStr;
+    ldata->cipherNoteAccidental = accidental;
+    ldata->cipherNoteYShift = yShift;
+}
+
+String KeySig::cipherNoteString() const
+{
+    return ldata()->cipherNoteString;
+}
+
+int KeySig::cipherNoteAccidental() const
+{
+    return ldata()->cipherNoteAccidental;
+}
+
+double KeySig::cipherNoteYShift() const
+{
+    return ldata()->cipherNoteYShift;
+}
 }

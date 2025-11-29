@@ -2436,6 +2436,59 @@ void TDraw::draw(const Note* item, Painter* painter)
                                 item->cipherTextPos().y());
             painter->drawText(closeParenPos, u")");
         }
+
+        // Draw cipher key change announcement if present
+        if (!ldata->cipherKeyChangeAnnouncement.empty()) {
+            LOGD() << "Drawing cipher key change announcement: " << ldata->cipherKeyChangeAnnouncement 
+                   << " at note with fretString: " << item->fretString()
+                   << " cipherTextPos().x() = " << item->cipherTextPos().x();
+            
+            Font announcementFont;
+            announcementFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
+            // Make the announcement text smaller (70% of normal size)
+            double fontSize = item->style().styleD(Sid::cipherFontSize) * spatium * 0.7 * MScore::pixelRatio / SPATIUM20;
+            announcementFont.setPointSizeF(fontSize);
+            
+            painter->setFont(announcementFont);
+            
+            // Calculate the width using the Cipher helper, like normal digits do
+            const Cipher& cipher = item->cipher();
+            double rawWidth = cipher.textWidth(announcementFont, ldata->cipherKeyChangeAnnouncement);
+            
+            // The width seems to be scaled incorrectly, divide by MScore::pixelRatio
+            double announcementWidth = rawWidth / MScore::pixelRatio;
+            
+            // Position BEFORE cipherTextPos (which accounts for accidentals)
+            // But if there IS an accidental, we need to position before the accidental, not before the digit
+            double leftmostX = item->cipherTextPos().x();
+            
+            // If there's an accidental, it's drawn at cipherAccidentalPos which is left of cipherTextPos
+            if (item->drawSharp() || item->drawFlat()) {
+                leftmostX = std::min(leftmostX, item->cipherAccidentalPos().x());
+            }
+            
+            // If there's a parenthesis (non-main voice), that's even further left
+            if (item->trackThick() != 1.0) {
+                leftmostX = std::min(leftmostX, item->cipherKlammerPos().x());
+            }
+            
+            fprintf(stderr, "cipherTextPos.x=%f, leftmostX=%f, announcementWidth=%f\n", 
+                    item->cipherTextPos().x(), leftmostX, announcementWidth);
+            
+            double gap = spatium * 0.3;
+            double announcementX = leftmostX - announcementWidth - gap;
+            
+            // Use the Y-offset calculated in cipher_setKeysigNote (based on OLD key)
+            double announcementY = -ldata->cipherKeyChangeAnnouncementYOffset;
+            
+            fprintf(stderr, "Drawing announcement at x=%f (cipherTextPos=%f, width=%f, gap=%f)\n", 
+                    announcementX, item->cipherTextPos().x(), announcementWidth, gap);
+            
+            LOGD() << "Announcement position: x=" << announcementX << " y=" << announcementY 
+                   << " spatium=" << spatium << " width=" << announcementWidth;
+            
+            painter->drawText(PointF(announcementX, announcementY), ldata->cipherKeyChangeAnnouncement);
+        }
     }
     // NOT tablature or cipher
     else {

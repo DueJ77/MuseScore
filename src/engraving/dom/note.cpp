@@ -2050,7 +2050,7 @@ void Note::setDotRelativeLine(int dotMove)
 {
     double y = dotMove / 2.0;
     bool isCipher = staff() && staff()->isCipherStaff(chord()->tick());
-    
+
     if (staff()->isTabStaff(chord()->tick())) {
         // with TAB's, dotPosX is not set:
         // get dot X from width of fret text and use TAB default spacing
@@ -4110,13 +4110,114 @@ int Note::cipherOktave() const
 //---------------------------------------------------------
 //   cipher_setKeysigNote
 //   Set cipher notation for key signature display
+//   This announces the key change by showing how notes map in the new key
 //---------------------------------------------------------
 
 void Note::cipher_setKeysigNote(KeySig* sig)
 {
-    // Implementation will be added when KeySig is updated
-    // This is a placeholder for now
-    UNUSED(sig);
-}
-}
+    if (!staff() || !sig || !chord()) {
+        return;
+    }
 
+    // Only set for first voice
+    if (track() % VOICES != 0) {
+        return;
+    }
+
+    LOGD() << "cipher_setKeysigNote called for note at tick " << tick()
+           << " pitch=" << m_pitch << " fret=" << fretString();
+
+    // Get transposition and clef information
+    int numTransposeInterval = part()->instrument(chord()->tick())->transpose().chromatic;
+    int clefShift = cipherOktave();
+
+    // Use the OLD key (before the change) to calculate the shift
+    Fraction tick = this->tick();
+    Key oldKey = staff()->key(tick - Fraction::fromTicks(1));
+    int grundtonVerschiebung = cipherTrans(oldKey);
+
+    // Calculate accidental shift using TPC (Tonal Pitch Class) with OLD key
+    int accidentalShift = 0;
+    int step = tpc2stepByKey(tpc(), oldKey, accidentalShift);
+
+    // Limit accidental shift to valid range
+    if (accidentalShift > 1 || accidentalShift < -1) {
+        accidentalShift = 0;
+    }
+
+    // Calculate cipher value with transposition - this is what the note would be called in the OLD key
+    // Use MINUS accidentalShift (same as in normal cipher layout)
+    int pitchForOctave = m_pitch - accidentalShift + grundtonVerschiebung + numTransposeInterval;
+    int zifferKromatik = (pitchForOctave % 12) + 1;
+    String fretString = cipherString(zifferKromatik);
+
+    // Calculate the Y-position for the announcement (based on OLD key)
+    // The announcement shows what THIS note would be in the old key system
+    // The octave should change between cipher 7 and 1
+    // Cipher values: 1,2,3,4,5,6,7 correspond to chromatic: 1,3,5,6,8,10,0(or 12)
+    // So the octave changes BEFORE cipher 1 (chromatisch 1)
+
+    // Calculate which cipher octave we're in
+    // The octave increments when we reach chromatisch 1 (cipher 1)
+    // Cipher 1,2,3,4,5,6 should all be on the same height
+    // Cipher 7 should be one octave below them
+    // So: chromatic 0 (cipher 7) is in octave N, chromatic 1-11 are in octave N+1
+    int chromaticMod = pitchForOctave % 12;
+    if (chromaticMod < 0) chromaticMod += 12;
+
+    // The base octave is pitch / 12
+    // For cipher: chromatic 0 stays in the current octave, but chromatic 1-11 should go UP one octave
+    // Standard division: pitch 0-11 = octave 0, pitch 12-23 = octave 1, etc.
+    // We want: pitch 0 = octave 0, pitch 1-11 = octave 1, pitch 12 = octave 1, pitch 13-23 = octave 2
+    int cipherOctaveNumber = pitchForOctave / 12 - 4 - clefShift;
+
+    // For small announcements, use spatium as the spacing (like normal notes)
+    // instead of the larger cipher octave distance
+    double spatium = this->spatium();
+
+    // Calculate font height for the small cipher to offset by half its height
+    muse::draw::Font smallFont;
+    smallFont.setFamily(muse::draw::Font::FontFamily(style().styleSt(Sid::cipherFont)),
+                         muse::draw::Font::Type::Text);
+    // Small announcements are 70% of normal size
+    smallFont.setPointSizeF(style().styleD(Sid::cipherFontSize) * spatium * 0.7 * MScore::pixelRatio / SPATIUM20);
+
+    const Cipher& cipher = this->cipher();
+    double smallDigitHeight = cipher.textHeight(smallFont, u"1234567890") / MScore::pixelRatio;
+
+    // Shift up by half the height of the small digit
+    double announcementYOffset = cipherOctaveNumber * spatium - smallDigitHeight * 0.5;
+
+    LOGD() << "Announcement Y calc: pitch=" << m_pitch << " grundton(old)=" << grundtonVerschiebung
+           << " accidShift=" << accidentalShift << " transp=" << numTransposeInterval
+           << " clefShift=" << clefShift << " pitchForOctave=" << pitchForOctave
+           << " chromaticMod=" << chromaticMod
+           << " cipherOctaveNumber=" << cipherOctaveNumber
+           << " spatium=" << spatium << " smallDigitHeight=" << smallDigitHeight
+           << " => YOffset=" << announcementYOffset
+           << " cipher=" << fretString.toStdString();
+
+    // Determine accidental from accidentalShift
+    int accid = 0;
+    if (accidentalShift == -1) {
+        accid = -1;  // Flat
+    } else if (accidentalShift == 1) {
+        accid = 1;   // Sharp
+    }
+
+    // Store the cipher key change announcement in this note's layout data
+    Note::LayoutData* ldata = mutldata();
+    // Build announcement with accidental inside parentheses
+    String accidStr;
+    if (accid > 0) {
+        accidStr = u"♯";
+    } else if (accid < 0) {
+        accidStr = u"♭";
+    }
+    ldata->cipherKeyChangeAnnouncement = u"(" + accidStr + fretString + u")";
+    ldata->cipherKeyChangeAccidental = accid;
+    ldata->cipherKeyChangeAnnouncementYOffset = announcementYOffset;
+
+    // DO NOT extend bounding box - let the announcement "float" to avoid spacing issues
+}
+}

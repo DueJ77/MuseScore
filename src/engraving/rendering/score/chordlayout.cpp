@@ -39,6 +39,7 @@
 #include "dom/glissando.h"
 #include "dom/guitarbend.h"
 #include "dom/hook.h"
+#include "dom/keysig.h"
 
 #include "dom/ledgerline.h"
 #include "dom/lyrics.h"
@@ -99,10 +100,13 @@ void ChordLayout::layout(Chord* item, LayoutContext& ctx)
     }
 
     if (item->onTabStaff()) {
+        fprintf(stderr, "*** CHORD ON TAB STAFF ***\n");
         layoutTablature(item, ctx);
     } else if (item->onCipherStaff()) {
+        fprintf(stderr, "*** CHORD ON CIPHER STAFF - calling layoutCipher ***\n");
         layoutCipher(item, ctx);
     } else {
+        fprintf(stderr, "*** CHORD ON NORMAL STAFF - calling layoutPitched ***\n");
         layoutPitched(item, ctx);
     }
 }
@@ -702,6 +706,9 @@ void ChordLayout::layoutTablature(Chord* item, LayoutContext& ctx)
 
 void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
 {
+    LOGD() << "=== layoutCipher called for chord at tick " << item->tick() 
+           << " staff=" << (item->staff() ? item->staff()->idx() : -1);
+    
     // Cipher notation layout - similar to pitched but with different note positioning
     for (Chord* c : item->graceNotes()) {
         layoutCipher(c, ctx);
@@ -754,6 +761,68 @@ void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
     // Layout note2 for additional elements
     for (Note* note : item->notes()) {
         layoutNote2(note, ctx);
+    }
+    
+    // Check for key signature change and set cipher announcement on first note
+    if (item->segment() && item->staff()) {
+        Fraction currentTick = item->tick();
+        
+        // Check if there's a key change at or before this tick
+        Key currentKey = item->staff()->key(currentTick);
+        Key prevKey = item->staff()->key(currentTick - Fraction::fromTicks(1));
+        
+        LOGD() << "Cipher key check: tick=" << currentTick << " currentKey=" << int(currentKey) 
+               << " prevKey=" << int(prevKey) << " changed=" << (currentKey != prevKey);
+        
+        // If the key has changed, find the KeySig element and check if this is the first chord after it
+        if (currentKey != prevKey) {
+            LOGD() << "Key changed! Searching for KeySig segment...";
+            
+            // Find the key signature segment that caused this change
+            Segment* keySigSeg = nullptr;
+            
+            // Search backwards from current segment to find the KeySig
+            for (Segment* s = item->segment()->prev1(); s; s = s->prev1()) {
+                if (s->isKeySigType()) {
+                    KeySig* ks = toKeySig(s->element(item->track()));
+                    if (ks && ks->tick() <= currentTick) {
+                        // Check if this KeySig is at the point where the key changed
+                        Key keyAtKs = item->staff()->key(ks->tick());
+                        Key keyBeforeKs = item->staff()->key(ks->tick() - Fraction::fromTicks(1));
+                        if (keyAtKs != keyBeforeKs) {
+                            keySigSeg = s;
+                            LOGD() << "Found KeySig at tick " << ks->tick();
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // If we found the key signature, check if this is the first chord after it
+            if (keySigSeg) {
+                KeySig* keySig = toKeySig(keySigSeg->element(item->track()));
+                if (keySig) {
+                    // Check if this chord's segment is the first ChordRest segment after the keySig
+                    Segment* firstChordAfterKeySig = nullptr;
+                    for (Segment* s = keySigSeg->next1(); s; s = s->next1()) {
+                        if (s->isChordRestType()) {
+                            firstChordAfterKeySig = s;
+                            break;
+                        }
+                    }
+                    
+                    LOGD() << "First chord after keysig: " << (firstChordAfterKeySig == item->segment());
+                    
+                    // If this is the first chord after the key signature, set announcement on top note
+                    if (firstChordAfterKeySig == item->segment() && item->upNote()) {
+                        LOGD() << "Setting cipher key announcement on upNote!";
+                        item->upNote()->cipher_setKeysigNote(keySig);
+                    }
+                }
+            } else {
+                LOGD() << "No KeySig segment found!";
+            }
+        }
     }
 
     // Handle stem slash if present
@@ -2459,6 +2528,70 @@ void ChordLayout::layoutChords1(LayoutContext& ctx, Segment* segment, staff_idx_
         Ornament* ornament = chord->findOrnament();
         if (ornament && ornament->showCueNote()) {
             TLayout::layoutOrnamentCueNote(ornament, ctx);
+        }
+    }
+    
+    // Check for key signature changes in cipher notation and set announcement on first note
+    if (staff && staff->isCipherStaff(tick)) {
+        for (Chord* chord : posInfo.chords) {
+            if (!chord || !chord->segment()) {
+                continue;
+            }
+            
+            Fraction currentTick = chord->tick();
+            Key currentKey = staff->key(currentTick);
+            Key prevKey = staff->key(currentTick - Fraction::fromTicks(1));
+            
+            fprintf(stderr, "CIPHER KEY CHECK: tick=%d currentKey=%d prevKey=%d changed=%d\n", 
+                    currentTick.ticks(), int(currentKey), int(prevKey), currentKey != prevKey);
+            
+            // If the key has changed, find the KeySig element
+            if (currentKey != prevKey) {
+                fprintf(stderr, "KEY CHANGED! Searching for KeySig...\n");
+                
+                // Find the key signature segment
+                Segment* keySigSeg = nullptr;
+                for (Segment* s = chord->segment()->prev1(); s; s = s->prev1()) {
+                    if (s->isKeySigType()) {
+                        KeySig* ks = toKeySig(s->element(chord->track()));
+                        if (ks && ks->tick() <= currentTick) {
+                            Key keyAtKs = staff->key(ks->tick());
+                            Key keyBeforeKs = staff->key(ks->tick() - Fraction::fromTicks(1));
+                            if (keyAtKs != keyBeforeKs) {
+                                keySigSeg = s;
+                                fprintf(stderr, "FOUND KeySig at tick %d\n", ks->tick().ticks());
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Check if this is the first chord after the key signature
+                if (keySigSeg) {
+                    KeySig* keySig = toKeySig(keySigSeg->element(chord->track()));
+                    if (keySig) {
+                        Segment* firstChordAfterKeySig = nullptr;
+                        for (Segment* s = keySigSeg->next1(); s; s = s->next1()) {
+                            if (s->isChordRestType()) {
+                                firstChordAfterKeySig = s;
+                                break;
+                            }
+                        }
+                        
+                        bool isFirst = (firstChordAfterKeySig == chord->segment());
+                        fprintf(stderr, "First chord check: isFirst=%d, chord tick=%d, first tick=%d\n", 
+                                isFirst, chord->tick().ticks(), 
+                                firstChordAfterKeySig ? firstChordAfterKeySig->tick().ticks() : -1);
+                        
+                        if (isFirst && chord->upNote()) {
+                            fprintf(stderr, "SETTING ANNOUNCEMENT on chord at tick %d!\n", chord->tick().ticks());
+                            chord->upNote()->cipher_setKeysigNote(keySig);
+                        }
+                    }
+                } else {
+                    fprintf(stderr, "NO KeySig found!\n");
+                }
+            }
         }
     }
 }
