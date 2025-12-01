@@ -2541,6 +2541,13 @@ void SlurTieLayout::resolveVerticalTieCollisions(const std::vector<TieSegment*>&
 
 void SlurTieLayout::computeUp(Slur* slur, LayoutContext& ctx)
 {
+    // For cipher notation, slurs should always go down
+    ChordRest* chordRest1 = slur->startCR();
+    if (chordRest1 && chordRest1->staff() && chordRest1->staff()->isCipherStaff(chordRest1->tick())) {
+        slur->setUp(false);
+        return;
+    }
+    
     switch (slur->slurDirection()) {
     case DirectionV::UP:
         slur->setUp(true);
@@ -2976,6 +2983,14 @@ void SlurTieLayout::calculateDirection(Tie* item)
     if (!item->startNote() && !item->endNote()) {
         return;
     }
+    
+    // For cipher notation, ties should always go down
+    Note* checkNote = item->startNote() ? item->startNote() : item->endNote();
+    if (checkNote && checkNote->staff() && checkNote->staff()->isCipherStaff(checkNote->tick())) {
+        item->setUp(false);
+        return;
+    }
+    
     const bool tieHasBothNotes = item->startNote() && item->endNote();
 
     const Note* primaryNote = item->startNote() ? item->startNote() : item->endNote();
