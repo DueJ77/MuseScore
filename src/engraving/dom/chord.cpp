@@ -1004,6 +1004,14 @@ bool Chord::shouldHaveStem() const
 
 bool Chord::shouldHaveHook() const
 {
+    // Cipher notation needs hooks even without stems
+    const Staff* staff = this->staff();
+    if (staff && staff->isCipherStaff(tick())) {
+        return durationType().hooks() > 0
+               && !beam()
+               && !tremoloTwoChord();
+    }
+    
     return shouldHaveStem()
            && durationType().hooks() > 0
            && !beam()

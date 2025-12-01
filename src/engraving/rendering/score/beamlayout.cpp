@@ -490,7 +490,32 @@ void BeamLayout::breakCrossMeasureBeams(Measure* measure, LayoutContext& ctx)
         const Staff* stf = ctx.dom().staff(track2staff(track));
 
         // don’t compute beams for invisible staves and tablature without stems
-        if (!stf->show() || (stf->isTabStaff(measure->tick()) && stf->staffType(measure->tick())->stemless())) {
+        if (!stf->show() || (stf->isTabStaff(measure->tick()) && stf->staffType(measure->tick())->stemless()) 
+            || stf->isCipherStaff(measure->tick())) {
+            // For cipher notation, remove any existing beams completely
+            if (stf->isCipherStaff(measure->tick())) {
+                std::set<Beam*> beamsToRemove;
+                for (Segment* segment = measure->first(SegmentType::ChordRest); segment; segment = segment->next(SegmentType::ChordRest)) {
+                    ChordRest* cr = segment->cr(track);
+                    if (cr && cr->beam()) {
+                        beamsToRemove.insert(cr->beam());
+                    }
+                }
+                // Detach all ChordRests from their beams
+                for (Beam* beam : beamsToRemove) {
+                    std::vector<ChordRest*> elements = beam->elements();
+                    for (ChordRest* beamedCr : elements) {
+                        beamedCr->setBeam(nullptr);
+                        // For chords, ensure hooks are created
+                        if (beamedCr->isChord()) {
+                            Chord* chord = toChord(beamedCr);
+                            if (chord->shouldHaveHook() && !chord->hook()) {
+                                chord->createHook();
+                            }
+                        }
+                    }
+                }
+            }
             continue;
         }
 
@@ -629,7 +654,32 @@ void BeamLayout::createBeams(LayoutContext& ctx, Measure* measure)
         const Staff* stf = ctx.dom().staff(track2staff(track));
 
         // don’t compute beams for invisible staves and tablature without stems
-        if (!stf->show() || (stf->isTabStaff(measure->tick()) && stf->staffType(measure->tick())->stemless())) {
+        if (!stf->show() || (stf->isTabStaff(measure->tick()) && stf->staffType(measure->tick())->stemless()) 
+            || stf->isCipherStaff(measure->tick())) {
+            // For cipher notation, remove any existing beams completely
+            if (stf->isCipherStaff(measure->tick())) {
+                std::set<Beam*> beamsToRemove;
+                for (Segment* segment = measure->first(SegmentType::ChordRest); segment; segment = segment->next(SegmentType::ChordRest)) {
+                    ChordRest* cr = segment->cr(track);
+                    if (cr && cr->beam()) {
+                        beamsToRemove.insert(cr->beam());
+                    }
+                }
+                // Detach all ChordRests from their beams
+                for (Beam* beam : beamsToRemove) {
+                    std::vector<ChordRest*> elements = beam->elements();
+                    for (ChordRest* beamedCr : elements) {
+                        beamedCr->setBeam(nullptr);
+                        // For chords, ensure hooks are created
+                        if (beamedCr->isChord()) {
+                            Chord* chord = toChord(beamedCr);
+                            if (chord->shouldHaveHook() && !chord->hook()) {
+                                chord->createHook();
+                            }
+                        }
+                    }
+                }
+            }
             continue;
         }
 

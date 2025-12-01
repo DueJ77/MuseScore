@@ -830,6 +830,18 @@ void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
         TLayout::layoutStemSlash(item->stemSlash(), item->stemSlash()->mutldata(), ctx.conf());
     }
 
+    // Create hooks for cipher notation (eighth notes, sixteenth notes, etc.)
+    if (item->shouldHaveHook()) {
+        if (!item->hook()) {
+            item->createHook();
+        }
+        if (item->hook()) {
+            // Set hookType based on duration (positive for up, negative for down)
+            item->hook()->setHookType(item->up() ? item->durationType().hooks() : -item->durationType().hooks());
+            TLayout::layoutHook(item->hook(), item->hook()->mutldata());
+        }
+    }
+
     // Layout other elements
     layoutLvArticulation(item, ctx);
     
