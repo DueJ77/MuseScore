@@ -900,55 +900,19 @@ void TDraw::draw(const Beam* item, Painter* painter)
         return;
     }
     
-    // Cipher notation: draw horizontal hook lines for each beamed note instead of beams
-    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
-        // For each chord in the beam, draw individual hook lines
-        for (const ChordRest* cr : item->elements()) {
-            if (!cr->isChord()) {
-                continue;
-            }
-            const Chord* chord = toChord(cr);
-            if (chord->notes().empty()) {
-                continue;
-            }
-            
-            int hooks = chord->durationType().hooks();
-            if (hooks <= 0) {
-                continue;
-            }
-            
-            // Get the first note for dimensions and position
-            const Note* note = chord->notes()[0];
-            double cipherHeight = note->cipherHeight();
-            double cipherWidth = note->cipherWidth();
-            
-            // Calculate line properties
-            double lineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
-            double lineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1.0);
-            double lineLength = cipherWidth * item->style().styleD(Sid::cipherWideLine);
-            double offsetLine = item->style().styleD(Sid::cipherOffsetLine);
-            
-            // Get positions: note position relative to beam, plus cipher text offset
-            PointF notePos = note->pagePos();
-            PointF beamPos = item->pagePos();
-            PointF cipherTextPos = note->cipherTextPos();
-            PointF relativePos = notePos - beamPos + cipherTextPos;
-            
-            // Lines should be above the cipher text
-            // cipherTextPos.y() is the baseline, we need to go up by the text height plus a bit more
-            double textHeight = cipherHeight;
-            double yAboveText = relativePos.y() - textHeight * 1.2; // Go above the text
-            
-            painter->setPen(Pen(item->curColor(), lineThick));
-            
-            // Draw horizontal lines for each hook
-            for (int i = 0; i < hooks; ++i) {
-                double xStart = relativePos.x() + offsetLine;
-                double xEnd = relativePos.x() + offsetLine + lineLength;
-                double y = yAboveText - (i * std::abs(lineSpace));
-                painter->drawLine(LineF(xStart, y, xEnd, y));
-            }
+    // Cipher notation: don't draw beams at all - each note/rest has its own hook lines
+    bool isCipher = item->staff() && item->staff()->isCipherStaff(item->tick());
+    
+    // Also check if all elements are rests - rests should never be beamed
+    bool allRests = true;
+    for (const ChordRest* cr : item->elements()) {
+        if (cr->isChord()) {
+            allRests = false;
+            break;
         }
+    }
+    
+    if (isCipher || allRests) {
         return;
     }
     
@@ -2759,33 +2723,38 @@ void TDraw::draw(const Rest* item, Painter* painter)
         String restString = baseChar + durationMarker + dotMarker;
         
         // Get actual cipher height
-        double cipherHeight = tempCipher.textHeight(cipherFont, baseChar);
+        // Note: textHeight returns line height which is much larger than actual character height
+        // For consistency with notes, use approximately 0.27 of the text height
+        double cipherHeightRaw = tempCipher.textHeight(cipherFont, baseChar);
+        double cipherHeight = cipherHeightRaw * 0.27;  // Adjust to match Note::cipherHeight()
         
         // Draw the "0" character with duration markers
         // The rest is positioned at C3 line (1 octave below Y=0)
-        // Use the MS3 formula without additional offsetting
-        double heightDisplacement = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement);
+        double heightDisplacement = cipherHeightRaw * item->style().styleD(Sid::cipherHeightDisplacement);
         painter->drawText(PointF(0, heightDisplacement), restString);
         
-        // Draw hook lines (commas) for shorter note values
+        // Draw hook lines for shorter note values
         int hooks = std::abs(item->durationType().hooks());
         if (hooks > 0) {
             double cipherLineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
             double cipherLineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
-            double cipherHeightLine = heightDisplacement - cipherHeight 
-                                     - cipherHeight * item->style().styleD(Sid::cipherHeigthLine);
             
-            // Get actual line width
-            double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar);
+            // Get actual line width - use smaller width for hook lines  
+            double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar) * 0.3;
+            double lineLength = cipherLineWidth * item->style().styleD(Sid::cipherWideLine);
+            double offsetLine = item->style().styleD(Sid::cipherOffsetLine);
+            
+            // Use the same Y-position calculation as for notes
+            double yAboveText = heightDisplacement - cipherHeight * 1.2;
             
             painter->setPen(Pen(item->curColor(), cipherLineThick));
             
+            // Draw hook lines using the same style as notes
             for (int i = 0; i < hooks; ++i) {
-                double lineY = cipherHeightLine + (i * cipherLineSpace);
-                double lineWidth = cipherLineWidth * item->style().styleD(Sid::cipherWideLine);
-                double lineX1 = cipherLineWidth / 2 - lineWidth / 2;
-                double lineX2 = cipherLineWidth / 2 + lineWidth / 2;
-                painter->drawLine(LineF(lineX1, lineY, lineX2, lineY));
+                double y = yAboveText - (i * std::abs(cipherLineSpace));
+                double lineX1 = offsetLine + (cipherLineWidth / 2 - lineLength / 2);
+                double lineX2 = offsetLine + (cipherLineWidth / 2 + lineLength / 2);
+                painter->drawLine(LineF(lineX1, y, lineX2, y));
             }
         }
         
