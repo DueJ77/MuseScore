@@ -556,17 +556,30 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
     if (sa1 == SlurAnchor::NONE || sa2 == SlurAnchor::NONE) {   // need stemPos if sa2 == SlurAnchor::NONE
         bool stemPos = false;       // p1 starts at chord stem side
 
+        // Check if this is cipher notation
+        bool isCipherStaff = item->staff() && item->staff()->isCipherStaff(item->tick());
+
         // default positions
         po.rx() = hw1 * .5 + (note1 ? note1->bboxXShift() : 0.0);
         if (note1) {
-            po.ry() = note1->pos().y();
+            if (isCipherStaff && note1->cipherHeight() > 0.0) {
+                // For cipher notation, use the actual visual position of the cipher digit
+                po.ry() = note1->cipherTextPos().y();
+            } else {
+                po.ry() = note1->pos().y();
+            }
         } else if (item->up()) {
             po.ry() = scr->ldata()->bbox().top();
         } else {
             po.ry() = scr->ldata()->bbox().top() + scr->height();
         }
         double offset = useTablature ? 0.75 : 0.9;
-        po.ry() += scr->intrinsicMag() * _spatium * offset * __up;
+        if (isCipherStaff && note1 && note1->cipherHeight() > 0.0) {
+            // For cipher notation, add offset relative to cipher height
+            po.ry() += note1->cipherHeight() * 0.3 * __up;
+        } else if (!isCipherStaff || note1->cipherHeight() <= 0.0) {
+            po.ry() += scr->intrinsicMag() * _spatium * offset * __up;
+        }
 
         // adjustments for stem and/or beam
         TremoloTwoChord* trem = sc ? sc->tremoloTwoChord() : nullptr;
@@ -656,15 +669,33 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
                     }
 
                     // differential in note positions
-                    double yd  = (n2 ? n2->pos().y() : ecr->pos().y()) - n1->pos().y();
+                    double yd;
+                    if (isCipherStaff && n1->cipherHeight() > 0.0 && (!n2 || n2->cipherHeight() > 0.0)) {
+                        // For cipher notation, use cipher text positions
+                        yd = (n2 ? n2->cipherTextPos().y() : ecr->pos().y()) - n1->cipherTextPos().y();
+                    } else {
+                        yd = (n2 ? n2->pos().y() : ecr->pos().y()) - n1->pos().y();
+                    }
                     yd *= .5;
 
                     // float along stem according to differential
                     double sh = stem1->height();
                     if (item->up() && yd < 0.0) {
-                        po.ry() = std::max(po.y() + yd, sc->downNote()->pos().y() - sh - _spatium);
+                        double limitY;
+                        if (isCipherStaff && sc->downNote()->cipherHeight() > 0.0) {
+                            limitY = sc->downNote()->cipherTextPos().y() - sh - _spatium;
+                        } else {
+                            limitY = sc->downNote()->pos().y() - sh - _spatium;
+                        }
+                        po.ry() = std::max(po.y() + yd, limitY);
                     } else if (!item->up() && yd > 0.0) {
-                        po.ry() = std::min(po.y() + yd, sc->upNote()->pos().y() + sh + _spatium);
+                        double limitY;
+                        if (isCipherStaff && sc->upNote()->cipherHeight() > 0.0) {
+                            limitY = sc->upNote()->cipherTextPos().y() + sh + _spatium;
+                        } else {
+                            limitY = sc->upNote()->pos().y() + sh + _spatium;
+                        }
+                        po.ry() = std::min(po.y() + yd, limitY);
                     }
 
                     // account for articulations
@@ -695,14 +726,24 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
             // default positions
             po.rx() = hw2 * .5 + (note2 ? note2->bboxXShift() : 0.0);
             if (note2) {
-                po.ry() = note2->pos().y();
+                if (isCipherStaff && note2->cipherHeight() > 0.0) {
+                    // For cipher notation, use the actual visual position of the cipher digit
+                    po.ry() = note2->cipherTextPos().y();
+                } else {
+                    po.ry() = note2->pos().y();
+                }
             } else if (item->up()) {
                 po.ry() = item->endCR()->ldata()->bbox().top();
             } else {
                 po.ry() = item->endCR()->ldata()->bbox().top() + item->endCR()->height();
             }
             double offset2 = useTablature ? 0.75 : 0.9;
-            po.ry() += ecr->intrinsicMag() * _spatium * offset2 * __up;
+            if (isCipherStaff && note2 && note2->cipherHeight() > 0.0) {
+                // For cipher notation, add offset relative to cipher height
+                po.ry() += note2->cipherHeight() * 0.3 * __up;
+            } else if (!isCipherStaff || (note2 && note2->cipherHeight() <= 0.0)) {
+                po.ry() += ecr->intrinsicMag() * _spatium * offset2 * __up;
+            }
 
             // adjustments for stem and/or beam
             TremoloTwoChord* trem2 = ec ? ec->tremoloTwoChord() : nullptr;
@@ -1696,8 +1737,18 @@ PointF SlurTieLayout::computeDefaultStartOrEndPoint(const Tie* tie, Grip startOr
     const double noteHeight = note->height();
     const double spatium = tie->spatium();
 
+    // Check if this is cipher notation
+    bool isCipherStaff = note->staff() && note->staff()->isCipherStaff(note->tick());
+
     double baseX = (inside && !noteIsHiddenFret) ? (start ? noteWidth : 0.0) : noteOpticalCenterForTie(note, up);
-    double baseY = inside ? 0.0 : upSign * noteHeight / 2;
+    double baseY;
+    
+    if (isCipherStaff && note->cipherHeight() > 0.0) {
+        // For cipher notation, use the cipher text position
+        baseY = note->cipherTextPos().y() + (inside ? 0.0 : upSign * note->cipherHeight() / 2);
+    } else {
+        baseY = inside ? 0.0 : upSign * noteHeight / 2;
+    }
 
     result += PointF(baseX, baseY);
 
@@ -1711,7 +1762,15 @@ PointF SlurTieLayout::computeDefaultStartOrEndPoint(const Tie* tie, Grip startOr
     }
 
     double visualInset = visualInsetSp * spatium * leftRightSign;
-    const double yOffset = 0.20 * spatium * upSign; // TODO: style
+    
+    // Adjust yOffset for cipher notation
+    double yOffset;
+    if (isCipherStaff && note->cipherHeight() > 0.0) {
+        // For cipher notation, use smaller offset relative to cipher height
+        yOffset = 0.075 * note->cipherHeight() * upSign;
+    } else {
+        yOffset = 0.20 * spatium * upSign; // TODO: style
+    }
 
     result += PointF(visualInset, yOffset);
 
