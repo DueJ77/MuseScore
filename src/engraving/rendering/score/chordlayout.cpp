@@ -814,9 +814,12 @@ void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
                     LOGD() << "First chord after keysig: " << (firstChordAfterKeySig == item->segment());
                     
                     // If this is the first chord after the key signature, set announcement on top note
-                    if (firstChordAfterKeySig == item->segment() && item->upNote()) {
+                    // BUT: Skip the announcement if this is the first key signature at the beginning (tick 0)
+                    if (firstChordAfterKeySig == item->segment() && item->upNote() && keySig->tick() != Fraction(0, 1)) {
                         LOGD() << "Setting cipher key announcement on upNote!";
                         item->upNote()->cipher_setKeysigNote(keySig);
+                    } else if (keySig->tick() == Fraction(0, 1)) {
+                        LOGD() << "Skipping cipher key announcement for first key signature at tick 0";
                     }
                 }
             } else {
@@ -2595,9 +2598,12 @@ void ChordLayout::layoutChords1(LayoutContext& ctx, Segment* segment, staff_idx_
                                 isFirst, chord->tick().ticks(), 
                                 firstChordAfterKeySig ? firstChordAfterKeySig->tick().ticks() : -1);
                         
-                        if (isFirst && chord->upNote()) {
+                        // Set announcement, but skip if this is the first key signature at tick 0
+                        if (isFirst && chord->upNote() && keySig->tick() != Fraction(0, 1)) {
                             fprintf(stderr, "SETTING ANNOUNCEMENT on chord at tick %d!\n", chord->tick().ticks());
                             chord->upNote()->cipher_setKeysigNote(keySig);
+                        } else if (keySig->tick() == Fraction(0, 1)) {
+                            fprintf(stderr, "SKIPPING ANNOUNCEMENT for first key signature at tick 0\n");
                         }
                     }
                 } else {
