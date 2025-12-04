@@ -62,12 +62,13 @@ StyledFlickable {
                         width: root.controlAreaWidth - 12
                     }
 
-                    FontStyleSelector {
+                    ComboBox {
                         width: 200
-                        fontFamily: cipherPage.cipherFont ? cipherPage.cipherFont.value : ""
-                        onFontFamilyChanged: {
-                            if (cipherPage.cipherFont) {
-                                cipherPage.cipherFont.value = fontFamily
+                        model: Qt.fontFamilies()
+                        currentIndex: model.indexOf(cipherPage.cipherFont ? cipherPage.cipherFont.value : "")
+                        onCurrentTextChanged: {
+                            if (cipherPage.cipherFont && currentText) {
+                                cipherPage.cipherFont.value = currentText
                             }
                         }
                     }
@@ -301,12 +302,13 @@ StyledFlickable {
                         width: root.controlAreaWidth - 12
                     }
 
-                    FontStyleSelector {
+                    ComboBox {
                         width: 200
-                        fontFamily: cipherPage.cipherKeySigFont ? cipherPage.cipherKeySigFont.value : ""
-                        onFontFamilyChanged: {
-                            if (cipherPage.cipherKeySigFont) {
-                                cipherPage.cipherKeySigFont.value = fontFamily
+                        model: Qt.fontFamilies()
+                        currentIndex: model.indexOf(cipherPage.cipherKeySigFont ? cipherPage.cipherKeySigFont.value : "")
+                        onCurrentTextChanged: {
+                            if (cipherPage.cipherKeySigFont && currentText) {
+                                cipherPage.cipherKeySigFont.value = currentText
                             }
                         }
                     }
@@ -345,12 +347,13 @@ StyledFlickable {
                         width: root.controlAreaWidth - 12
                     }
 
-                    FontStyleSelector {
+                    ComboBox {
                         width: 200
-                        fontFamily: cipherPage.cipherTimeSigFont ? cipherPage.cipherTimeSigFont.value : ""
-                        onFontFamilyChanged: {
-                            if (cipherPage.cipherTimeSigFont) {
-                                cipherPage.cipherTimeSigFont.value = fontFamily
+                        model: Qt.fontFamilies()
+                        currentIndex: model.indexOf(cipherPage.cipherTimeSigFont ? cipherPage.cipherTimeSigFont.value : "")
+                        onCurrentTextChanged: {
+                            if (cipherPage.cipherTimeSigFont && currentText) {
+                                cipherPage.cipherTimeSigFont.value = currentText
                             }
                         }
                     }

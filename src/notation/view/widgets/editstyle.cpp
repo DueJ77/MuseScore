@@ -97,6 +97,7 @@ static const QStringList ALL_PAGE_CODES {
     "rehearsal-marks",
     "figured-bass",
     "chord-symbols",
+    "cipher-notation",
     "fretboard-diagrams",
     "tablature-styles",
     "text-styles"
@@ -851,6 +852,15 @@ EditStyle::EditStyle(QWidget* parent)
         QUrl(QString::fromUtf8("qrc:/qml/MuseScore/NotationScene/internal/EditStyle/FretboardsPage.qml")));
     connect(fretboardsPage.view->rootObject(), SIGNAL(goToTextStylePage(QString)), this, SLOT(goToTextStylePage(QString)));
     PageFretboardDiagrams->layout()->addWidget(fretboardsPage.widget);
+
+    // ====================================================
+    // CIPHER NOTATION STYLE PAGE (QML)
+    // ====================================================
+
+    auto cipherPage = createQmlWidget(
+        PageCipherNotation,
+        QUrl(QString::fromUtf8("qrc:/qml/MuseScore/NotationScene/internal/EditStyle/CipherPage.qml")));
+    PageCipherNotation->layout()->addWidget(cipherPage.widget);
 
     // ====================================================
     // Hammer-on/pull-off and tapping STYLE PAGE (QML)
