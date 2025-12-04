@@ -102,6 +102,7 @@
 #include "view/styledialog/hammeronpullofftappingpagemodel.h"
 #include "view/styledialog/repeatbarlinessectionmodel.h"
 #include "view/styledialog/chordsymbolspagemodel.h"
+#include "view/styledialog/cipherpagemodel.h"
 #include "view/styledialog/voltaspagemodel.h"
 #include "view/styledialog/measurenumberspagemodel.h"
 #include "view/styledialog/tupletcenteringselectormodel.h"
@@ -245,6 +246,7 @@ void NotationModule::registerUiTypes()
     qmlRegisterType<HammerOnPullOffTappingPageModel>("MuseScore.NotationScene", 1, 0, "HammerOnPullOffTappingPageModel");
     qmlRegisterType<RepeatBarlinesSectionModel>("MuseScore.NotationScene", 1, 0, "RepeatBarlinesSectionModel");
     qmlRegisterType<ChordSymbolsPageModel>("MuseScore.NotationScene", 1, 0, "ChordSymbolsPageModel");
+    qmlRegisterType<CipherPageModel>("MuseScore.NotationScene", 1, 0, "CipherPageModel");
     qmlRegisterType<VoltasPageModel>("MuseScore.NotationScene", 1, 0, "VoltasPageModel");
     qmlRegisterType<MeasureNumbersPageModel>("MuseScore.NotationScene", 1, 0, "MeasureNumbersPageModel");
     qmlRegisterType<TupletCenteringSelectorModel>("MuseScore.NotationScene", 1, 0, "TupletCenteringSelectorModel");

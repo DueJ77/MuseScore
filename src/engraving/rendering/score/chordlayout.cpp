@@ -39,9 +39,11 @@
 #include "dom/glissando.h"
 #include "dom/guitarbend.h"
 #include "dom/hook.h"
+#include "dom/keysig.h"
 
 #include "dom/ledgerline.h"
 #include "dom/lyrics.h"
+#include "dom/pitchspelling.h"
 
 #include "dom/measure.h"
 
@@ -98,8 +100,13 @@ void ChordLayout::layout(Chord* item, LayoutContext& ctx)
     }
 
     if (item->onTabStaff()) {
+        fprintf(stderr, "*** CHORD ON TAB STAFF ***\n");
         layoutTablature(item, ctx);
+    } else if (item->onCipherStaff()) {
+        fprintf(stderr, "*** CHORD ON CIPHER STAFF - calling layoutCipher ***\n");
+        layoutCipher(item, ctx);
     } else {
+        fprintf(stderr, "*** CHORD ON NORMAL STAFF - calling layoutPitched ***\n");
         layoutPitched(item, ctx);
     }
 }
@@ -694,6 +701,153 @@ void ChordLayout::layoutTablature(Chord* item, LayoutContext& ctx)
 
     layoutLvArticulation(item, ctx);
 
+    fillShape(item, item->mutldata(), ctx.conf());
+}
+
+void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
+{
+    LOGD() << "=== layoutCipher called for chord at tick " << item->tick() 
+           << " staff=" << (item->staff() ? item->staff()->idx() : -1);
+    
+    // Cipher notation layout - similar to pitched but with different note positioning
+    for (Chord* c : item->graceNotes()) {
+        layoutCipher(c, ctx);
+    }
+
+    double mag_ = item->staff() ? item->staff()->staffMag(item) : 1.0;
+    double dotNoteDistance = ctx.conf().styleMM(Sid::dotNoteDistance) * mag_;
+    double minNoteDistance = ctx.conf().styleMM(Sid::minNoteDistance) * mag_;
+    
+    double lll = 0.0;  // space to leave at left of chord
+    double rrr = 0.0;  // space to leave at right of chord
+    
+    // Layout all notes
+    for (Note* note : item->notes()) {
+        TLayout::layoutNote(note, note->mutldata());
+        
+        // Position note horizontally - cipher notes don't stack horizontally like standard notation
+        // All notes in a chord share the same x position
+        double x = 0.0;
+        
+        // Position note vertically - cipher notation uses a single line, so all notes at y=0
+        // (The cipher digit itself will be rendered at the appropriate staff position)
+        double y = 0.0;
+        
+        note->setPos(x, y);
+        
+        // Track maximum widths for chord spacing
+        double noteWidth = note->cipherWidth2();  // Total width including accidentals
+        if (noteWidth > rrr) {
+            rrr = noteWidth;
+        }
+    }
+
+    // Handle dots
+    if (item->dots()) {
+        double dotWidth = item->symWidth(SymId::augmentationDot);
+        // Position dots to the right of the notes
+        for (int i = 0; i < item->dots(); ++i) {
+            for (Note* note : item->notes()) {
+                if (NoteDot* dot = note->dot(i)) {
+                    TLayout::layoutNoteDot(dot, dot->mutldata());
+                    double x = rrr + dotNoteDistance + i * (dotWidth + dotNoteDistance);
+                    dot->setPos(x, 0);
+                }
+            }
+        }
+        rrr += dotNoteDistance + item->dots() * (dotWidth + dotNoteDistance);
+    }
+
+    // Layout note2 for additional elements
+    for (Note* note : item->notes()) {
+        layoutNote2(note, ctx);
+    }
+    
+    // Check for key signature change and set cipher announcement on first note
+    if (item->segment() && item->staff()) {
+        Fraction currentTick = item->tick();
+        
+        // Check if there's a key change at or before this tick
+        Key currentKey = item->staff()->key(currentTick);
+        Key prevKey = item->staff()->key(currentTick - Fraction::fromTicks(1));
+        
+        LOGD() << "Cipher key check: tick=" << currentTick << " currentKey=" << int(currentKey) 
+               << " prevKey=" << int(prevKey) << " changed=" << (currentKey != prevKey);
+        
+        // If the key has changed, find the KeySig element and check if this is the first chord after it
+        if (currentKey != prevKey) {
+            LOGD() << "Key changed! Searching for KeySig segment...";
+            
+            // Find the key signature segment that caused this change
+            Segment* keySigSeg = nullptr;
+            
+            // Search backwards from current segment to find the KeySig
+            for (Segment* s = item->segment()->prev1(); s; s = s->prev1()) {
+                if (s->isKeySigType()) {
+                    KeySig* ks = toKeySig(s->element(item->track()));
+                    if (ks && ks->tick() <= currentTick) {
+                        // Check if this KeySig is at the point where the key changed
+                        Key keyAtKs = item->staff()->key(ks->tick());
+                        Key keyBeforeKs = item->staff()->key(ks->tick() - Fraction::fromTicks(1));
+                        if (keyAtKs != keyBeforeKs) {
+                            keySigSeg = s;
+                            LOGD() << "Found KeySig at tick " << ks->tick();
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // If we found the key signature, check if this is the first chord after it
+            if (keySigSeg) {
+                KeySig* keySig = toKeySig(keySigSeg->element(item->track()));
+                if (keySig) {
+                    // Check if this chord's segment is the first ChordRest segment after the keySig
+                    Segment* firstChordAfterKeySig = nullptr;
+                    for (Segment* s = keySigSeg->next1(); s; s = s->next1()) {
+                        if (s->isChordRestType()) {
+                            firstChordAfterKeySig = s;
+                            break;
+                        }
+                    }
+                    
+                    LOGD() << "First chord after keysig: " << (firstChordAfterKeySig == item->segment());
+                    
+                    // If this is the first chord after the key signature, set announcement on top note
+                    // BUT: Skip the announcement if this is the first key signature at the beginning (tick 0)
+                    if (firstChordAfterKeySig == item->segment() && item->upNote() && keySig->tick() != Fraction(0, 1)) {
+                        LOGD() << "Setting cipher key announcement on upNote!";
+                        item->upNote()->cipher_setKeysigNote(keySig);
+                    } else if (keySig->tick() == Fraction(0, 1)) {
+                        LOGD() << "Skipping cipher key announcement for first key signature at tick 0";
+                    }
+                }
+            } else {
+                LOGD() << "No KeySig segment found!";
+            }
+        }
+    }
+
+    // Handle stem slash if present
+    if (item->stemSlash()) {
+        TLayout::layoutStemSlash(item->stemSlash(), item->stemSlash()->mutldata(), ctx.conf());
+    }
+
+    // Create hooks for cipher notation (eighth notes, sixteenth notes, etc.)
+    if (item->shouldHaveHook()) {
+        if (!item->hook()) {
+            item->createHook();
+        }
+        if (item->hook()) {
+            // Set hookType based on duration (positive for up, negative for down)
+            item->hook()->setHookType(item->up() ? item->durationType().hooks() : -item->durationType().hooks());
+            TLayout::layoutHook(item->hook(), item->hook()->mutldata());
+        }
+    }
+
+    // Layout other elements
+    layoutLvArticulation(item, ctx);
+    
     fillShape(item, item->mutldata(), ctx.conf());
 }
 
@@ -1296,6 +1450,102 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
         stepOffset = st->staffType(tick)->stepOffset();
     }
 
+    // For Cipher notation, use completely different ledger line logic (based on MS3 fork)
+    bool isCipher = item->staff() && item->staff()->isCipherStaff(item->tick());
+    if (isCipher) {
+        // For cipher: create ledger lines based on calculated cipherLedgerline value
+        // Each ledger line represents 2 octaves distance
+        const Note* firstNote = item->notes().empty() ? nullptr : item->notes()[0];
+        if (!firstNote) {
+            muse::DeleteAll(item->ledgerLines());
+            item->ledgerLines().clear();
+            return;
+        }
+        
+        // Calculate cipherLedgerline value (same formula as in tlayout.cpp)
+        // This ensures we always have the current value, even when notes are moved
+        int clefShift = firstNote->cipherOktave();
+        Key key = item->staff() ? item->staff()->key(item->tick()) : Key::C;
+        int groundToneShift = firstNote->cipherTrans(key);
+        int numTransposeInterval = 0;
+        if (item->part() && item->part()->instrument(item->tick())) {
+            numTransposeInterval = item->part()->instrument(item->tick())->transpose().chromatic;
+        }
+        
+        int accidentalShift = 0;
+        tpc2stepByKey(firstNote->tpc(), key, accidentalShift);
+        if (accidentalShift > 1 || accidentalShift < -1) {
+            accidentalShift = 0;
+        }
+        
+        // Calculate octave distance (before division by 2)
+        // MS3 uses -5 (C5 as reference), but in MS4 cipher line might be at C4, so try -4
+        int octaveDistance = (firstNote->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 4 - clefShift;
+        
+        // Number of ledger lines = abs(octaveDistance) / 2
+        // This gives: 0-1 octaves = 0 lines, 2-3 octaves = 1 line, 4-5 octaves = 2 lines, etc.
+        int cipherLedgerline = octaveDistance / 2;
+        int anzahl = std::abs(cipherLedgerline);
+        
+        LOGD() << "updateLedgerLines CIPHER: pitch=" << firstNote->pitch()
+               << " ground=" << groundToneShift << " accid=" << accidentalShift
+               << " transp=" << numTransposeInterval << " clef=" << clefShift
+               << " => octaveDist=" << octaveDistance << " ledgerlines=" << anzahl;
+        
+        if (anzahl == 0) {
+            muse::DeleteAll(item->ledgerLines());
+            item->ledgerLines().clear();
+            return;
+        }
+        
+        // Create ledger lines (one per 2 octaves distance)
+        item->resizeLedgerLinesTo(anzahl);
+        
+        // Get cipher dimensions
+        double cipherHeight = firstNote->cipherHeight();
+        double cipherWidth = firstNote->cipherWidth();
+        
+        // If cipher dimensions are not yet calculated (e.g., first switch from notes to cipher),
+        // skip ledger lines for now. They will be created after the note is properly laid out.
+        if (cipherHeight <= 0.0 || cipherWidth <= 0.0) {
+            LOGD() << "updateLedgerLines CIPHER: dimensions not yet available (h=" << cipherHeight 
+                   << " w=" << cipherWidth << "), deleting any existing lines";
+            muse::DeleteAll(item->ledgerLines());
+            item->ledgerLines().clear();
+            return;
+        }
+        
+        LOGD() << "updateLedgerLines CIPHER: creating " << anzahl << " ledger lines with h=" 
+               << cipherHeight << " w=" << cipherWidth;
+        
+        for (int n = 0; n < anzahl; n++) {
+            LedgerLine* h = item->ledgerLines()[n];
+            h->setParent(item);
+            h->setTrack(track);
+            h->setVisible(item->visible() && staffVisible);
+            h->setLen(cipherWidth * ctx.conf().styleD(Sid::cipherLedgerlineLength));
+            
+            double x = (cipherWidth * 0.5) - (cipherWidth * ctx.conf().styleD(Sid::cipherLedgerlineLength) * 0.5)
+                       + ctx.conf().styleD(Sid::cipherLedgerlineShift);
+            double y;
+            // Position ledger lines every 2 octaves
+            // Calculate based on octaveDistance, not cipherLedgerline
+            int lineOctaveDistance = (n + 1) * 2;  // First line at 2 octaves, second at 4, etc.
+            if (octaveDistance < 0) {
+                lineOctaveDistance = -lineOctaveDistance;
+            }
+            y = -lineOctaveDistance * cipherHeight * ctx.conf().styleD(Sid::cipherDistanceOctave);
+            h->setPos(x, y);
+            
+            // Layout the ledger line and set its lineWidth
+            TLayout::layoutLedgerLine(h, ctx);
+            h->mutldata()->lineWidth = cipherHeight * ctx.conf().styleD(Sid::cipherLedgerlineThick);
+        }
+        
+        return;
+    }
+    
+    // Standard notation ledger lines
     // need ledger lines?
     if (item->downLine() + stepOffset <= lineBelow + 1 && item->upLine() + stepOffset >= -1) {
         muse::DeleteAll(item->ledgerLines());
@@ -1415,6 +1665,7 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
     double _spatium = item->spatium();
     double stepDistance = lineDistance * 0.5;
     item->resizeLedgerLinesTo(ledgerLineData.size());
+    
     for (size_t i = 0; i < ledgerLineData.size(); ++i) {
         LedgerLineData lld = ledgerLineData[i];
         LedgerLine* h = item->ledgerLines()[i];
@@ -2274,6 +2525,7 @@ void ChordLayout::layoutChords1(LayoutContext& ctx, Segment* segment, staff_idx_
     }
 
     if (!isTab) {
+        LOGD() << "layoutChords1: Calling layoutLedgerLines for staff " << staffIdx;
         layoutLedgerLines(posInfo.chords, ctx);
         AccidentalsLayout::layoutAccidentals(posInfo.chords, ctx);
         for (Chord* chord : posInfo.chords) {
@@ -2281,6 +2533,8 @@ void ChordLayout::layoutChords1(LayoutContext& ctx, Segment* segment, staff_idx_
                 AccidentalsLayout::layoutAccidentals({ grace }, ctx);
             }
         }
+    } else {
+        LOGD() << "layoutChords1: Skipping layoutLedgerLines for TAB staff " << staffIdx;
     }
 
     layoutSegmentElements(segment, partStartTrack, partEndTrack, staffIdx, ctx);
@@ -2289,6 +2543,73 @@ void ChordLayout::layoutChords1(LayoutContext& ctx, Segment* segment, staff_idx_
         Ornament* ornament = chord->findOrnament();
         if (ornament && ornament->showCueNote()) {
             TLayout::layoutOrnamentCueNote(ornament, ctx);
+        }
+    }
+    
+    // Check for key signature changes in cipher notation and set announcement on first note
+    if (staff && staff->isCipherStaff(tick)) {
+        for (Chord* chord : posInfo.chords) {
+            if (!chord || !chord->segment()) {
+                continue;
+            }
+            
+            Fraction currentTick = chord->tick();
+            Key currentKey = staff->key(currentTick);
+            Key prevKey = staff->key(currentTick - Fraction::fromTicks(1));
+            
+            fprintf(stderr, "CIPHER KEY CHECK: tick=%d currentKey=%d prevKey=%d changed=%d\n", 
+                    currentTick.ticks(), int(currentKey), int(prevKey), currentKey != prevKey);
+            
+            // If the key has changed, find the KeySig element
+            if (currentKey != prevKey) {
+                fprintf(stderr, "KEY CHANGED! Searching for KeySig...\n");
+                
+                // Find the key signature segment
+                Segment* keySigSeg = nullptr;
+                for (Segment* s = chord->segment()->prev1(); s; s = s->prev1()) {
+                    if (s->isKeySigType()) {
+                        KeySig* ks = toKeySig(s->element(chord->track()));
+                        if (ks && ks->tick() <= currentTick) {
+                            Key keyAtKs = staff->key(ks->tick());
+                            Key keyBeforeKs = staff->key(ks->tick() - Fraction::fromTicks(1));
+                            if (keyAtKs != keyBeforeKs) {
+                                keySigSeg = s;
+                                fprintf(stderr, "FOUND KeySig at tick %d\n", ks->tick().ticks());
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Check if this is the first chord after the key signature
+                if (keySigSeg) {
+                    KeySig* keySig = toKeySig(keySigSeg->element(chord->track()));
+                    if (keySig) {
+                        Segment* firstChordAfterKeySig = nullptr;
+                        for (Segment* s = keySigSeg->next1(); s; s = s->next1()) {
+                            if (s->isChordRestType()) {
+                                firstChordAfterKeySig = s;
+                                break;
+                            }
+                        }
+                        
+                        bool isFirst = (firstChordAfterKeySig == chord->segment());
+                        fprintf(stderr, "First chord check: isFirst=%d, chord tick=%d, first tick=%d\n", 
+                                isFirst, chord->tick().ticks(), 
+                                firstChordAfterKeySig ? firstChordAfterKeySig->tick().ticks() : -1);
+                        
+                        // Set announcement, but skip if this is the first key signature at tick 0
+                        if (isFirst && chord->upNote() && keySig->tick() != Fraction(0, 1)) {
+                            fprintf(stderr, "SETTING ANNOUNCEMENT on chord at tick %d!\n", chord->tick().ticks());
+                            chord->upNote()->cipher_setKeysigNote(keySig);
+                        } else if (keySig->tick() == Fraction(0, 1)) {
+                            fprintf(stderr, "SKIPPING ANNOUNCEMENT for first key signature at tick 0\n");
+                        }
+                    }
+                } else {
+                    fprintf(stderr, "NO KeySig found!\n");
+                }
+            }
         }
     }
 }
@@ -2341,9 +2662,10 @@ double ChordLayout::layoutChords2(std::vector<Note*>& notes, bool up, LayoutCont
         const Staff* st = note->staff();
         const StaffType* tab = st->staffTypeForElement(note);
         const bool isTab = note->staff() && note->staff()->isTabStaff(note->chord()->tick());
+        const bool isCipher = note->staff() && note->staff()->isCipherStaff(note->chord()->tick());
 
-        if (isTab) {
-            // TAB notes need to be laid out to set the fret string so we can calulate their width
+        if (isTab || isCipher) {
+            // TAB and Cipher notes need to be laid out to set dimensions for ledger lines
             // Standard staves can get this information from the notehead symbol, so no need to lay out
             TLayout::layoutNote(note, note->mutldata());
         }
@@ -2772,6 +3094,16 @@ void ChordLayout::layoutChords3(const std::vector<Chord*>& chords,
 void ChordLayout::layoutLedgerLines(const std::vector<Chord*>& chords, LayoutContext& ctx)
 {
     for (Chord* item : chords) {
+        // For cipher notation, ensure notes are laid out before creating ledger lines
+        if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+            for (Note* note : item->notes()) {
+                if (note->cipherHeight() <= 0.0 || note->cipherWidth() <= 0.0) {
+                    LOGD() << "layoutLedgerLines: Pre-laying out cipher note";
+                    TLayout::layoutNote(note, note->mutldata());
+                }
+            }
+        }
+        
         updateLedgerLines(item, ctx);
         for (Chord* grace : item->graceNotes()) {
             updateLedgerLines(grace, ctx);

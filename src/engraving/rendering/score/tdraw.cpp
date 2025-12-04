@@ -172,6 +172,31 @@ using namespace mu::engraving::rendering::score;
 using namespace muse;
 using namespace muse::draw;
 
+namespace mu::engraving {
+extern const char* CipherString[15][2];
+
+// Duration markers for cipher notation (notes)
+static const char16_t* cipherDuration_internal[16] = {
+    u"", u"", u",,", u",", u"", u"", u"", u"",
+    u"", u"", u"", u"", u"", u"", u"", u""
+};
+
+static const char16_t* cipherDurationDot_internal[3] = {
+    u"", u".", u".."
+};
+
+// Duration markers for cipher notation RESTS (different from notes!)
+// Index 14 (V_MEASURE / whole measure rest) = ",,"
+static const char16_t* cipherDurationRest_internal[16] = {
+    u"", u"", u",,", u",", u"", u"", u"", u"",
+    u"", u"", u"", u"", u"", u"", u",,", u""
+};
+
+static const char16_t* cipherDurationDotRest_internal[3] = {
+    u"", u".", u".."
+};
+}
+
 void TDraw::drawItem(const EngravingItem* item, Painter* painter)
 {
     switch (item->type()) {
@@ -432,6 +457,12 @@ void TDraw::draw(const Accidental* item, Painter* painter)
 {
     TRACE_DRAW_ITEM;
     IF_ASSERT_FAILED(item->ldata()) {
+        return;
+    }
+
+    // Don't draw accidentals for cipher staves (they use text representation)
+    Note* n = item->note();
+    if (n && n->chord() && n->staff() && n->staff()->isCipherStaff(n->chord()->tick())) {
         return;
     }
 
@@ -868,6 +899,23 @@ void TDraw::draw(const Beam* item, Painter* painter)
     if (item->beamSegments().empty()) {
         return;
     }
+    
+    // Cipher notation: don't draw beams at all - each note/rest has its own hook lines
+    bool isCipher = item->staff() && item->staff()->isCipherStaff(item->tick());
+    
+    // Also check if all elements are rests - rests should never be beamed
+    bool allRests = true;
+    for (const ChordRest* cr : item->elements()) {
+        if (cr->isChord()) {
+            allRests = false;
+            break;
+        }
+    }
+    
+    if (isCipher || allRests) {
+        return;
+    }
+    
     painter->setBrush(Brush(item->curColor()));
     painter->setNoPen();
 
@@ -1880,6 +1928,51 @@ void TDraw::draw(const Hook* item, Painter* painter)
         return;
     }
 
+    // Cipher notation: draw horizontal lines instead of hooks
+    if (item->staff() && item->chord() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        const Chord* chord = item->chord();
+        int hookType = item->hookType();
+        if (hookType == 0 || chord->notes().empty()) {
+            return;
+        }
+        
+        // Only draw hook lines once per chord (for the upNote)
+        // In cipher notation, all notes in a chord share the same hook lines
+        const Note* upNote = chord->upNote();
+        if (!upNote) {
+            return;
+        }
+        
+        double cipherHeight = upNote->cipherHeight();
+        double cipherWidth = upNote->cipherWidth();
+        
+        // Calculate line properties based on style settings
+        double lineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
+        double lineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1.0);
+        double lineLength = cipherWidth * item->style().styleD(Sid::cipherWideLine);
+        double offsetLine = item->style().styleD(Sid::cipherOffsetLine);
+        
+        // Get cipher text position (includes offset for accidentals and parentheses)
+        PointF cipherTextPos = upNote->cipherTextPos();
+        
+        // Lines should be above the cipher text
+        // cipherTextPos.y() is the baseline, we need to go up by the text height plus a bit more
+        double textHeight = cipherHeight;
+        double yAboveText = cipherTextPos.y() - textHeight * 1.2; // Go above the text
+        
+        painter->setPen(Pen(item->curColor(), lineThick));
+        
+        // Draw horizontal lines for each hook
+        int numLines = std::abs(hookType);
+        for (int i = 0; i < numLines; ++i) {
+            double xStart = cipherTextPos.x() + offsetLine;
+            double xEnd = cipherTextPos.x() + offsetLine + lineLength;
+            double y = yAboveText - (i * std::abs(lineSpace));
+            painter->drawLine(LineF(xStart, y, xEnd, y));
+        }
+        return;
+    }
+
     painter->setPen(item->curColor());
     item->drawSymbol(item->sym(), painter);
 }
@@ -1965,6 +2058,42 @@ void TDraw::draw(const KeySig* item, Painter* painter)
 {
     TRACE_DRAW_ITEM;
     const KeySig::LayoutData* ldata = item->ldata();
+
+    // Cipher notation handling
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        if (!item->segment()->isKeySigAnnounceType()) {
+            Fraction tick = item->tick();
+            if ((tick.isZero() || item->staff()->key(tick - Fraction::fromTicks(1)) != item->key()) 
+                && item->staff() && item->staff()->idx() < 1) {
+                
+                double spatium = item->spatium();
+                double cipherHeight = item->staff()->staffType(item->tick())->fretBoxH() * item->mag() 
+                                      * item->style().styleD(Sid::cipherKeySigSize);
+                
+                int sigMode = int(item->mode()) - 1;
+                if (sigMode < 0 || sigMode > 2) {
+                    sigMode = 0;
+                }
+                String cipherString = String::fromUtf8(CipherString[int(item->key()) + 7][sigMode]);
+                
+                muse::draw::Font cipherFont;
+                cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherKeySigFont)), 
+                                     muse::draw::Font::Type::Text);
+                cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium 
+                                         * item->style().styleD(Sid::cipherKeySigSize) * MScore::pixelRatio / SPATIUM20);
+                cipherFont.setItalic(true);
+                
+                painter->setFont(cipherFont);
+                painter->setPen(item->curColor());
+                
+                double leftAdjust = cipherHeight * -item->style().styleD(Sid::cipherKeySigHorizontalShift);
+                double yPos = cipherHeight * -item->style().styleD(Sid::cipherKeySigHigth);
+                
+                painter->drawText(PointF(leftAdjust, yPos), cipherString);
+            }
+        }
+        return;
+    }
 
     painter->setPen(item->curColor());
     double _spatium = item->spatium();
@@ -2228,23 +2357,102 @@ void TDraw::draw(const Note* item, Painter* painter)
         painter->drawText(PointF(startPosX, yOffset * item->magS()), item->fretString());
     }
     // Cipher notation
-    else if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
-        // TODO: This is a placeholder implementation
-        // Full implementation would draw cipher digits, accidentals, parentheses, etc.
-
+    else if (item->staff() && item->chord() && item->staff()->isCipherStaff(item->chord()->tick())) {
         double spatium = item->spatium();
+        double trackThick = item->trackThick();
 
-        // Draw cipher digit using cipher font
+        // Get cipher font with trackThick scaling already applied in layout
         Font cipherFont;
         cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
-        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20 * trackThick);
+        
         painter->setFont(cipherFont);
         painter->setPen(c);
 
-        // Draw the cipher string (currently just a placeholder "1")
-        painter->drawText(PointF(0, 0), item->fretString());
+        // Draw accidentals if needed (sharp or flat) with trackThick scaling
+        const Cipher& cipher = item->cipher();
+        if (item->drawSharp()) {
+            Font accFont = cipherFont;
+            double accSize = item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignSharp) 
+                           * spatium * MScore::pixelRatio / SPATIUM20 * trackThick;
+            accFont.setPointSizeF(accSize);
+            cipher.drawSharp(painter, item->cipherAccidentalPos(), accFont);
+        } else if (item->drawFlat()) {
+            Font accFont = cipherFont;
+            double accSize = item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) 
+                           * spatium * MScore::pixelRatio / SPATIUM20 * trackThick;
+            accFont.setPointSizeF(accSize);
+            cipher.drawFlat(painter, item->cipherAccidentalPos(), accFont);
+        }
 
-        // TODO: Draw accidentals, parentheses, ledger lines, etc.
+        // Draw opening parenthesis for non-main voices
+        if (trackThick != 1.0) {
+            painter->drawText(item->cipherKlammerPos(), u"(");
+        }
+
+        // Draw the cipher digit at calculated position
+        painter->drawText(item->cipherTextPos(), item->fretString());
+
+        // Draw closing parenthesis for non-main voices
+        if (trackThick != 1.0) {
+            // Position after the digit text (cipherWidth is the width of the digit itself)
+            PointF closeParenPos(item->cipherTextPos().x() + item->cipherWidth(), 
+                                item->cipherTextPos().y());
+            painter->drawText(closeParenPos, u")");
+        }
+
+        // Draw cipher key change announcement if present
+        if (!ldata->cipherKeyChangeAnnouncement.empty()) {
+            LOGD() << "Drawing cipher key change announcement: " << ldata->cipherKeyChangeAnnouncement 
+                   << " at note with fretString: " << item->fretString()
+                   << " cipherTextPos().x() = " << item->cipherTextPos().x();
+            
+            Font announcementFont;
+            announcementFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
+            // Make the announcement text smaller (70% of normal size)
+            double fontSize = item->style().styleD(Sid::cipherFontSize) * spatium * 0.7 * MScore::pixelRatio / SPATIUM20;
+            announcementFont.setPointSizeF(fontSize);
+            
+            painter->setFont(announcementFont);
+            
+            // Calculate the width using the Cipher helper, like normal digits do
+            const Cipher& cipher = item->cipher();
+            double rawWidth = cipher.textWidth(announcementFont, ldata->cipherKeyChangeAnnouncement);
+            
+            // The width seems to be scaled incorrectly, divide by MScore::pixelRatio
+            double announcementWidth = rawWidth / MScore::pixelRatio;
+            
+            // Position BEFORE cipherTextPos (which accounts for accidentals)
+            // But if there IS an accidental, we need to position before the accidental, not before the digit
+            double leftmostX = item->cipherTextPos().x();
+            
+            // If there's an accidental, it's drawn at cipherAccidentalPos which is left of cipherTextPos
+            if (item->drawSharp() || item->drawFlat()) {
+                leftmostX = std::min(leftmostX, item->cipherAccidentalPos().x());
+            }
+            
+            // If there's a parenthesis (non-main voice), that's even further left
+            if (item->trackThick() != 1.0) {
+                leftmostX = std::min(leftmostX, item->cipherKlammerPos().x());
+            }
+            
+            fprintf(stderr, "cipherTextPos.x=%f, leftmostX=%f, announcementWidth=%f\n", 
+                    item->cipherTextPos().x(), leftmostX, announcementWidth);
+            
+            double gap = spatium * 0.3;
+            double announcementX = leftmostX - announcementWidth - gap;
+            
+            // Use the Y-offset calculated in cipher_setKeysigNote (based on OLD key)
+            double announcementY = -ldata->cipherKeyChangeAnnouncementYOffset;
+            
+            fprintf(stderr, "Drawing announcement at x=%f (cipherTextPos=%f, width=%f, gap=%f)\n", 
+                    announcementX, item->cipherTextPos().x(), announcementWidth, gap);
+            
+            LOGD() << "Announcement position: x=" << announcementX << " y=" << announcementY 
+                   << " spatium=" << spatium << " width=" << announcementWidth;
+            
+            painter->drawText(PointF(announcementX, announcementY), ldata->cipherKeyChangeAnnouncement);
+        }
     }
     // NOT tablature or cipher
     else {
@@ -2294,8 +2502,11 @@ void TDraw::draw(const NoteDot* item, Painter* painter)
     }
     const Note* n = item->note();
     Fraction tick = n ? n->chord()->tick() : item->rest()->tick();
-    // always draw dot for non-tab
-    // for tab, draw if on a note and stems through staff or on a rest and rests shown
+    // Don't draw dots for tab or cipher staves (they use text representation)
+    // For tab, draw if on a note and stems through staff or on a rest and rests shown
+    if (item->staff()->isCipherStaff(tick)) {
+        return;
+    }
     if (!item->staff()->isTabStaff(tick)
         || (n && item->staff()->staffType(tick)->stemThrough())
         || (!n && item->staff()->staffType(tick)->showRests())) {
@@ -2471,6 +2682,84 @@ void TDraw::draw(const Rest* item, Painter* painter)
     const Rest::LayoutData* ldata = item->ldata();
 
     painter->setPen(item->curColor());
+
+    // Check if this is a cipher staff - draw "0" with duration markers
+    const StaffType* stt = item->staff() ? item->staff()->staffTypeForElement(item) : nullptr;
+    if (stt && stt->isCipherStaff()) {
+        double spatium = item->spatium();
+        
+        // Get cipher font - IMPORTANT: use MScore::pixelRatio like MS3
+        Font cipherFont;
+        cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        
+        painter->setFont(cipherFont);
+        painter->setPen(item->curColor());
+        
+        // Calculate actual dimensions using Cipher
+        Cipher tempCipher;
+        tempCipher.setFretFont(cipherFont);
+        
+        // Build rest string: "0" + duration markers + dots
+        String baseChar = u"0";
+        String durationMarker = u"";
+        String dotMarker = u"";
+        
+        // Get duration marker (commas for shorter durations) - USE REST ARRAYS!
+        DurationType durType = item->durationType().type();
+        int durTypeIndex = int(durType);
+        if (durTypeIndex >= 0 && durTypeIndex < 16) {
+            durationMarker = cipherDurationRest_internal[durTypeIndex];
+        }
+        
+        // Get dot marker - USE REST ARRAYS!
+        int dots = item->durationType().dots();
+        if (dots >= 0 && dots <= 2) {
+            dotMarker = cipherDurationDotRest_internal[dots];
+        } else if (dots > 2) {
+            dotMarker = cipherDurationDotRest_internal[2];
+        }
+        
+        String restString = baseChar + durationMarker + dotMarker;
+        
+        // Get actual cipher height
+        // Note: textHeight returns line height which is much larger than actual character height
+        // For consistency with notes, use approximately 0.27 of the text height
+        double cipherHeightRaw = tempCipher.textHeight(cipherFont, baseChar);
+        double cipherHeight = cipherHeightRaw * 0.27;  // Adjust to match Note::cipherHeight()
+        
+        // Draw the "0" character with duration markers
+        // The rest is positioned at C3 line (1 octave below Y=0)
+        double heightDisplacement = cipherHeightRaw * item->style().styleD(Sid::cipherHeightDisplacement);
+        painter->drawText(PointF(0, heightDisplacement), restString);
+        
+        // Draw hook lines for shorter note values
+        int hooks = std::abs(item->durationType().hooks());
+        if (hooks > 0) {
+            double cipherLineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
+            double cipherLineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
+            
+            // Get actual line width - use smaller width for hook lines  
+            double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar) * 0.3;
+            double lineLength = cipherLineWidth * item->style().styleD(Sid::cipherWideLine);
+            double offsetLine = item->style().styleD(Sid::cipherOffsetLine);
+            
+            // Use the same Y-position calculation as for notes
+            double yAboveText = heightDisplacement - cipherHeight * 1.2;
+            
+            painter->setPen(Pen(item->curColor(), cipherLineThick));
+            
+            // Draw hook lines using the same style as notes
+            for (int i = 0; i < hooks; ++i) {
+                double y = yAboveText - (i * std::abs(cipherLineSpace));
+                double lineX1 = offsetLine + (cipherLineWidth / 2 - lineLength / 2);
+                double lineX2 = offsetLine + (cipherLineWidth / 2 + lineLength / 2);
+                painter->drawLine(LineF(lineX1, y, lineX2, y));
+            }
+        }
+        
+        return;
+    }
 
     if (DeadSlapped* ds = item->deadSlapped()) {
         draw(ds, painter);
@@ -3095,9 +3384,56 @@ void TDraw::draw(const TimeSig* item, Painter* painter)
     if (!item->showOnThisStaff()) {
         return;
     }
-    painter->setPen(item->curColor());
-
+    
     const TimeSig::LayoutData* ldata = item->ldata();
+    
+    // Check if this is a cipher staff
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        // Don't draw if not visible (announce time signatures)
+        if (!ldata->cipherVisible) {
+            return;
+        }
+        
+        // Draw cipher time signature (numbers with line between) - based on MS3 fork
+        double spatium = item->spatium();
+        
+        // Get cipher font - IMPORTANT: use MScore::pixelRatio like MS3
+        Font cipherFont;
+        cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherTimeSigFont)), Font::Type::Text);
+        double fontSize = item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherTimeSigSize) * spatium * MScore::pixelRatio / SPATIUM20;
+        cipherFont.setPointSizeF(fontSize);
+        
+        painter->setFont(cipherFont);
+        painter->setPen(item->curColor());
+        
+        // Draw text at pz and pn (MS3: pz=bottom number, pn=top number)
+        // cipherNumeratorStr appears at pz (below)
+        // cipherDenominatorStr appears at pn (above)
+        
+        LOGD() << "CIPHER TIMESIG DRAW: pz=" << ldata->pz << " pn=" << ldata->pn
+               << " lineX1=" << ldata->cipherLine.x1() << " lineX2=" << ldata->cipherLine.x2()
+               << " lineThick=" << ldata->cipherLineThick
+               << " numStr=" << ldata->cipherNumeratorStr
+               << " denStr=" << ldata->cipherDenominatorStr;
+        
+        painter->drawText(ldata->pz, ldata->cipherNumeratorStr);
+        painter->drawText(ldata->pn, ldata->cipherDenominatorStr);
+        
+        // Draw horizontal line at Y=0
+        painter->setPen(Pen(item->curColor(), ldata->cipherLineThick));
+        painter->drawLine(ldata->cipherLine);
+        
+        // Draw vertical barline if not at measure begin
+        if (!ldata->cipherBegin) {
+            double lw = item->style().styleMM(Sid::barWidth);
+            painter->setPen(Pen(item->curColor(), lw, PenStyle::SolidLine, PenCapStyle::FlatCap));
+            painter->drawLine(ldata->cipherBarLine);
+        }
+        
+        return;
+    }
+    
+    painter->setPen(item->curColor());
 
     item->drawSymbols(ldata->ns, painter, ldata->pz, item->scale());
     item->drawSymbols(ldata->ds, painter, ldata->pn, item->scale());

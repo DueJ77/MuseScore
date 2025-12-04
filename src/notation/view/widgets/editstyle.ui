@@ -223,6 +223,11 @@
       </item>
       <item>
        <property name="text">
+        <string>Cipher notation</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
         <string>Fretboard diagrams</string>
        </property>
       </item>
@@ -11781,6 +11786,15 @@ followed by dashes</string>
          </widget>
         </item>
        </layout>
+      </widget>
+      <widget class="QWidget" name="PageCipherNotation">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_cipherNotation"/>
       </widget>
       <widget class="QWidget" name="PageFretboardDiagrams">
        <property name="sizePolicy">

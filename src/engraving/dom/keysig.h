@@ -104,8 +104,18 @@ public:
 
     struct LayoutData : public EngravingItem::LayoutData {
         std::vector<KeySym> keySymbols;
+        // Cipher notation: announcement of key change
+        String cipherNoteString;
+        int cipherNoteAccidental = 0;
+        double cipherNoteYShift = 0.0;
     };
     DECLARE_LAYOUTDATA_METHODS(KeySig)
+
+    // Cipher notation methods
+    void setCipherNote(const String& noteStr, int accidental, double yShift);
+    String cipherNoteString() const;
+    int cipherNoteAccidental() const;
+    double cipherNoteYShift() const;
 
 private:
     friend class Factory;

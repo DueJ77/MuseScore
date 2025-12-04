@@ -423,6 +423,12 @@ bool EngravingItem::onTabStaff() const
     return stt ? stt->isTabStaff() : false;
 }
 
+bool EngravingItem::onCipherStaff() const
+{
+    const StaffType* stt = staffType();
+    return stt ? stt->isCipherStaff() : false;
+}
+
 bool EngravingItem::hasGrips() const
 {
     return gripsCount() > 0;

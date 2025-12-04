@@ -100,6 +100,7 @@
 #include "dom/note.h"
 #include "dom/notedot.h"
 #include "dom/noteline.h"
+#include "dom/pitchspelling.h"
 
 #include "dom/ornament.h"
 #include "dom/ottava.h"
@@ -180,6 +181,22 @@ using namespace muse::draw;
 using namespace mu::engraving;
 using namespace mu::engraving::rtti;
 using namespace mu::engraving::rendering::score;
+
+namespace mu::engraving {
+extern const char* CipherString[15][2];
+
+// Cipher duration markers - defined inline
+// MS3 logic: WHOLE notes (index 2) get ",,", HALF notes (index 3) get ","
+// DurationType: V_LONG=0, V_BREVE=1, V_WHOLE=2, V_HALF=3, V_QUARTER=4, V_EIGHTH=5, V_16TH=6, V_32ND=7, ...
+static const char16_t* cipherDuration_internal[16] = {
+    u"", u"", u",,", u",", u"", u"", u"", u"",
+    u"", u"", u"", u"", u"", u"", u"", u""
+};
+
+static const char16_t* cipherDurationDot_internal[3] = {
+    u"", u".", u".."
+};
+}
 
 #define LAYOUT_CALL_ITEM(item) LAYOUT_CALL() << LAYOUT_ITEM_INFO(item);
 
@@ -3699,6 +3716,48 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
         return;
     }
 
+    // Cipher notation handling
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        if (!item->segment()->isKeySigAnnounceType()) {
+            Fraction tick = item->tick();
+            if ((tick.isZero() || item->staff()->key(tick - Fraction::fromTicks(1)) != item->key()) 
+                && item->staff() && item->staff()->idx() < 1) {
+                double cipherHeight = item->staff()->staffType(item->tick())->fretBoxH() * item->mag() 
+                                      * conf.styleD(Sid::cipherKeySigSize);
+                
+                int sigMode = int(item->mode()) - 1;
+                if (sigMode < 0 || sigMode > 2) {
+                    sigMode = 0;
+                }
+                String cipherString = String::fromUtf8(CipherString[int(item->key()) + 7][sigMode]);
+                
+                muse::draw::Font cipherFont;
+                cipherFont.setFamily(muse::draw::Font::FontFamily(conf.styleSt(Sid::cipherKeySigFont)), 
+                                     muse::draw::Font::Type::Text);
+                cipherFont.setPointSizeF(conf.styleD(Sid::cipherFontSize) * spatium 
+                                         * conf.styleD(Sid::cipherKeySigSize) / SPATIUM20);
+                cipherFont.setItalic(true);
+                
+                muse::draw::FontMetrics fm(cipherFont);
+                double textWidth = fm.width(cipherString);
+                
+                double leftAdjust = cipherHeight * -conf.styleD(Sid::cipherKeySigHorizontalShift);
+                double yPos = cipherHeight * -conf.styleD(Sid::cipherKeySigHigth);
+                
+                RectF textRect(leftAdjust, yPos - cipherHeight, textWidth, cipherHeight);
+                ldata->setBbox(textRect);
+                
+                // Set minimal shape for cipher key signature to avoid pushing following ciphers too far right
+                // Use only a small width instead of the full text width
+                Shape cipherKeyShape;
+                RectF minimalRect(leftAdjust, yPos - cipherHeight, spatium * 0.5, cipherHeight);
+                cipherKeyShape.add(minimalRect, item);
+                ldata->setShape(cipherKeyShape);
+            }
+        }
+        return;
+    }
+
     // determine current clef for this staff
     ClefType clef = ClefType::G;
     if (item->staff()) {
@@ -4420,27 +4479,162 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         double height = item->deadNote() ? tab->deadFretBoxH() : tab->fretBoxH();
 
         noteBBox = RectF(0, y * mags, w, height * mags);
-    } else if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
-        // Cipher notation layout
-        // TODO: This is a placeholder implementation that needs complete cipher layout logic
-        // For now, calculate basic bounding box to prevent crashes
+    } else if (item->staff() && item->chord() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        // Cipher notation layout - with comprehensive safety checks
+        try {
+            Note* mutableItem = const_cast<Note*>(item);
+            double spatium = item->spatium();
+            
+            // Safety check for part and instrument
+            if (!item->part() || !item->part()->instrument(item->chord()->tick())) {
+                // Fallback to simple layout if part/instrument not available
+                noteBBox = RectF(0, 0, spatium, spatium);
+                ldata->setBbox(noteBBox);
+                fillNoteShape(item, ldata);
+                return;
+            }
+            
+            // Reset draw flags
+            mutableItem->setDrawSharp(false);
+            mutableItem->setDrawFlat(false);
 
-        Note* mutableItem = const_cast<Note*>(item);
-        double spatium = item->spatium();
+            // Calculate track thickness first (voices 2-4 are displayed smaller with parentheses)
+            double trackThick = 1.0;
+            if (item->track() % VOICES > 0) {
+                trackThick = 0.7;
+            }
+            mutableItem->setTrackThick(trackThick);
 
-        // Get cipher font and calculate dimensions
-        muse::draw::Font cipherFont;
-        cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
-        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
+            // Get cipher font with trackThick scaling
+            muse::draw::Font cipherFont;
+            cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
+            cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20 * trackThick);
 
-        // Calculate basic cipher note width and height
-        // This is simplified - full implementation would calculate based on actual cipher string
-        double noteWidth = spatium * 0.8;   // Approximate width
-        double noteHeight = spatium * 1.0;  // Approximate height
+            // Get transposition and key signature
+            int numTransposeInterval = item->part()->instrument(item->chord()->tick())->transpose().chromatic;
+        Key key = item->staff() ? item->staff()->key(item->chord()->tick()) : Key::C;
+        int clefShift = mutableItem->cipherOktave();
+        int groundToneShift = mutableItem->cipherTrans(key);
+        
+        // Calculate accidental shift using TPC (Tonal Pitch Class)
+        int accidentalShift = 0;
+        int step = tpc2stepByKey(item->tpc(), key, accidentalShift);
+        
+        // Limit accidental shift to valid range
+        if (accidentalShift > 1 || accidentalShift < -1) {
+            accidentalShift = 0;
+        }
+        
+        // Set draw flags based on accidental shift
+        if (accidentalShift == 1) {
+            mutableItem->setDrawSharp(true);
+        } else if (accidentalShift == -1) {
+            mutableItem->setDrawFlat(true);
+        }
+        
+        // Calculate chromatic pitch class for cipher string
+        // IMPORTANT: Use MINUS accidentalShift (not plus) for correct octave calculation
+        int chromaticPitch = ((item->pitch() - accidentalShift + groundToneShift + numTransposeInterval) % 12) + 1;
+        
+        // Get the cipher digit string
+        String cipherDigit = mutableItem->cipherString(chromaticPitch);
+        
+        // Add duration markers (commas and dots) using the internal arrays
+        String durationMarker = u"";
+        String dotMarker = u"";
+        
+        if (item->chord()) {
+            DurationType durType = item->chord()->durationType().type();
+            int durTypeIndex = int(durType);
+            LOGD() << "Cipher duration layout: durType=" << durTypeIndex << " dots=" << item->chord()->dots();
+            if (durTypeIndex >= 0 && durTypeIndex < 16) {
+                durationMarker = cipherDuration_internal[durTypeIndex];
+            }
+            
+            int dots = item->chord()->dots();
+            if (dots >= 0 && dots <= 2) {
+                dotMarker = cipherDurationDot_internal[dots];
+            } else if (dots > 2) {
+                // For triple dots or more, use maximum of two dots
+                dotMarker = cipherDurationDot_internal[2];
+            }
+        }
+        
+        mutableItem->setFretString(cipherDigit + durationMarker + dotMarker);
 
-        mutableItem->setFretString(u"1");  // Placeholder - should be calculated from pitch
-
-        noteBBox = RectF(0, -noteHeight / 2, noteWidth, noteHeight);
+        // Calculate text dimensions using the Cipher helper
+        Cipher& cipher = mutableItem->cipher();
+        cipher.setFretFont(cipherFont);
+        double digitWidth = cipher.textWidth(cipherFont, mutableItem->fretString());
+        double digitHeight = cipher.textHeight(cipherFont, u"1234567890");
+        
+        // Calculate accidental dimensions if needed
+        double accidentalWidth = 0.0;
+        double accidentalHeight = 0.0;
+        if (mutableItem->drawSharp() || mutableItem->drawFlat()) {
+            String accSymbol = mutableItem->drawSharp() ? cipher.sharpString() : cipher.flatString();
+            double accSizeMultiplier = mutableItem->drawSharp() ? 
+                item->style().styleD(Sid::cipherSizeSignSharp) : 
+                item->style().styleD(Sid::cipherSizeSignFlat);
+            accidentalWidth = cipher.textWidth(cipherFont, accSymbol) * accSizeMultiplier;
+            accidentalHeight = cipher.textHeight(cipherFont, accSymbol);
+        }
+        
+        // Position calculations
+        double totalWidth = digitWidth;
+        if (accidentalWidth > 0) {
+            totalWidth += accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium;
+        }
+        
+        // Add parentheses width for non-main voices
+        if (trackThick != 1.0) {
+            double parenWidth = cipher.textWidth(cipherFont, u"(");
+            totalWidth += parenWidth * 2; // for both parentheses
+        }
+        
+        // Calculate octave-based vertical position
+        // IMPORTANT: Use MINUS accidentalShift (corrected formula from MS3)
+        int cipherLedgerline = ((item->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 5 - clefShift) / 2;
+        double fretStringYShift = ((item->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 5 - clefShift) 
+                                  * digitHeight * item->style().styleD(Sid::cipherDistanceOctave);
+        
+        LOGD() << "Cipher ledger calc: pitch=" << item->pitch() 
+               << " groundToneShift=" << groundToneShift 
+               << " accidentalShift=" << accidentalShift
+               << " numTransposeInterval=" << numTransposeInterval
+               << " clefShift=" << clefShift
+               << " => cipherLedgerline=" << cipherLedgerline;
+        
+        // Store cipher dimensions in Note fields
+        mutableItem->setCipherWidth(digitWidth);
+        mutableItem->setCipherWidth2(totalWidth);
+        mutableItem->setCipherHeight(digitHeight);
+        mutableItem->setCipherLedgerline(cipherLedgerline);
+        
+        // Set positions for text and accidentals
+        double textXOffset = accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0;
+        if (trackThick != 1.0) {
+            textXOffset += cipher.textWidth(cipherFont, u"(");
+        }
+        mutableItem->setCipherTextPos(PointF(textXOffset, -fretStringYShift));
+        double accHeightAdjust = item->style().styleD(mutableItem->drawSharp() ? Sid::cipherHeigthSignSharp : Sid::cipherHeigthSignFlat) * spatium;
+        mutableItem->setCipherAccidentalPos(PointF(trackThick != 1.0 ? cipher.textWidth(cipherFont, u"(") : 0, -fretStringYShift + accHeightAdjust));
+        
+        // Set parenthesis position for non-main voices
+        if (trackThick != 1.0) {
+            mutableItem->setCipherKlammerPos(PointF(0, -fretStringYShift));
+        }
+        
+        // Calculate bounding box
+        double boxHeight = std::max(digitHeight, accidentalHeight);
+        noteBBox = RectF(0, -fretStringYShift - boxHeight / 2, totalWidth, boxHeight);
+        
+        } catch (const std::exception& e) {
+            // If anything goes wrong, fall back to simple layout
+            double fallbackSpatium = item->spatium();
+            noteBBox = RectF(0, 0, fallbackSpatium, fallbackSpatium);
+            LOGE() << "Cipher layout error: " << e.what();
+        }
     } else {
         if (item->deadNote()) {
             const_cast<Note*>(item)->setHeadGroup(NoteHeadGroup::HEAD_CROSS);
@@ -6637,6 +6831,235 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
         ldata->ns.clear();
         ldata->ns.push_back(sym);
         ldata->ds.clear();
+    } else if (staff && staff->isCipherStaff(tick)) {
+        // Cipher notation time signature (based on MS3 fork)
+        // Skip if this is an announce time signature
+        if (seg && seg->isTimeSigAnnounceType()) {
+            ldata->cipherVisible = false;
+            ldata->setBbox(RectF());
+            return;
+        }
+        
+        // Only show time signature on the FIRST staff of a system in cipher notation
+        // But position it vertically centered for the entire system
+        bool isFirstStaff = (staff && staff->idx() == 0);
+        
+        // For non-first staves, hide the time signature
+        if (!isFirstStaff) {
+            ldata->cipherVisible = false;
+            ldata->setBbox(RectF());
+            return;
+        }
+        
+        ldata->cipherVisible = true;
+        
+        // Cipher time signatures should be positioned like instrument names (left of system)
+        // Set these properties only once, not on every layout
+        if (!item->systemFlag()) {
+            const_cast<TimeSig*>(item)->setSystemFlag(true);
+        }
+        if (item->autoplace()) {
+            const_cast<TimeSig*>(item)->setAutoplace(false);
+        }
+        if (item->propertyFlags(Pid::OFFSET) != PropertyFlags::UNSTYLED) {
+            const_cast<TimeSig*>(item)->setPropertyFlags(Pid::OFFSET, PropertyFlags::UNSTYLED);
+        }
+        
+        // Convert TimeSigType symbols to NORMAL for cipher staff
+        if (sigType == TimeSigType::FOUR_FOUR || sigType == TimeSigType::ALLA_BREVE) {
+            sigType = TimeSigType::NORMAL;
+        }
+        
+        // Get cipher font for time signature - IMPORTANT: use MScore::pixelRatio like MS3
+        // Make time signature much smaller than the notes (about 30% of note size)
+        muse::draw::Font cipherFont;
+        cipherFont.setFamily(muse::draw::Font::FontFamily(style.styleSt(Sid::cipherTimeSigFont)), muse::draw::Font::Type::Text);
+        double fontSize = style.styleD(Sid::cipherFontSize) * 0.3 * spatium * MScore::pixelRatio / SPATIUM20;
+        cipherFont.setPointSizeF(fontSize);
+        
+        LOGD() << "CIPHER TIMESIG FONT: fontSize=" << fontSize 
+               << " cipherFontSize=" << style.styleD(Sid::cipherFontSize)
+               << " spatium=" << spatium;
+        
+        // Use Cipher class to get accurate text dimensions
+        Cipher tempCipher;
+        tempCipher.setFretFont(cipherFont);
+        
+        // Get numerator and denominator strings
+        // NOTE: In MS3 cipher notation, these are swapped!
+        // _cipher_ns contains denominator, _cipher_ds contains numerator
+        // So denominator appears above the line, numerator below
+        ldata->cipherNumeratorStr = item->denominatorString().isEmpty() 
+                       ? String::number(item->sig().denominator()) 
+                       : item->denominatorString();
+        ldata->cipherDenominatorStr = item->numeratorString().isEmpty() 
+                       ? String::number(item->sig().numerator()) 
+                       : item->numeratorString();
+        
+        // Calculate actual text dimensions using Cipher
+        double numHeight = tempCipher.textHeight(cipherFont, ldata->cipherNumeratorStr);
+        double numWidth = tempCipher.textWidth(cipherFont, ldata->cipherNumeratorStr);
+        double denWidth = tempCipher.textWidth(cipherFont, ldata->cipherDenominatorStr);
+        
+        // Calculate line thickness and spacing using style values
+        ldata->cipherLineThick = numHeight * style.styleD(Sid::cipherTimeSigLineThick);
+        double displ = numHeight * style.styleD(Sid::cipherTimeSigLineThick) * 1.5;
+        
+        LOGD() << "CIPHER TIMESIG: numHeight=" << numHeight << " displ=" << displ 
+               << " lineThick=" << ldata->cipherLineThick 
+               << " numWidth=" << numWidth << " denWidth=" << denWidth;
+        
+        // Position relative to yoff (Y=0 for cipher staff)
+        // MS3: pz is BELOW center (positive Y), pn is ABOVE center (negative Y)
+        double pzY = yoff + displ + numHeight;  // Below the center line (positive Y)
+        double pnY = yoff - displ;              // Above the center line (negative Y)
+        
+        double px = 0.0;
+        double boxwidth = 0.0;
+        double cipherLineWidth = 0.0;
+        
+        // Align on the wider text - EXACTLY as MS3
+        if (numWidth >= denWidth) {
+            ldata->pz = PointF(px, pzY);
+            ldata->pn = PointF((numWidth - denWidth) * 0.5 + px, pnY);
+            cipherLineWidth = numWidth;
+            boxwidth = numWidth;
+        } else {
+            ldata->pz = PointF((denWidth - numWidth) * 0.5 + px, pzY);
+            ldata->pn = PointF(px, pnY);
+            cipherLineWidth = denWidth;
+            boxwidth = denWidth;
+        }
+        
+        // Adjust px for line extension based on style (MS3 compatibility)
+        px -= cipherLineWidth * (style.styleD(Sid::cipherTimeSigLineSize) - 1.0) * 0.5;
+        
+        // Create horizontal line with style-defined width
+        double lineWidth = cipherLineWidth * style.styleD(Sid::cipherTimeSigLineSize);
+        ldata->cipherLine = LineF(px, 0, px + lineWidth, 0);
+        
+        // Calculate bounding box - centered around Y=0 (cipher staff line)
+        RectF timeSigRect(px, pnY - numHeight, boxwidth, numHeight * 2 + displ * 2);
+        
+        // Position vertically so the center of the time signature is at yoff (Y=0, the cipher line)
+        // The bbox spans from (pnY - numHeight) to (pzY), so center is at:
+        double centerY = (pnY - numHeight + pzY) / 2.0;
+        // We want centerY to be at yoff, so we need to shift by (yoff - centerY)
+        double yShift = yoff - centerY;
+        
+        // Adjust all Y positions relative to the current staff
+        ldata->pz = PointF(ldata->pz.x(), pzY + yShift);
+        ldata->pn = PointF(ldata->pn.x(), pnY + yShift);
+        timeSigRect.translate(0, yShift);
+        ldata->cipherLine = LineF(ldata->cipherLine.x1(), ldata->cipherLine.y1() + yShift,
+                                  ldata->cipherLine.x2(), ldata->cipherLine.y2() + yShift);
+        ldata->setBbox(timeSigRect);
+        
+        // Check if this is at measure begin
+        ldata->cipherBegin = meas && seg->rtick().isZero();
+        
+        // Position the time signature in the left margin (before the system starts)
+        if (ldata->cipherBegin) {
+            // At measure begin: place it directly before the system bracket/barline
+            // Use the system's leftMargin to position it just before the bracket
+            double leftMarginPos = 0.0;
+            
+            if (meas && meas->system()) {
+                const System* sys = meas->system();
+                // Position directly before the left margin (where brackets are)
+                // Add some spacing based on the bbox width
+                leftMarginPos = -boxwidth - numHeight * style.styleD(Sid::cipherTimeSigDistance);
+            } else {
+                // Fallback if system not available yet
+                leftMarginPos = -spatium * 3.0;
+            }
+            
+            // Only set offset if it hasn't been manually adjusted by the user
+            // If offset is null (never set), initialize it to the default position
+            if (item->offset().isNull()) {
+                const_cast<TimeSig*>(item)->setOffset(PointF(leftMarginPos, 0.0));
+            }
+            
+            // Use the stored offset for positioning (respects user adjustments)
+            ldata->setPosX(item->offset().x());
+            
+            LOGD() << "CIPHER TIMESIG at BEGIN: boxwidth=" << boxwidth
+                   << " -> posX=" << item->offset().x();
+        } else {
+            // Not at begin: add a vertical barline after the time signature
+            double x = boxwidth + numHeight * style.styleD(Sid::cipherTimeSigDistance);
+            double cipherBarLineLength = numHeight * 4.0;
+            ldata->cipherBarLine = LineF(x, yShift - cipherBarLineLength / 2, x, yShift + cipherBarLineLength / 2);
+            double lw = style.styleMM(Sid::barWidth);
+            timeSigRect = timeSigRect.united(RectF(x - lw/2, yShift - cipherBarLineLength / 2, lw, cipherBarLineLength));
+            ldata->setBbox(timeSigRect);
+        }
+        
+        // Store dummy symbols (required by base class)
+        ldata->ns.clear();
+        ldata->ns.push_back(SymId::timeSigCutCommon);
+        ldata->ds.clear();
+        
+        // Calculate vertical position: center of the entire system (all staves)
+        // Always recalculate to handle dynamic layout changes
+        double yOffsetToCenter = 0.0;  // Default: no offset
+        
+        if (meas && meas->system()) {
+            const System* sys = meas->system();
+            
+            // Get the Y positions of the first and last staff in the system
+            double systemTop = 0.0;
+            double systemBottom = 0.0;
+            
+            size_t nstaves = sys->staves().size();
+            
+            // Calculate for all cases, even single staff
+            // Top of first staff (always staff 0 for cipher notation)
+            systemTop = sys->staffYpage(0);
+            
+            // Bottom of last staff
+            double lastStaffY = sys->staffYpage(nstaves - 1);
+            const Staff* lastStaff = item->score()->staff(nstaves - 1);
+            if (lastStaff) {
+                int lastStaffLines = lastStaff->lines(tick);
+                double lastStaffHeight = (lastStaffLines - 1) * spatium * lastStaff->lineDistance(tick);
+                systemBottom = lastStaffY + lastStaffHeight;
+            } else {
+                systemBottom = lastStaffY + 4.0 * spatium;  // Default staff height
+            }
+            
+            // Center of system (middle point between top and bottom)
+            double systemCenter = (systemTop + systemBottom) / 2.0;
+            
+            // Current staff Y position (where the timesig element is attached)
+            double currentStaffY = sys->staffYpage(staff->idx());
+            
+            // Offset needed to center the time signature on the system center
+            yOffsetToCenter = systemCenter - currentStaffY;
+            
+            // Always update the offset to keep it centered
+            // Manual adjustments are detected by checking if user explicitly moved it
+            PointF currentOffset = item->offset();
+            const_cast<TimeSig*>(item)->setOffset(PointF(currentOffset.x(), yOffsetToCenter));
+            
+            LOGD() << "CIPHER TIMESIG Y-CENTER: nstaves=" << nstaves
+                   << " systemTop=" << systemTop 
+                   << " systemBottom=" << systemBottom 
+                   << " systemCenter=" << systemCenter
+                   << " currentStaffY=" << currentStaffY
+                   << " staffIdx=" << staff->idx()
+                   << " yOffsetToCenter=" << yOffsetToCenter
+                   << " prevY=" << currentOffset.y();
+        }
+        
+        LOGD() << "CIPHER TIMESIG LAYOUT: bbox=" << timeSigRect 
+               << " posX=" << ldata->pos().x() << " posY=" << ldata->pos().y()
+               << " pz=" << ldata->pz << " pn=" << ldata->pn 
+               << " centerY=" << centerY << " yShift=" << yShift
+               << " staff=" << (staff ? staff->idx() : -1)
+               << " cipherBegin=" << ldata->cipherBegin;
+        
+        return;
     } else {
         if (item->numeratorString().isEmpty()) {
             ldata->ns = timeSigSymIdsFromString(item->numeratorString().isEmpty()
