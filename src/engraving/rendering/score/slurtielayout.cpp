@@ -585,7 +585,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
         TremoloTwoChord* trem = sc ? sc->tremoloTwoChord() : nullptr;
         if (stem1 || trem) {     //sc not null
             Beam* beam1 = sc->beam();
-            if (beam1 && (beam1->elements().back() != sc) && (sc->up() == item->up())) {
+            if (stem1 && beam1 && (beam1->elements().back() != sc) && (sc->up() == item->up())) {
                 TLayout::layoutBeam(beam1, ctx);
                 // start chord is beamed but not the last chord of beam group
                 // and slur direction is same as start chord (stem side)
@@ -679,7 +679,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
                     yd *= .5;
 
                     // float along stem according to differential
-                    double sh = stem1->height();
+                    double sh = stem1 ? stem1->height() : 0.0;
                     if (item->up() && yd < 0.0) {
                         double limitY;
                         if (isCipherStaff && sc->downNote()->cipherHeight() > 0.0) {
@@ -836,7 +836,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
                         double yd = n2->pos().y() - (n1 ? n1->pos().y() : item->startCR()->pos().y());
                         yd *= .5;
 
-                        double mh = stem2->height();
+                        double mh = stem2 ? stem2->height() : 0.0;
                         if (item->up() && yd > 0.0) {
                             po.ry() = std::max(po.y() - yd, ec->downNote()->pos().y() - mh - _spatium);
                         } else if (!item->up() && yd < 0.0) {
@@ -1194,7 +1194,7 @@ Shape SlurTieLayout::getSegmentShapes(SlurSegment* slurSeg, ChordRest* startCR, 
     }
 
     for (Segment* seg = startSeg; seg && (seg->isBefore(endSeg) || seg == endSeg); seg = seg->next1enabled()) {
-        if (seg->isType(SegmentType::BarLineType) || seg->isBreathType() || seg->hasTimeSigAboveStaves()) {
+        if (seg->isType(SegmentType::BarLineType) || seg->isBreathType() || seg->hasTimeSigAboveStaves() || seg->isTimeTickType()) {
             continue;
         }
         segShapes.add(getSegmentShape(slurSeg, seg, startCR, endCR));

@@ -122,7 +122,7 @@ io::path_t AutobotInteractive::selectSavingFileSync(const std::string& title, co
     }
 
     LOGD() << title << " dir:" << dir << ", filter: " << filterList << ", confirmOverwrite: " << confirmOverwrite;
-    m_real->openSync("muse://autobot/selectfile?sync=true&filePath=" + dir.toStdString());
+    m_real->openSync("muse://autobot/selectfile?filePath=" + dir.toStdString());
     m_selectedFilePath = dir;
     return m_selectedFilePath;
 }
@@ -138,9 +138,9 @@ io::paths_t AutobotInteractive::selectMultipleDirectories(const std::string& tit
     return m_real->selectMultipleDirectories(title, dir, initialDirectories);
 }
 
-async::Promise<Color> AutobotInteractive::selectColor(const Color& color, const std::string& title)
+async::Promise<Color> AutobotInteractive::selectColor(const Color& color, const std::string& title, bool allowAlpha)
 {
-    return m_real->selectColor(color, title);
+    return m_real->selectColor(color, title, allowAlpha);
 }
 
 bool AutobotInteractive::isSelectColorOpened() const

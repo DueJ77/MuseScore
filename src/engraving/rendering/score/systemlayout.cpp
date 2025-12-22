@@ -271,7 +271,12 @@ System* SystemLayout::collectSystem(LayoutContext& ctx)
                 prevMeasureState.measurePos = nmb->x();
                 prevMeasureState.measureWidth = nmb->width();
                 for (Segment& seg : toMeasure(nmb)->segments()) {
-                    prevMeasureState.segmentsPos.emplace_back(&seg, seg.x());
+                    prevMeasureState.elementPositions.emplace(&seg, seg.ldata()->pos());
+                    for (EngravingItem* item : seg.annotations()) {
+                        if (item->isHarmony() || item->isFretDiagram()) {
+                            prevMeasureState.elementPositions.emplace(item, item->ldata()->pos());
+                        }
+                    }
                 }
             }
             if (!ctx.state().curMeasure()->noBreak()) {
@@ -427,7 +432,7 @@ System* SystemLayout::collectSystem(LayoutContext& ctx)
     layoutSystemElements(system, ctx);
     SystemLayout::layout2(system, ctx);     // compute staff distances
 
-    if (oldSystem && !oldSystem->measures().empty() && oldSystem->measures().front()->tick() >= system->endTick()
+    if (ctx.state().rangeDone() && oldSystem && !oldSystem->measures().empty() && oldSystem->measures().front()->tick() >= system->endTick()
         && !(oldSystem->page() && oldSystem->page() != ctx.state().page())) {
         // We may have unfinished layouts of certain elements in the next system
         // - ties & bends (in LayoutChords::updateLineAttachPoints())
@@ -2019,21 +2024,6 @@ void SystemLayout::restoreOldSystemLayout(System* system, LayoutContext& ctx)
     }
 
     layoutTiesAndBends(elements, ctx);
-
-    // Remove stale items from the skyline
-    for (EngravingItem* i : elements.fretDiagrams) {
-        removeElementFromSkyline(i, system);
-    }
-    for (EngravingItem* i : elements.harmonies) {
-        removeElementFromSkyline(i, system);
-    }
-
-    bool hasFretDiagram = elements.fretDiagrams.size() > 0;
-    if (hasFretDiagram) {
-        layoutFretDiagrams(elements, system, ctx);
-    } else {
-        layoutHarmonies(elements.harmonies, system, ctx);
-    }
 }
 
 void SystemLayout::layoutSystem(System* system, LayoutContext& ctx, double xo1, const bool isFirstSystem, bool firstSystemIndent)
@@ -2877,9 +2867,14 @@ double SystemLayout::minDistance(const System* top, const System* bottom, const 
         return std::max(bottomVBox->absoluteFromSpatium(bottomVBox->topGap()),
                         top->minBottom() + bottomVBox->absoluteFromSpatium(bottomVBox->paddingToNotationAbove()));
     } else if (topVBox && bottomVBox) {
-        double largestGap = std::max(bottomVBox->absoluteFromSpatium(bottomVBox->topGap()),
-                                     topVBox->absoluteFromSpatium(topVBox->bottomGap()));
-        return largestGap;
+        const double topToBottomGap = topVBox->absoluteFromSpatium(topVBox->bottomGap());
+        const double bottomToTopGap = bottomVBox->absoluteFromSpatium(bottomVBox->topGap());
+        if (topToBottomGap >= 0 && bottomToTopGap >= 0) {
+            double largestGap = std::max(bottomToTopGap, topToBottomGap);
+            return largestGap;
+        } else {
+            return topToBottomGap + bottomToTopGap;
+        }
     }
 
     if (top->staves().empty() || bottom->staves().empty()) {
@@ -2954,7 +2949,7 @@ void SystemLayout::removeElementFromSkyline(EngravingItem* element, const System
     SkylineLine& skylineLine = isAbove ? skyline.north() : skyline.south();
 
     skylineLine.remove_if([element](ShapeElement& shapeEl) {
-        return element == shapeEl.item();
+        return shapeEl.item() && (element == shapeEl.item() || element == shapeEl.item()->parentItem());
     });
 }
 
@@ -3024,6 +3019,9 @@ void SystemLayout::centerBigTimeSigsAcrossStaves(const System* system)
                     continue;
                 }
                 staff_idx_t thisStaffIdx = timeSig->effectiveStaffIdx();
+                if (thisStaffIdx == muse::nidx) {
+                    continue;
+                }
                 staff_idx_t nextStaffIdx = thisStaffIdx;
                 for (staff_idx_t idx = thisStaffIdx + 1; idx < nstaves; ++idx) {
                     TimeSig* nextTimeSig = toTimeSig(segment.element(staff2track(idx)));

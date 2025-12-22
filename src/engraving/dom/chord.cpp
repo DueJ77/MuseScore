@@ -2733,6 +2733,9 @@ Ornament* Chord::findOrnament(bool forPlayback) const
         }
     }
     if (forPlayback) {
+        // TODO: cleanup.
+        // We shouldn't do this kind of special cases, and the DOM shouldn't know anything about playback.
+        // This should be in a different function that returns the ornament from the Trill ending on this chord. [MS]
         for (Spanner* spanner : m_endingSpanners) {
             if (spanner->isTrill()) {
                 return toTrill(spanner)->ornament();
