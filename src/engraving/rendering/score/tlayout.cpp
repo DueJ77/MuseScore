@@ -6969,30 +6969,9 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
         ldata->ns.push_back(SymId::timeSigCutCommon);
         ldata->ds.clear();
         
-        // Center vertically across all staves in the system using ldata->setPosY()
-        // This is cleaner than manipulating setOffset() which fights with user adjustments
-        if (meas && meas->system()) {
-            const System* sys = meas->system();
-            size_t nstaves = sys->staves().size();
-            if (nstaves > 1) {
-                // Calculate center between first and last staff center points
-                double firstStaffY = sys->staffYpage(0);
-                double firstStaffHeight = (staff->lines(tick) - 1) * spatium * staff->lineDistance(tick);
-                
-                staff_idx_t lastStaffIdx = item->score()->nstaves() > nstaves ? nstaves - 1 : item->score()->nstaves() - 1;
-                double lastStaffY = sys->staffYpage(nstaves - 1);
-                const Staff* lastStaff = item->score()->staff(lastStaffIdx);
-                double lastStaffHeight = 0.0;
-                if (lastStaff) {
-                    lastStaffHeight = (lastStaff->lines(tick) - 1) * spatium * lastStaff->lineDistance(tick);
-                }
-                // Center between the midpoints of first and last staves
-                double systemCenter = ((firstStaffY + firstStaffHeight / 2.0) + (lastStaffY + lastStaffHeight / 2.0)) / 2.0;
-                double currentStaffY = sys->staffYpage(staff->idx());
-                // Shift the time signature so it appears at the system center
-                ldata->setPosY(systemCenter - currentStaffY);
-            }
-        }
+        // NOTE: Vertical centering across all system staves is done in
+        // pagelayout.cpp after system layout, when staff Y positions are known.
+        // Do NOT try to center here - meas->system() is null during initial layout.
         
         return;
     } else {

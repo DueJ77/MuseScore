@@ -50,6 +50,8 @@
 #include "dom/tremolotwochord.h"
 #include "dom/tuplet.h"
 
+#include "dom/timesig.h"
+
 #include "arpeggiolayout.h"
 #include "beamlayout.h"
 #include "chordlayout.h"
@@ -395,6 +397,52 @@ void PageLayout::collectPage(LayoutContext& ctx)
         && ctx.conf().styleB(Sid::timeSigCenterAcrossStaveGroup)) {
         for (const System* system : page->systems()) {
             SystemLayout::centerBigTimeSigsAcrossStaves(system);
+        }
+    }
+
+    // Center cipher time signatures vertically across all staves
+    // This runs after system layout so staff Y positions are available
+    for (const System* system : page->systems()) {
+        size_t nstaves = system->staves().size();
+        if (nstaves < 2) {
+            continue;
+        }
+        for (MeasureBase* mb : system->measures()) {
+            if (!mb->isMeasure()) {
+                continue;
+            }
+            Measure* meas = toMeasure(mb);
+            for (Segment& seg : meas->segments()) {
+                if (!seg.isTimeSigType()) {
+                    continue;
+                }
+                // Only check staff 0 (cipher time sig is only visible on first staff)
+                EngravingItem* el = seg.element(0);
+                if (!el || !el->isTimeSig()) {
+                    continue;
+                }
+                TimeSig* ts = toTimeSig(el);
+                const Staff* staff = ts->staff();
+                if (!staff || !staff->isCipherStaff(ts->tick())) {
+                    continue;
+                }
+                const TimeSig::LayoutData* ldata = ts->ldata();
+                if (!ldata->cipherVisible) {
+                    continue;
+                }
+                // Calculate center between midpoints of first and last visible staves
+                // staff->idx() == 0 since cipher time sig is only on first staff
+                double firstStaffY = system->staff(0)->y();
+                double firstStaffHeight = system->score()->staff(size_t(0))->staffHeight();
+                staff_idx_t lastIdx = nstaves - 1;
+                double lastStaffY = system->staff(lastIdx)->y();
+                const Staff* lastStaff = system->score()->staff(lastIdx);
+                double lastStaffHeight = lastStaff ? lastStaff->staffHeight() : firstStaffHeight;
+                double systemCenter = ((firstStaffY + firstStaffHeight / 2.0) + (lastStaffY + lastStaffHeight / 2.0)) / 2.0;
+                double currentStaffY = system->staff(staff->idx())->y();
+                // Shift time sig to system center
+                ts->mutldata()->setPosY(systemCenter - currentStaffY);
+            }
         }
     }
 
