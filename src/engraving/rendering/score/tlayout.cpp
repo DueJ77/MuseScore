@@ -3729,7 +3729,12 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
                 if (sigMode < 0 || sigMode > 1) {
                     sigMode = 0;
                 }
-                String cipherString = String::fromUtf8(CipherString[int(item->key()) + 7][sigMode]);
+                int keyIndex = int(item->key()) + 7;
+                if (keyIndex < 0 || keyIndex > 14) {
+                    LOGD() << "Cipher key signature layout: invalid keyIndex=" << keyIndex;
+                    return;
+                }
+                String cipherString = String::fromUtf8(CipherString[keyIndex][sigMode]);
                 
                 muse::draw::Font cipherFont;
                 cipherFont.setFamily(muse::draw::Font::FontFamily(conf.styleSt(Sid::cipherKeySigFont)), 

@@ -1,5 +1,5 @@
 <RCC>
     <qresource prefix="/">
         <file alias="fonts/cipher/Cipher.otf">../../../../fonts/cipher/Cipher.otf</file>
-	    </qresource>
+    </qresource>
 </RCC>
