@@ -580,7 +580,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
         double offset = useTablature ? 0.75 : 0.9;
         if (isCipherStaff && note1 && note1->cipherHeight() > 0.0) {
             // For cipher notation, add offset relative to cipher height
-            po.ry() += note1->cipherHeight() * 0.3 * __up;
+            po.ry() += note1->cipherHeight() * 0.15 * __up;
         } else if (!isCipherStaff || note1->cipherHeight() <= 0.0) {
             po.ry() += scr->intrinsicMag() * _spatium * offset * __up;
         }
@@ -744,7 +744,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
             double offset2 = useTablature ? 0.75 : 0.9;
             if (isCipherStaff && note2 && note2->cipherHeight() > 0.0) {
                 // For cipher notation, add offset relative to cipher height
-                po.ry() += note2->cipherHeight() * 0.3 * __up;
+                po.ry() += note2->cipherHeight() * 0.15 * __up;
             } else if (!isCipherStaff || (note2 && note2->cipherHeight() <= 0.0)) {
                 po.ry() += ecr->intrinsicMag() * _spatium * offset2 * __up;
             }

@@ -6949,12 +6949,7 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
         // Check if this is at measure begin
         ldata->cipherBegin = meas && seg->rtick().isZero();
         
-        // Horizontal positioning (matching MS3 layout2)
-        if (ldata->cipherBegin) {
-            // At measure begin: position to the left of the system
-            double leftPos = -boxwidth - numHeight * style.styleD(Sid::cipherTimeSigDistance);
-            ldata->setPosX(leftPos);
-        } else {
+        if (!ldata->cipherBegin) {
             // Not at begin: add a vertical barline after the time signature
             double x = boxwidth + numHeight * style.styleD(Sid::cipherTimeSigDistance);
             double cipherBarLineLength = numHeight * 4.0;
@@ -6963,15 +6958,18 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
             timeSigRect = timeSigRect.united(RectF(x - lw / 2, yoff - cipherBarLineLength / 2, lw, cipherBarLineLength));
             ldata->setBbox(timeSigRect);
         }
+        // NOTE: For cipherBegin, horizontal positioning is done in pagelayout.cpp
+        // after system layout, when segment X positions are known.
         
         // Store dummy symbols (required by base class)
         ldata->ns.clear();
         ldata->ns.push_back(SymId::timeSigCutCommon);
         ldata->ds.clear();
         
-        // NOTE: Vertical centering across all system staves is done in
-        // pagelayout.cpp after system layout, when staff Y positions are known.
-        // Do NOT try to center here - meas->system() is null during initial layout.
+        // NOTE: Both vertical centering (Y across all staves) and horizontal
+        // positioning (X before the barline) are done in pagelayout.cpp after
+        // system layout, when staff Y positions and segment X positions are known.
+        // Do NOT try to position here - meas->system() is null during initial layout.
         
         return;
     } else {

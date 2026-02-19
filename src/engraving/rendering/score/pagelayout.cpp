@@ -400,13 +400,10 @@ void PageLayout::collectPage(LayoutContext& ctx)
         }
     }
 
-    // Center cipher time signatures vertically across all staves
-    // This runs after system layout so staff Y positions are available
+    // Position cipher time signatures: center vertically, and move to the LEFT of the system barline
+    // This runs after system layout so staff Y positions and segment X positions are available
     for (const System* system : page->systems()) {
         size_t nstaves = system->staves().size();
-        if (nstaves < 2) {
-            continue;
-        }
         for (MeasureBase* mb : system->measures()) {
             if (!mb->isMeasure()) {
                 continue;
@@ -430,18 +427,57 @@ void PageLayout::collectPage(LayoutContext& ctx)
                 if (!ldata->cipherVisible) {
                     continue;
                 }
-                // Calculate center between midpoints of first and last visible staves
-                // staff->idx() == 0 since cipher time sig is only on first staff
-                double firstStaffY = system->staff(0)->y();
-                double firstStaffHeight = system->score()->staff(size_t(0))->staffHeight();
-                staff_idx_t lastIdx = nstaves - 1;
-                double lastStaffY = system->staff(lastIdx)->y();
-                const Staff* lastStaff = system->score()->staff(lastIdx);
-                double lastStaffHeight = lastStaff ? lastStaff->staffHeight() : firstStaffHeight;
-                double systemCenter = ((firstStaffY + firstStaffHeight / 2.0) + (lastStaffY + lastStaffHeight / 2.0)) / 2.0;
-                double currentStaffY = system->staff(staff->idx())->y();
-                // Shift time sig to system center
-                ts->mutldata()->setPosY(systemCenter - currentStaffY);
+                
+                // Vertical centering: center between midpoints of first and last staves
+                if (nstaves > 1) {
+                    double firstStaffY = system->staff(0)->y();
+                    double firstStaffHeight = system->score()->staff(size_t(0))->staffHeight();
+                    staff_idx_t lastIdx = nstaves - 1;
+                    double lastStaffY = system->staff(lastIdx)->y();
+                    const Staff* lastStaff = system->score()->staff(lastIdx);
+                    double lastStaffHeight = lastStaff ? lastStaff->staffHeight() : firstStaffHeight;
+                    double systemCenter = ((firstStaffY + firstStaffHeight / 2.0) + (lastStaffY + lastStaffHeight / 2.0)) / 2.0;
+                    double currentStaffY = system->staff(staff->idx())->y();
+                    ts->mutldata()->setPosY(systemCenter - currentStaffY);
+                }
+                
+                // Horizontal positioning: move time sig to the LEFT of the barline
+                // In MS3: cipherXpos = -segment->rxpos() - barlineWidth
+                // Then: rxpos = cipherXpos - bbox.width - distance
+                if (ldata->cipherBegin) {
+                    double segX = seg.x();  // segment position within measure
+                    // Find barline width at start of measure
+                    double barlineW = 0.0;
+                    for (Segment* s = meas->first(); s; s = s->next()) {
+                        if (s->isBeginBarLineType()) {
+                            EngravingItem* barEl = s->firstElement(0);
+                            if (barEl) {
+                                barlineW = barEl->width();
+                            }
+                            break;
+                        }
+                    }
+                    // Also check end barline of previous measure
+                    if (meas->prevMeasure()) {
+                        for (Segment* s = meas->prevMeasure()->last(); s; s = s->prev()) {
+                            if (s->isEndBarLineType()) {
+                                EngravingItem* barEl = s->firstElement(0);
+                                if (barEl) {
+                                    barlineW = std::max(barlineW, barEl->width());
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    double tsWidth = ldata->bbox().width();
+                    // Recover numHeight from cipherLineThick (= numHeight * cipherTimeSigLineThick)
+                    // Distance = numHeight * cipherTimeSigDistance (matching MS3)
+                    double numHeight = ldata->cipherLineThick > 0.0
+                        ? ldata->cipherLineThick / ts->style().styleD(Sid::cipherTimeSigLineThick)
+                        : ts->spatium();
+                    double tsDistance = numHeight * ts->style().styleD(Sid::cipherTimeSigDistance);
+                    ts->mutldata()->setPosX(-segX - barlineW - tsWidth - tsDistance);
+                }
             }
         }
     }
