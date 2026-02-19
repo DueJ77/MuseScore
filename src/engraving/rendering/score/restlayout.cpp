@@ -118,16 +118,16 @@ void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const Lay
             const_cast<Rest*>(item)->setTabDur(nullptr);
         }
     } else if (stt && stt->isCipherStaff()) {
-        // Cipher notation rest layout (based on MS3 fork)
+        // Cipher notation rest layout (matching MS3 fork)
         // In cipher notation, rests are displayed as "0" with duration markers
 
-        // Position at Y=0 initially (will be adjusted)
+        // Position at Y=0 (no vertical offset - matching MS3)
         const_cast<Rest*>(item)->setPos(0.0, 0.0);
 
-        // Get cipher font - IMPORTANT: use MScore::pixelRatio like MS3
+        // Get cipher font for layout calculations (without pixelRatio - layout uses logical coordinates)
         muse::draw::Font cipherFont;
         cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
-        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
 
         // Calculate actual text dimensions using Cipher class
         Cipher tempCipher;
@@ -155,17 +155,12 @@ void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const Lay
 
         // Get actual dimensions from Cipher helper
         double cipherHeight = tempCipher.textHeight(cipherFont, baseChar);
-        double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar);
         double cipherWidth = tempCipher.textWidth(cipherFont, fretString);
 
-        // Position rest slightly less than two whole tones higher than the center line
-        // Two whole tones = 4 semitones, but we use 3.7 semitones for optimal positioning
-        // 3.7 semitones = 3.7/12 octave
-        // Negative Y moves up in the score
-        double restYShift = -(8.0 / 12.0) * cipherHeight * item->style().styleD(Sid::cipherDistanceOctave);
-        ldata->setPosY(restYShift);
-
-        // Calculate bounding box with hook lines (exactly as MS3)
+        // Calculate bounding box with hook lines (matching MS3)
+        // lineThick = cipherHeight * thickLine
+        // lineSpace = cipherHeight * (distanceBetweenLines * -1)
+        // heightLine = cipherHeight * heightDisplacement - cipherHeight - cipherHeight * heightLine
         double cipherLineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
         double cipherLineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
         double cipherHeightLine = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement)
@@ -174,6 +169,7 @@ void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const Lay
 
         int hooks = std::abs(item->durationType().hooks());
         double distance = cipherWidth * item->style().styleD(Sid::cipherRestDistanc);
+        // MS3: hookbox starts at (heightLine + (hooks-1)*lineSpace - lineThick)
         double hookLineY = cipherHeightLine + ((hooks - 1) * cipherLineSpace) - cipherLineThick;
         double hookBoxHeight = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement) + (hookLineY * -1);
 

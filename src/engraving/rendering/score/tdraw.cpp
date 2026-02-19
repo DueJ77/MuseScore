@@ -2071,10 +2071,15 @@ void TDraw::draw(const KeySig* item, Painter* painter)
                                       * item->style().styleD(Sid::cipherKeySigSize);
                 
                 int sigMode = int(item->mode()) - 1;
-                if (sigMode < 0 || sigMode > 2) {
+                if (sigMode < 0 || sigMode > 1) {
                     sigMode = 0;
                 }
-                String cipherString = String::fromUtf8(CipherString[int(item->key()) + 7][sigMode]);
+                int keyIndex = int(item->key()) + 7;
+                if (keyIndex < 0 || keyIndex > 14) {
+                    LOGD() << "Cipher key signature: invalid keyIndex=" << keyIndex;
+                    return;
+                }
+                String cipherString = String::fromUtf8(CipherString[keyIndex][sigMode]);
                 
                 muse::draw::Font cipherFont;
                 cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherKeySigFont)), 
@@ -2688,31 +2693,35 @@ void TDraw::draw(const Rest* item, Painter* painter)
     if (stt && stt->isCipherStaff()) {
         double spatium = item->spatium();
         
-        // Get cipher font - IMPORTANT: use MScore::pixelRatio like MS3
-        Font cipherFont;
-        cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
-        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        // Render font includes pixelRatio for correct text rendering
+        Font renderFont;
+        renderFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
+        renderFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
         
-        painter->setFont(cipherFont);
+        // Layout font (without pixelRatio) for computing positions in logical coordinates
+        // This matches how note positions are computed during layout (tlayout.cpp)
+        Font layoutFont;
+        layoutFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
+        layoutFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
+        
+        painter->setFont(renderFont);
         painter->setPen(item->curColor());
         
-        // Calculate actual dimensions using Cipher
+        // Compute dimensions using layout font (logical coordinates, matching note layout)
         Cipher tempCipher;
-        tempCipher.setFretFont(cipherFont);
+        tempCipher.setFretFont(layoutFont);
         
         // Build rest string: "0" + duration markers + dots
         String baseChar = u"0";
         String durationMarker = u"";
         String dotMarker = u"";
         
-        // Get duration marker (commas for shorter durations) - USE REST ARRAYS!
         DurationType durType = item->durationType().type();
         int durTypeIndex = int(durType);
         if (durTypeIndex >= 0 && durTypeIndex < 16) {
             durationMarker = cipherDurationRest_internal[durTypeIndex];
         }
         
-        // Get dot marker - USE REST ARRAYS!
         int dots = item->durationType().dots();
         if (dots >= 0 && dots <= 2) {
             dotMarker = cipherDurationDotRest_internal[dots];
@@ -2722,38 +2731,32 @@ void TDraw::draw(const Rest* item, Painter* painter)
         
         String restString = baseChar + durationMarker + dotMarker;
         
-        // Get actual cipher height
-        // Note: textHeight returns line height which is much larger than actual character height
-        // For consistency with notes, use approximately 0.27 of the text height
-        double cipherHeightRaw = tempCipher.textHeight(cipherFont, baseChar);
-        double cipherHeight = cipherHeightRaw * 0.27;  // Adjust to match Note::cipherHeight()
+        // Get cipher dimensions in logical coordinates (matching note layout)
+        double cipherHeight = tempCipher.textHeight(layoutFont, baseChar);
+        double cipherLineWidth = tempCipher.textWidth(layoutFont, baseChar);
         
-        // Draw the "0" character with duration markers
-        // The rest is positioned at C3 line (1 octave below Y=0)
-        double heightDisplacement = cipherHeightRaw * item->style().styleD(Sid::cipherHeightDisplacement);
+        // Draw "0" with duration markers at the same position as notes
+        // Note text Y = digitHeight * cipherHeightDisplacement (computed during layout)
+        // Rest text Y must match, using the same logical-coordinate calculation
+        double heightDisplacement = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement);
         painter->drawText(PointF(0, heightDisplacement), restString);
         
-        // Draw hook lines for shorter note values
+        // Draw hook lines for shorter note values (eighth rests, sixteenth rests, etc.)
         int hooks = std::abs(item->durationType().hooks());
         if (hooks > 0) {
             double cipherLineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
             double cipherLineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
-            
-            // Get actual line width - use smaller width for hook lines  
-            double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar) * 0.3;
-            double lineLength = cipherLineWidth * item->style().styleD(Sid::cipherWideLine);
-            double offsetLine = item->style().styleD(Sid::cipherOffsetLine);
-            
-            // Use the same Y-position calculation as for notes
-            double yAboveText = heightDisplacement - cipherHeight * 1.2;
+            double cipherHeightLine = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement)
+                                     - cipherHeight
+                                     - cipherHeight * item->style().styleD(Sid::cipherHeigthLine);
             
             painter->setPen(Pen(item->curColor(), cipherLineThick));
             
-            // Draw hook lines using the same style as notes
+            double wideLine = item->style().styleD(Sid::cipherWideLine);
             for (int i = 0; i < hooks; ++i) {
-                double y = yAboveText - (i * std::abs(cipherLineSpace));
-                double lineX1 = offsetLine + (cipherLineWidth / 2 - lineLength / 2);
-                double lineX2 = offsetLine + (cipherLineWidth / 2 + lineLength / 2);
+                double y = cipherHeightLine + (i * cipherLineSpace);
+                double lineX1 = cipherLineWidth / 2 - (cipherLineWidth * wideLine) / 2;
+                double lineX2 = cipherLineWidth / 2 + (cipherLineWidth * wideLine) / 2;
                 painter->drawLine(LineF(lineX1, y, lineX2, y));
             }
         }

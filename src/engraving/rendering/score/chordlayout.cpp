@@ -1479,8 +1479,8 @@ void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
         }
         
         // Calculate octave distance (before division by 2)
-        // MS3 uses -5 (C5 as reference), but in MS4 cipher line might be at C4, so try -4
-        int octaveDistance = (firstNote->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 4 - clefShift;
+        // Reference octave is C5 (MIDI pitch 60 / 12 = 5), matching MS3
+        int octaveDistance = (firstNote->pitch() + groundToneShift - accidentalShift + numTransposeInterval) / 12 - 5 - clefShift;
         
         // Number of ledger lines = abs(octaveDistance) / 2
         // This gives: 0-1 octaves = 0 lines, 2-3 octaves = 1 line, 4-5 octaves = 2 lines, etc.
