@@ -155,13 +155,12 @@ void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const Lay
 
         // Get actual dimensions from Cipher helper
         double cipherHeight = tempCipher.textHeight(cipherFont, baseChar);
-        double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar);
         double cipherWidth = tempCipher.textWidth(cipherFont, fretString);
 
-        // Calculate bounding box with hook lines (exactly as MS3)
-        // MS3: _cipherLineThick = _cipherHigth * cipherThickLine
-        // MS3: _cipherLineSpace = _cipherHigth * (cipherDistanceBetweenLines * -1)
-        // MS3: _cipherHigthLine = _cipherHigth * cipherHeightDisplacement - _cipherHigth - _cipherHigth * cipherHeigthLine
+        // Calculate bounding box with hook lines (matching MS3)
+        // lineThick = cipherHeight * thickLine
+        // lineSpace = cipherHeight * (distanceBetweenLines * -1)
+        // heightLine = cipherHeight * heightDisplacement - cipherHeight - cipherHeight * heightLine
         double cipherLineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
         double cipherLineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
         double cipherHeightLine = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement)
@@ -170,8 +169,7 @@ void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const Lay
 
         int hooks = std::abs(item->durationType().hooks());
         double distance = cipherWidth * item->style().styleD(Sid::cipherRestDistanc);
-        // MS3: hookbox = QRectF(0.0-distance/2, cipherHigthLine + ((hooks-1)*cipherLineSpace) - cipherLineThick,
-        //                       cipherWidht+distance, cipherHigth*cipherHeightDisplacement + (hookLineY * -1))
+        // MS3: hookbox starts at (heightLine + (hooks-1)*lineSpace - lineThick)
         double hookLineY = cipherHeightLine + ((hooks - 1) * cipherLineSpace) - cipherLineThick;
         double hookBoxHeight = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement) + (hookLineY * -1);
 

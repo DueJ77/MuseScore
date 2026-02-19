@@ -2730,26 +2730,25 @@ void TDraw::draw(const Rest* item, Painter* painter)
         double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar);
         
         // Draw the "0" character with duration markers (matching MS3)
-        // MS3: painter->drawText(QPointF(0, _cipherHigth * cipherHeightDisplacement), _fretString)
+        // MS3: drawText(QPointF(0, cipherHeight * cipherHeightDisplacement), fretString)
         double heightDisplacement = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement);
         painter->drawText(PointF(0, heightDisplacement), restString);
         
         // Draw hook lines for shorter note values (matching MS3)
         int hooks = std::abs(item->durationType().hooks());
         if (hooks > 0) {
-            // MS3: _cipherLineThick = _cipherHigth * cipherThickLine
+            // MS3: lineThick = cipherHeight * cipherThickLine
             double cipherLineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
-            // MS3: _cipherLineSpace = _cipherHigth * (cipherDistanceBetweenLines * -1)
+            // MS3: lineSpace = cipherHeight * (distanceBetweenLines * -1)
             double cipherLineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
-            // MS3: _cipherHigthLine = _cipherHigth*cipherHeightDisplacement - _cipherHigth - _cipherHigth*cipherHeigthLine
+            // MS3: heightLine = cipherHeight*heightDisplacement - cipherHeight - cipherHeight*heightLine
             double cipherHeightLine = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement)
                                      - cipherHeight
                                      - cipherHeight * item->style().styleD(Sid::cipherHeigthLine);
             
             painter->setPen(Pen(item->curColor(), cipherLineThick));
             
-            // MS3: drawLine(QLineF(lineWidht/2 - (lineWidht*wideLine)/2, heightLine + (i*lineSpace),
-            //                      lineWidht/2 + (lineWidht*wideLine)/2, heightLine + (i*lineSpace)))
+            // MS3: drawLine centered on lineWidth, at heightLine + i*lineSpace
             double wideLine = item->style().styleD(Sid::cipherWideLine);
             for (int i = 0; i < hooks; ++i) {
                 double y = cipherHeightLine + (i * cipherLineSpace);
