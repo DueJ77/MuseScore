@@ -219,6 +219,9 @@ void EngravingModule::onInit(const IApplication::RunMode& mode)
         // Roman Numeral Analysis
         fdb->addFont(FontDataKey(u"Campania"), ":/fonts/campania/Campania.otf");
 
+        // Cipher Notation
+        fdb->addFont(FontDataKey(u"Cipher"), ":/fonts/cipher/Cipher.otf");
+
         // Defaults
         fdb->setDefaultFont(Font::Type::Unknown, FontDataKey(u"Edwin"));
         fdb->setDefaultFont(Font::Type::Text, FontDataKey(u"Edwin"));

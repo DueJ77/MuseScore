@@ -124,10 +124,10 @@ void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const Lay
         // Position at Y=0 initially (will be adjusted)
         const_cast<Rest*>(item)->setPos(0.0, 0.0);
 
-        // Get cipher font - IMPORTANT: use MScore::pixelRatio like MS3
+        // Get cipher font for layout calculations (without pixelRatio - layout uses logical coordinates)
         muse::draw::Font cipherFont;
         cipherFont.setFamily(muse::draw::Font::FontFamily(item->style().styleSt(Sid::cipherFont)), muse::draw::Font::Type::Text);
-        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
 
         // Calculate actual text dimensions using Cipher class
         Cipher tempCipher;

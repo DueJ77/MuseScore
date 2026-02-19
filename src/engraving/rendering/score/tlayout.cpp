@@ -6870,11 +6870,10 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
             sigType = TimeSigType::NORMAL;
         }
         
-        // Get cipher font for time signature - IMPORTANT: use MScore::pixelRatio like MS3
-        // Make time signature much smaller than the notes (about 30% of note size)
+        // Get cipher font for time signature layout (without pixelRatio - layout uses logical coordinates)
         muse::draw::Font cipherFont;
         cipherFont.setFamily(muse::draw::Font::FontFamily(style.styleSt(Sid::cipherTimeSigFont)), muse::draw::Font::Type::Text);
-        double fontSize = style.styleD(Sid::cipherFontSize) * 0.3 * spatium * MScore::pixelRatio / SPATIUM20;
+        double fontSize = style.styleD(Sid::cipherFontSize) * style.styleD(Sid::cipherTimeSigSize) * spatium / SPATIUM20;
         cipherFont.setPointSizeF(fontSize);
         
         LOGD() << "CIPHER TIMESIG FONT: fontSize=" << fontSize 
