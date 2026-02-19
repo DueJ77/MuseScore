@@ -4617,22 +4617,31 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         mutableItem->setCipherLedgerline(cipherLedgerline);
         
         // Set positions for text and accidentals
+        // In MS3, the note has rypos() = -fretStringYShift, and text positions are relative to the note
+        // In MS4, the note is at y=0, so text positions must be absolute (include octave shift)
+        // MS3: _cipherTextPos = QPointF(0.0, _cipherHigth * cipherHeightDisplacement)
+        // MS4 equivalent: include -fretStringYShift + digitHeight * cipherHeightDisplacement
+        double cipherHeightDisplacement = digitHeight * item->style().styleD(Sid::cipherHeightDisplacement);
         double textXOffset = accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0;
         if (trackThick != 1.0) {
             textXOffset += cipher.textWidth(cipherFont, u"(");
         }
-        mutableItem->setCipherTextPos(PointF(textXOffset, -fretStringYShift));
-        double accHeightAdjust = item->style().styleD(mutableItem->drawSharp() ? Sid::cipherHeigthSignSharp : Sid::cipherHeigthSignFlat) * spatium;
+        mutableItem->setCipherTextPos(PointF(textXOffset, -fretStringYShift + cipherHeightDisplacement));
+        // MS3: accidental Y is _cipherHigth * cipherHeigthSignSharp (relative to note)
+        double accHeightAdjust = digitHeight * item->style().styleD(mutableItem->drawSharp() ? Sid::cipherHeigthSignSharp : Sid::cipherHeigthSignFlat);
         mutableItem->setCipherAccidentalPos(PointF(trackThick != 1.0 ? cipher.textWidth(cipherFont, u"(") : 0, -fretStringYShift + accHeightAdjust));
         
         // Set parenthesis position for non-main voices
+        // MS3: _cipherKlammerPos.y() = _cipherTextPos.y()
         if (trackThick != 1.0) {
-            mutableItem->setCipherKlammerPos(PointF(0, -fretStringYShift));
+            mutableItem->setCipherKlammerPos(PointF(0, -fretStringYShift + cipherHeightDisplacement));
         }
         
         // Calculate bounding box
-        double boxHeight = std::max(digitHeight, accidentalHeight);
-        noteBBox = RectF(0, -fretStringYShift - boxHeight / 2, totalWidth, boxHeight);
+        // MS3 (relative to note at -fretStringYShift):
+        //   QRectF(0.0, _cipherHigth*-1 + _cipherHigth*cipherHeightDisplacement, w, _cipherHigth)
+        // MS4 (absolute, note at y=0):
+        noteBBox = RectF(0, -fretStringYShift - digitHeight + cipherHeightDisplacement, totalWidth, digitHeight);
         
         } catch (const std::exception& e) {
             // If anything goes wrong, fall back to simple layout
