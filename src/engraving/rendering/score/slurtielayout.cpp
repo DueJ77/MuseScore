@@ -381,11 +381,15 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
     }
 
     bool useTablature = item->staff() && item->staff()->isTabStaff(item->endCR()->tick());
+    bool isCipherNotation = item->staff() && item->staff()->isCipherStaff(item->endCR()->tick());
     bool staffHasStems = true;       // assume staff uses stems
     const StaffType* stt = 0;
     if (useTablature) {
         stt = item->staff()->staffType(item->tick());
         staffHasStems = stt->stemThrough();       // if tab with stems beside, stems do not count for slur pos
+    }
+    if (isCipherNotation) {
+        staffHasStems = false;       // cipher notation doesn't use stems/hooks for slur positioning
     }
 
     // start and end cr, chord, and note
