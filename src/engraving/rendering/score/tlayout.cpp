@@ -4586,15 +4586,15 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         }
         
         // Position calculations
+        // Digit is at x=0, accidentals extend to the LEFT (negative x)
+        // totalWidth only covers the digit and duration markers (from x=0 rightward)
         double totalWidth = digitWidth;
-        if (accidentalWidth > 0) {
-            totalWidth += accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium;
-        }
         
         // Add parentheses width for non-main voices
+        // In MS3, closing parenthesis is after the digit, opening is further left
         if (trackThick != 1.0) {
             double parenWidth = cipher.textWidth(cipherFont, u"(");
-            totalWidth += parenWidth * 2; // for both parentheses
+            totalWidth += parenWidth; // closing parenthesis only (opening is at negative x)
         }
         
         // Calculate octave-based vertical position
@@ -4616,30 +4616,46 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         mutableItem->setCipherHeight(digitHeight);
         mutableItem->setCipherLedgerline(cipherLedgerline);
         
-        // Set positions for text and accidentals
-        // In MS3, the note has rypos() = -fretStringYShift, and text positions are relative to the note
-        // In MS4, the note is at y=0, so text positions must be absolute (include octave shift)
-        // MS3 equivalent: textPos.y = cipherHeight * cipherHeightDisplacement (relative to note)
-        // MS4: textPos.y = -fretStringYShift + digitHeight * cipherHeightDisplacement (absolute)
+        // Set positions for text and accidentals (matching MS3 pattern)
+        // MS3: digit at x=0, accidental at negative x (to the left)
+        // In MS4, note is at y=0 so text positions must include the octave shift
         double cipherHeightDisplacement = digitHeight * item->style().styleD(Sid::cipherHeightDisplacement);
-        double textXOffset = accidentalWidth > 0 ? accidentalWidth + item->style().styleD(Sid::cipherDistanceSignSharp) * spatium : 0;
-        if (trackThick != 1.0) {
-            textXOffset += cipher.textWidth(cipherFont, u"(");
+        
+        // Accidental position: NEGATIVE x (to the left of digit), matching MS3
+        // MS3: _cipherAccidentalPos = QPointF(_cipherHigth * -cipherDistanceSignSharp, ...)
+        double accidentalX = 0;
+        if (mutableItem->drawSharp() || mutableItem->drawFlat()) {
+            double distStyle = mutableItem->drawSharp() 
+                ? item->style().styleD(Sid::cipherDistanceSignSharp) 
+                : item->style().styleD(Sid::cipherDistanceSignFlat);
+            if (trackThick != 1.0) {
+                distStyle *= 0.7;  // MS3: reduced distance for non-main voices
+            }
+            accidentalX = digitHeight * -distStyle;
         }
-        mutableItem->setCipherTextPos(PointF(textXOffset, -fretStringYShift + cipherHeightDisplacement));
-        // MS3: accidental Y is cipherHeight * heightSignSharp/Flat (relative to note)
         double accHeightAdjust = digitHeight * item->style().styleD(mutableItem->drawSharp() ? Sid::cipherHeigthSignSharp : Sid::cipherHeigthSignFlat);
-        mutableItem->setCipherAccidentalPos(PointF(trackThick != 1.0 ? cipher.textWidth(cipherFont, u"(") : 0, -fretStringYShift + accHeightAdjust));
+        mutableItem->setCipherAccidentalPos(PointF(accidentalX, -fretStringYShift + accHeightAdjust));
         
-        // Set parenthesis position for non-main voices (same Y as text)
+        // Digit text position: always at x=0 (matching MS3: _cipherTextPos = QPointF(0.0, ...))
+        mutableItem->setCipherTextPos(PointF(0, -fretStringYShift + cipherHeightDisplacement));
+        
+        // Set parenthesis position for non-main voices
+        // MS3: _cipherKlammerPos = QPointF(xK - wr, _cipherTextPos.y())
+        // where xK = accidentalPos.x() if accidental exists, else textPos.x()
         if (trackThick != 1.0) {
-            mutableItem->setCipherKlammerPos(PointF(0, -fretStringYShift + cipherHeightDisplacement));
+            double parenWidth = cipher.textWidth(cipherFont, u"(");
+            double xK = (mutableItem->drawSharp() || mutableItem->drawFlat()) ? accidentalX : 0;
+            mutableItem->setCipherKlammerPos(PointF(xK - parenWidth, -fretStringYShift + cipherHeightDisplacement));
         }
         
-        // Calculate bounding box
-        // MS3: QRectF(0, -cipherHeight + cipherHeight*displacement, w, cipherHeight) relative to note
-        // MS4 (absolute, note at y=0):
-        noteBBox = RectF(0, -fretStringYShift - digitHeight + cipherHeightDisplacement, totalWidth, digitHeight);
+        // Calculate bounding box - must include accidental extending to the left
+        double bboxLeft = std::min(0.0, accidentalX);
+        if (trackThick != 1.0) {
+            double parenWidth = cipher.textWidth(cipherFont, u"(");
+            double xK = (mutableItem->drawSharp() || mutableItem->drawFlat()) ? accidentalX : 0;
+            bboxLeft = std::min(bboxLeft, xK - parenWidth);
+        }
+        noteBBox = RectF(bboxLeft, -fretStringYShift - digitHeight + cipherHeightDisplacement, totalWidth - bboxLeft, digitHeight);
         
         } catch (const std::exception& e) {
             // If anything goes wrong, fall back to simple layout
