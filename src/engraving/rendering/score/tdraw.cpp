@@ -2071,7 +2071,7 @@ void TDraw::draw(const KeySig* item, Painter* painter)
                                       * item->style().styleD(Sid::cipherKeySigSize);
                 
                 int sigMode = int(item->mode()) - 1;
-                if (sigMode < 0 || sigMode > 2) {
+                if (sigMode < 0 || sigMode > 1) {
                     sigMode = 0;
                 }
                 String cipherString = String::fromUtf8(CipherString[int(item->key()) + 7][sigMode]);
