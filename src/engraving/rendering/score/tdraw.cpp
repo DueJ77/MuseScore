@@ -2693,17 +2693,23 @@ void TDraw::draw(const Rest* item, Painter* painter)
     if (stt && stt->isCipherStaff()) {
         double spatium = item->spatium();
         
-        // Get cipher font - IMPORTANT: use MScore::pixelRatio like MS3
-        Font cipherFont;
-        cipherFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
-        cipherFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
+        // Render font includes pixelRatio for correct text rendering
+        Font renderFont;
+        renderFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
+        renderFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium * MScore::pixelRatio / SPATIUM20);
         
-        painter->setFont(cipherFont);
+        // Layout font (without pixelRatio) for computing positions in logical coordinates
+        // This matches how note positions are computed during layout (tlayout.cpp)
+        Font layoutFont;
+        layoutFont.setFamily(Font::FontFamily(item->style().styleSt(Sid::cipherFont)), Font::Type::Text);
+        layoutFont.setPointSizeF(item->style().styleD(Sid::cipherFontSize) * spatium / SPATIUM20);
+        
+        painter->setFont(renderFont);
         painter->setPen(item->curColor());
         
-        // Calculate actual dimensions using Cipher (matching MS3)
+        // Compute dimensions using layout font (logical coordinates, matching note layout)
         Cipher tempCipher;
-        tempCipher.setFretFont(cipherFont);
+        tempCipher.setFretFont(layoutFont);
         
         // Build rest string: "0" + duration markers + dots
         String baseChar = u"0";
@@ -2725,30 +2731,27 @@ void TDraw::draw(const Rest* item, Painter* painter)
         
         String restString = baseChar + durationMarker + dotMarker;
         
-        // Get cipher height - use actual text height (matching MS3: _cipherHigth)
-        double cipherHeight = tempCipher.textHeight(cipherFont, baseChar);
-        double cipherLineWidth = tempCipher.textWidth(cipherFont, baseChar);
+        // Get cipher dimensions in logical coordinates (matching note layout)
+        double cipherHeight = tempCipher.textHeight(layoutFont, baseChar);
+        double cipherLineWidth = tempCipher.textWidth(layoutFont, baseChar);
         
-        // Draw the "0" character with duration markers (matching MS3)
-        // MS3: drawText(QPointF(0, cipherHeight * cipherHeightDisplacement), fretString)
+        // Draw "0" with duration markers at the same position as notes
+        // Note text Y = digitHeight * cipherHeightDisplacement (computed during layout)
+        // Rest text Y must match, using the same logical-coordinate calculation
         double heightDisplacement = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement);
         painter->drawText(PointF(0, heightDisplacement), restString);
         
-        // Draw hook lines for shorter note values (matching MS3)
+        // Draw hook lines for shorter note values (eighth rests, sixteenth rests, etc.)
         int hooks = std::abs(item->durationType().hooks());
         if (hooks > 0) {
-            // MS3: lineThick = cipherHeight * cipherThickLine
             double cipherLineThick = cipherHeight * item->style().styleD(Sid::cipherThickLine);
-            // MS3: lineSpace = cipherHeight * (distanceBetweenLines * -1)
             double cipherLineSpace = cipherHeight * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
-            // MS3: heightLine = cipherHeight*heightDisplacement - cipherHeight - cipherHeight*heightLine
             double cipherHeightLine = cipherHeight * item->style().styleD(Sid::cipherHeightDisplacement)
                                      - cipherHeight
                                      - cipherHeight * item->style().styleD(Sid::cipherHeigthLine);
             
             painter->setPen(Pen(item->curColor(), cipherLineThick));
             
-            // MS3: drawLine centered on lineWidth, at heightLine + i*lineSpace
             double wideLine = item->style().styleD(Sid::cipherWideLine);
             for (int i = 0; i < hooks; ++i) {
                 double y = cipherHeightLine + (i * cipherLineSpace);
