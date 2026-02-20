@@ -4169,7 +4169,7 @@ void Note::cipher_setKeysigNote(KeySig* sig)
     // For cipher: chromatic 0 stays in the current octave, but chromatic 1-11 should go UP one octave
     // Standard division: pitch 0-11 = octave 0, pitch 12-23 = octave 1, etc.
     // We want: pitch 0 = octave 0, pitch 1-11 = octave 1, pitch 12 = octave 1, pitch 13-23 = octave 2
-    int cipherOctaveNumber = pitchForOctave / 12 - 4 - clefShift;
+    int cipherOctaveNumber = pitchForOctave / 12 - 5 - clefShift;
 
     // For small announcements, use spatium as the spacing (like normal notes)
     // instead of the larger cipher octave distance

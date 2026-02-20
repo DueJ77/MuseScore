@@ -43,6 +43,7 @@
 #include "dom/parenthesis.h"
 #include "dom/spacer.h"
 #include "dom/score.h"
+#include "dom/staff.h"
 #include "dom/stafflines.h"
 #include "dom/system.h"
 #include "dom/tie.h"
@@ -2794,15 +2795,21 @@ void MeasureLayout::createSystemBeginBarLine(Measure* m, LayoutContext& ctx)
     }
     Segment* s  = m->findSegment(SegmentType::BeginBarLine, m->tick());
     size_t n = 0;
+    bool hasCipherStaff = false;
     if (m->system()) {
+        size_t staffIdx = 0;
         for (SysStaff* sysStaff : m->system()->staves()) {
             if (sysStaff->show()) {
                 ++n;
+                if (staffIdx < ctx.dom().nstaves() && ctx.dom().staff(staffIdx)->isCipherStaff(m->tick())) {
+                    hasCipherStaff = true;
+                }
             }
+            ++staffIdx;
         }
     }
     if ((n > 1 && ctx.conf().styleB(Sid::startBarlineMultiple))
-        || (n == 1 && (ctx.conf().styleB(Sid::startBarlineSingle) || m->system()->brackets().size()))) {
+        || (n == 1 && (ctx.conf().styleB(Sid::startBarlineSingle) || m->system()->brackets().size() || hasCipherStaff))) {
         if (!s) {
             s = Factory::createSegment(m, SegmentType::BeginBarLine, Fraction(0, 1));
             m->add(s);
