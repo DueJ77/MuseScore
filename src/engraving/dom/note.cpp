@@ -4097,11 +4097,11 @@ int Note::cipherTrans(Key key) const
 
 int Note::cipherOktave() const
 {
-    String instname = part()->instrument(chord()->tick())->id();
-    if (instname == u"voice.bass") {
-        return -1;
-    }
-    if (instname == u"voice.tenor") {
+    String instname = part()->instrument(chord()->tick())->musicXmlId();
+    if (instname == u"voice.bass"
+        || instname == u"voice.tenor"
+        || instname == u"voice.baritone"
+        || instname == u"voice.male") {
         return -1;
     }
     return 0;

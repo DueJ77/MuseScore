@@ -3677,15 +3677,19 @@ void ChordLayout::fillShape(const Chord* item, ChordRest::LayoutData* ldata)
 
     BeamSegment* beamlet = item->beamlet();
 
-    if (hook && hook->addToSkyline()) {
+    // For cipher staves, hooks/stems/stemSlashes use standard notation shapes
+    // that would incorrectly inflate the chord's bounding box. Skip them.
+    bool isCipherStaff = item->staff() && item->staff()->isCipherStaff(item->tick());
+
+    if (hook && hook->addToSkyline() && !isCipherStaff) {
         shape.add(hook->shape().translate(hook->pos()));
     }
 
-    if (stem && stem->addToSkyline()) {
+    if (stem && stem->addToSkyline() && !isCipherStaff) {
         shape.add(stem->shape().translate(stem->pos()));
     }
 
-    if (stemSlash && stemSlash->addToSkyline()) {
+    if (stemSlash && stemSlash->addToSkyline() && !isCipherStaff) {
         shape.add(stemSlash->shape().translate(stemSlash->pos()));
     }
 
