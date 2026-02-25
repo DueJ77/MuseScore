@@ -224,6 +224,12 @@ void SegmentLayout::layoutChordsStem(const Segment& segment, track_idx_t startTr
         if (cr->isChord()) {
             Chord* chord = toChord(cr);
 
+            // Cipher notation does not use stems; hooks are handled in layoutCipher
+            const Staff* staff = chord->staff();
+            if (staff && staff->isCipherStaff(chord->tick())) {
+                continue;
+            }
+
             for (Chord* c : chord->graceNotes()) {
                 ChordLayout::layoutStem(c, ctx);
             }

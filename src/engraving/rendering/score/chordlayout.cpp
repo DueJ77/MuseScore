@@ -842,6 +842,10 @@ void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
             // Set hookType based on duration (positive for up, negative for down)
             item->hook()->setHookType(item->up() ? item->durationType().hooks() : -item->durationType().hooks());
             TLayout::layoutHook(item->hook(), item->hook()->mutldata());
+            // Override the hook bbox to prevent the standard SMuFL flag shape
+            // from inflating bounding boxes. Cipher hooks draw horizontal lines,
+            // not traditional flag glyphs, so their bbox should be minimal.
+            item->hook()->mutldata()->setBbox(RectF());
         }
     }
 
