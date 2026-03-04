@@ -842,6 +842,10 @@ void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
             // Set hookType based on duration (positive for up, negative for down)
             item->hook()->setHookType(item->up() ? item->durationType().hooks() : -item->durationType().hooks());
             TLayout::layoutHook(item->hook(), item->hook()->mutldata());
+            // Override the hook bbox to prevent the standard SMuFL flag shape
+            // from inflating bounding boxes. Cipher hooks draw horizontal lines,
+            // not traditional flag glyphs, so their bbox should be minimal.
+            item->hook()->mutldata()->setBbox(RectF());
         }
     }
 
@@ -3677,15 +3681,19 @@ void ChordLayout::fillShape(const Chord* item, ChordRest::LayoutData* ldata)
 
     BeamSegment* beamlet = item->beamlet();
 
-    if (hook && hook->addToSkyline()) {
+    // For cipher staves, hooks/stems/stemSlashes use standard notation shapes
+    // that would incorrectly inflate the chord's bounding box. Skip them.
+    bool isCipherStaff = item->staff() && item->staff()->isCipherStaff(item->tick());
+
+    if (hook && hook->addToSkyline() && !isCipherStaff) {
         shape.add(hook->shape().translate(hook->pos()));
     }
 
-    if (stem && stem->addToSkyline()) {
+    if (stem && stem->addToSkyline() && !isCipherStaff) {
         shape.add(stem->shape().translate(stem->pos()));
     }
 
-    if (stemSlash && stemSlash->addToSkyline()) {
+    if (stemSlash && stemSlash->addToSkyline() && !isCipherStaff) {
         shape.add(stemSlash->shape().translate(stemSlash->pos()));
     }
 
