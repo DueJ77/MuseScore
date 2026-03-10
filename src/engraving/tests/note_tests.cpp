@@ -361,6 +361,41 @@ TEST_F(Engraving_NoteTests, graceAfterSlashSave)
 }
 
 //---------------------------------------------------------
+///   cipherWidthExcludesTrailingPunctuation
+///   cipher hook width should cover only the digit, not trailing punctuation
+//---------------------------------------------------------
+
+TEST_F(Engraving_NoteTests, cipherWidthExcludesTrailingPunctuation)
+{
+    MasterScore* score = ScoreRW::readScore(NOTE_DATA_DIR + u"cipher-width-punctuation.mscx");
+    ASSERT_TRUE(score);
+
+    score->doLayout();
+
+    Chord* dottedChord = score->firstMeasure()->findChord(Fraction(0, 1), 0);
+    ASSERT_TRUE(dottedChord);
+
+    Note* dottedNote = dottedChord->upNote();
+    ASSERT_TRUE(dottedNote);
+
+    const Cipher& dottedCipher = dottedNote->cipher();
+    EXPECT_DOUBLE_EQ(dottedNote->cipherWidth2(), dottedCipher.textWidth(dottedCipher.fretFont(), dottedNote->fretString()));
+    EXPECT_GT(dottedNote->cipherWidth2(), dottedNote->cipherWidth());
+
+    Chord* wholeChord = score->firstMeasure()->nextMeasure()->findChord(Fraction(0, 1), 0);
+    ASSERT_TRUE(wholeChord);
+
+    Note* wholeNote = wholeChord->upNote();
+    ASSERT_TRUE(wholeNote);
+
+    const Cipher& wholeCipher = wholeNote->cipher();
+    EXPECT_DOUBLE_EQ(wholeNote->cipherWidth2(), wholeCipher.textWidth(wholeCipher.fretFont(), wholeNote->fretString()));
+    EXPECT_GT(wholeNote->cipherWidth2(), wholeNote->cipherWidth());
+
+    delete score;
+}
+
+//---------------------------------------------------------
 ///   tpc
 ///   test of note tpc values
 //---------------------------------------------------------
