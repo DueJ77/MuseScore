@@ -842,10 +842,28 @@ void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
             // Set hookType based on duration (positive for up, negative for down)
             item->hook()->setHookType(item->up() ? item->durationType().hooks() : -item->durationType().hooks());
             TLayout::layoutHook(item->hook(), item->hook()->mutldata());
-            // Override the hook bbox to prevent the standard SMuFL flag shape
-            // from inflating bounding boxes. Cipher hooks draw horizontal lines,
-            // not traditional flag glyphs, so their bbox should be minimal.
-            item->hook()->mutldata()->setBbox(RectF());
+            // Override the standard SMuFL flag bbox with a bbox that covers
+            // the cipher hook lines (horizontal duration lines above the digit).
+            // An empty bbox would cause the hook to be excluded from the BSP tree
+            // painting query, making the lines invisible.
+            const Note* upNote = item->upNote();
+            if (upNote && upNote->cipherHeight() > 0) {
+                double cipherHeight = upNote->cipherHeight();
+                double cipherWidth = upNote->cipherWidth();
+                int numLines = std::abs(item->hook()->hookType());
+                double lineThick = cipherHeight * ctx.conf().styleD(Sid::cipherThickLine);
+                double lineSpace = cipherHeight * (ctx.conf().styleD(Sid::cipherDistanceBetweenLines) * -1.0);
+                double lineLength = cipherWidth * ctx.conf().styleD(Sid::cipherWideLine);
+                double offsetLine = ctx.conf().styleD(Sid::cipherOffsetLine);
+                PointF ctp = upNote->cipherTextPos();
+                double yAboveText = ctp.y() - cipherHeight * 1.2;
+                double xStart = ctp.x() + offsetLine;
+                double yTop = yAboveText - (numLines - 1) * std::abs(lineSpace) - lineThick;
+                double yBottom = yAboveText + lineThick;
+                item->hook()->mutldata()->setBbox(RectF(xStart, yTop, lineLength, yBottom - yTop));
+            } else {
+                item->hook()->mutldata()->setBbox(RectF());
+            }
         }
     }
 
