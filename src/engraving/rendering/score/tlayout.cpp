@@ -4565,12 +4565,12 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
             }
         }
         
-        mutableItem->setFretString(cipherDigit + durationMarker + dotMarker);
-
         // Calculate text dimensions using the Cipher helper
         Cipher& cipher = mutableItem->cipher();
         cipher.setFretFont(cipherFont);
-        double digitWidth = cipher.textWidth(cipherFont, mutableItem->fretString());
+        double digitWidth = cipher.textWidth(cipherFont, cipherDigit);
+        mutableItem->setFretString(cipherDigit + durationMarker + dotMarker);
+        double fullTextWidth = cipher.textWidth(cipherFont, mutableItem->fretString());
         double digitHeight = cipher.textHeight(cipherFont, u"1234567890");
         
         // Calculate accidental dimensions if needed
@@ -4587,8 +4587,8 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         
         // Position calculations
         // Digit is at x=0, accidentals extend to the LEFT (negative x)
-        // totalWidth only covers the digit and duration markers (from x=0 rightward)
-        double totalWidth = digitWidth;
+        // totalWidth covers the full rendered cipher text, including trailing punctuation.
+        double totalWidth = fullTextWidth;
         
         // Add parentheses width for non-main voices
         // In MS3, closing parenthesis is after the digit, opening is further left
