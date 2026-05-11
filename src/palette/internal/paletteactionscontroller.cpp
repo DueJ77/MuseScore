@@ -28,7 +28,7 @@ using namespace muse::ui;
 using namespace muse::actions;
 
 static const muse::UriQuery MASTER_PALETTE_URI("musescore://palette/masterpalette?modal=false");
-static const muse::UriQuery SPECIAL_CHARACTERS_URI("musescore://palette/specialcharacters?sync=false");
+static const muse::UriQuery SPECIAL_CHARACTERS_URI("musescore://palette/specialcharacters?modal=false");
 static const muse::UriQuery TIME_SIGNATURE_PROPERTIES_URI("musescore://palette/timesignatureproperties");
 static const muse::UriQuery CUSTOMIZE_KIT_URI("musescore://palette/customizekit");
 
@@ -91,10 +91,20 @@ void PaletteActionsController::toggleSpecialCharactersDialog()
 
 void PaletteActionsController::openTimeSignaturePropertiesDialog()
 {
+    const engraving::EngravingItem* element = interaction() ? interaction()->hitElementContext().element : nullptr;
+    if (!element || !element->isTimeSig()) {
+        return;
+    }
     interactive()->open(TIME_SIGNATURE_PROPERTIES_URI);
 }
 
 void PaletteActionsController::openCustomizeKitDialog()
 {
     interactive()->open(CUSTOMIZE_KIT_URI);
+}
+
+mu::notation::INotationInteractionPtr PaletteActionsController::interaction() const
+{
+    const notation::INotationPtr notation = globalContext()->currentNotation();
+    return notation ? notation->interaction() : nullptr;
 }

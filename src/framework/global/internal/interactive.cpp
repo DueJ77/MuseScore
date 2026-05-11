@@ -413,9 +413,9 @@ io::paths_t Interactive::selectMultipleDirectories(const std::string& title, con
     return io::pathsFromString(result.val.toString());
 }
 
-async::Promise<Color> Interactive::selectColor(const Color& color, const std::string& title)
+async::Promise<Color> Interactive::selectColor(const Color& color, const std::string& title, bool allowAlpha)
 {
-    return provider()->selectColor(color, title);
+    return provider()->selectColor(color, title, allowAlpha);
 }
 
 bool Interactive::isSelectColorOpened() const
@@ -425,12 +425,7 @@ bool Interactive::isSelectColorOpened() const
 
 RetVal<Val> Interactive::openSync(const UriQuery& uri)
 {
-    UriQuery newQuery = uri;
-    if (!newQuery.contains("sync")) {
-        newQuery.addParam("sync", Val(true));
-    }
-
-    return provider()->openSync(newQuery);
+    return provider()->openSync(uri);
 }
 
 async::Promise<Val> Interactive::open(const UriQuery& uri)

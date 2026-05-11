@@ -2037,7 +2037,7 @@ void NotationActionController::navigateToTextElement(MoveDirection direction, bo
         const Harmony* chordSymbol = editedChordSymbol();
 
         // otherwise, chord symbol will be deleted when navigating away from it
-        const bool canPlay = chordSymbol && !chordSymbol->plainText().empty();
+        const bool canPlay = chordSymbol && !chordSymbol->harmonyName().empty();
 
         currentNotationInteraction()->navigateToNearHarmony(direction, nearNoteOrRest);
 
@@ -2062,7 +2062,7 @@ void NotationActionController::navigateToTextElementByFraction(const Fraction& f
         const Harmony* chordSymbol = editedChordSymbol();
 
         // otherwise, chord symbol will be deleted when navigating away from it
-        const bool canPlay = chordSymbol && !chordSymbol->plainText().empty();
+        const bool canPlay = chordSymbol && !chordSymbol->harmonyName().empty();
 
         currentNotationInteraction()->navigateToHarmony(fraction);
 
@@ -2085,7 +2085,7 @@ void NotationActionController::navigateToTextElementInNearMeasure(MoveDirection 
         const Harmony* chordSymbol = editedChordSymbol();
 
         // otherwise, chord symbol will be deleted when navigating away from it
-        const bool canPlay = chordSymbol && !chordSymbol->plainText().empty();
+        const bool canPlay = chordSymbol && !chordSymbol->harmonyName().empty();
 
         currentNotationInteraction()->navigateToHarmonyInNearMeasure(direction);
 
@@ -2140,29 +2140,29 @@ bool NotationActionController::isNotNoteInputMode() const
 
 void NotationActionController::openTupletOtherDialog()
 {
-    interactive()->open("musescore://notation/othertupletdialog?sync=false");
+    interactive()->open("musescore://notation/othertupletdialog");
 }
 
 void NotationActionController::openStaffTextPropertiesDialog()
 {
-    interactive()->open("musescore://notation/stafftextproperties?sync=false");
+    interactive()->open("musescore://notation/stafftextproperties");
 }
 
 void NotationActionController::openMeasurePropertiesDialog()
 {
     if (currentNotationInteraction()->selectedMeasure() != nullptr) {
-        interactive()->open("musescore://notation/measureproperties?sync=false");
+        interactive()->open("musescore://notation/measureproperties");
     }
 }
 
 void NotationActionController::openEditGridSizeDialog()
 {
-    interactive()->open("musescore://notation/editgridsize?sync=false");
+    interactive()->open("musescore://notation/editgridsize");
 }
 
 void NotationActionController::openRealizeChordSymbolsDialog()
 {
-    interactive()->open("musescore://notation/realizechordsymbols?sync=false");
+    interactive()->open("musescore://notation/realizechordsymbols");
 }
 
 void NotationActionController::toggleScoreConfig(ScoreConfigType configType)

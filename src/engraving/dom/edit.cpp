@@ -499,9 +499,10 @@ std::vector<Rest*> Score::setRests(const Fraction& _tick, track_idx_t track, con
             f = l;
         }
 
-        // Don't fill with rests a non-zero voice, *unless* it has links in voice zero
-        bool emptyNonZeroVoice = track2voice(track) != 0 && !measure->hasVoice(track) && tick == measure->tick();
-        if (emptyNonZeroVoice && !staff->trackHasLinksInVoiceZero(track)) {
+        // Don't fill a full measure with rests on a non-zero voice, *unless* it has links in voice zero
+        bool fullMeasure = tick == measure->tick() && f == measure->stretchedLen(staff);
+        bool emptyNonZeroVoice = track2voice(track) != 0 && !measure->hasVoice(track);
+        if (emptyNonZeroVoice && fullMeasure && !staff->trackHasLinksInVoiceZero(track)) {
             l -= f;
             measure = measure->nextMeasure();
             if (!measure) {
@@ -512,10 +513,9 @@ std::vector<Rest*> Score::setRests(const Fraction& _tick, track_idx_t track, con
         }
 
         if ((measure->timesig() == measure->ticks())       // not in pickup measure
-            && (measure->tick() == tick)
-            && (measure->stretchedLen(staff) == f)
+            && fullMeasure
             && !tuplet
-            && (useFullMeasureRest)) {
+            && useFullMeasureRest) {
             Rest* rest = addRest(tick, track, TDuration(DurationType::V_MEASURE), tuplet);
             tick += rest->actualTicks();
             rests.push_back(rest);
@@ -538,6 +538,8 @@ std::vector<Rest*> Score::setRests(const Fraction& _tick, track_idx_t track, con
             Rest* rest = 0;
             for (const TDuration& d : dList) {
                 rest = addRest(tick, track, d, tuplet);
+                // If we're filling an empty non-zero voice make these gaps
+                rest->setGap(emptyNonZeroVoice && !fullMeasure);
                 rests.push_back(rest);
                 tick += rest->actualTicks();
             }
@@ -691,8 +693,10 @@ Slur* Score::addSlur(ChordRest* firstChordRest, ChordRest* secondChordRest, cons
                                                 && toChord(firstChordRest)->upNote()->tieFor()->endNote()->parent() == secondChordRest;
 
             // Follow chain of tied notes and slur until the last
-            while (toChord(secondChordRest)->allNotesTiedToNext()) {
-                secondChordRest = toChord(secondChordRest)->upNote()->tieFor()->endNote()->chord();
+            if (firstChordRestIsTiedToSecond || !firstChordRest->isGrace()) {
+                while (toChord(secondChordRest)->allNotesTiedToNext()) {
+                    secondChordRest = toChord(secondChordRest)->upNote()->tieFor()->endNote()->chord();
+                }
             }
 
             // If the first chord rest is also tied to this chain, slur to the next non-tied note
@@ -6964,6 +6968,12 @@ void Score::undoAddElement(EngravingItem* element, bool addToLinkedStaves, bool 
             }
             doUndoAddElement(ne);
         } else if (element->isHarmony() && element->explicitParent()->isFretDiagram()) {
+            EngravingItem* parentFd = element->parentItem();
+            if (parentFd->score() != score) {
+                // Find linked fret diagram
+                EngravingItem* linkedFd = parentFd->findLinkedInScore(score);
+                ne->setParent(linkedFd);
+            }
             doUndoAddElement(ne);
         }
         //

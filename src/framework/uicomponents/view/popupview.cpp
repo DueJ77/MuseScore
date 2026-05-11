@@ -166,6 +166,8 @@ void PopupView::init()
         }
     });
 
+    resolveParentWindow();
+
     emit windowChanged();
 }
 
@@ -239,7 +241,6 @@ void PopupView::doOpen()
     beforeOpen();
 
     resolveParentWindow();
-
     updateGeometry();
 
     if (!isDialog()) {

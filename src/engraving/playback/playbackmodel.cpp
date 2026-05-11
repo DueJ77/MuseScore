@@ -34,6 +34,7 @@
 #include "dom/segment.h"
 #include "dom/tie.h"
 #include "dom/tremolotwochord.h"
+#include "dom/undo.h"
 
 #include "log.h"
 
@@ -147,6 +148,14 @@ void PlaybackModel::reload()
 void PlaybackModel::setSendEventsOnScoreChange(const InstrumentTrackId& trackId, bool send)
 {
     m_sendEventsOnScoreChangeMap[trackId] = send;
+
+    if (send) {
+        auto it = m_changedTrackIdSet.find(trackId);
+        if (it != m_changedTrackIdSet.end()) {
+            sendEvents(trackId);
+            m_changedTrackIdSet.erase(it);
+        }
+    }
 }
 
 void PlaybackModel::sendEventsForChangedTracks()
@@ -158,8 +167,7 @@ void PlaybackModel::sendEventsForChangedTracks()
     TRACEFUNC;
 
     for (const InstrumentTrackId& trackId : m_changedTrackIdSet) {
-        PlaybackData& data = m_playbackDataMap[trackId];
-        data.mainStream.send(data.originEvents, data.dynamics);
+        sendEvents(trackId);
     }
 
     m_changedTrackIdSet.clear();
@@ -896,13 +904,8 @@ void PlaybackModel::collectChangesTracks(const InstrumentTrackId& trackId, Chang
 void PlaybackModel::notifyAboutChanges(const InstrumentTrackIdSet& oldTracks, const InstrumentTrackIdSet& changedTracks)
 {
     for (const InstrumentTrackId& trackId : changedTracks) {
-        auto search = m_playbackDataMap.find(trackId);
-        if (search == m_playbackDataMap.cend()) {
-            continue;
-        }
-
         if (muse::value(m_sendEventsOnScoreChangeMap, trackId, false)) {
-            search->second.mainStream.send(search->second.originEvents, search->second.dynamics);
+            sendEvents(trackId);
         } else {
             m_changedTrackIdSet.insert(trackId);
         }
@@ -917,6 +920,17 @@ void PlaybackModel::notifyAboutChanges(const InstrumentTrackIdSet& oldTracks, co
     if (!changedTracks.empty()) {
         m_tracksDataChanged.send(changedTracks);
     }
+}
+
+void PlaybackModel::sendEvents(const InstrumentTrackId& trackId)
+{
+    auto it = m_playbackDataMap.find(trackId);
+    if (it == m_playbackDataMap.cend()) {
+        return;
+    }
+
+    PlaybackData& data = it->second;
+    data.mainStream.send(data.originEvents, data.dynamics);
 }
 
 void PlaybackModel::removeTrackEvents(const InstrumentTrackId& trackId, const muse::mpe::timestamp_t timestampFrom,
@@ -966,22 +980,30 @@ bool PlaybackModel::shouldSkipChanges(const ScoreChanges& changes) const
         return false;
     }
 
-    const EngravingObject* obj = changes.changedObjects.begin()->first;
-    if (!obj->isTextBase()) {
+    const auto it = changes.changedObjects.begin();
+    if (!it->first->isTextBase()) {
         return false;
     }
 
-    const TextBase* text = toTextBase(obj);
-    const bool empty = toTextBase(obj)->empty();
+    const TextBase* text = toTextBase(it->first);
+    const bool empty = text->empty();
+    if (!empty) {
+        return false;
+    }
 
-    if (empty && text->isHarmony() && m_playChordSymbols) {
+    if (text->isHarmony() && m_playChordSymbols) {
         const InstrumentTrackId trackId = chordSymbolsTrackId(text->part()->id());
         if (!muse::contains(m_playbackDataMap, trackId)) {
             return false;
         }
     }
 
-    return empty;
+    const std::unordered_set<CommandType>& commands = it->second;
+    if (muse::contains(commands, CommandType::RemoveElement)) {
+        return false;
+    }
+
+    return true;
 }
 
 PlaybackModel::TrackBoundaries PlaybackModel::trackBoundaries(const ScoreChanges& changes) const

@@ -6,21 +6,21 @@
         <source>Wind section notated on a grand staff.</source>
         <comment>winds description</comment>
         <extracomment>description for Winds; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>木管组（大谱表）</translation>
+        <translation>在大谱表上记谱的木管组。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="208"/>
         <source>Winds</source>
         <comment>winds trackName</comment>
         <extracomment>trackName for Winds; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>木管</translation>
+        <translation>木管组</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="210"/>
         <source>Winds</source>
         <comment>winds longName</comment>
         <extracomment>longName for Winds; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>木管</translation>
+        <translation>木管组</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="212"/>
@@ -139,7 +139,7 @@
         <source>Flute in G, sounding a fifth higher than the standard flute.</source>
         <comment>treble-flute description</comment>
         <extracomment>description for Treble Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>G调长笛，比标准长笛高五度</translation>
+        <translation>G调长笛，比标准长笛高五度。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="250"/>
@@ -167,7 +167,7 @@
         <source>Notched, end-blown vertical bamboo flute used in Korean folk music.</source>
         <comment>danso description</comment>
         <extracomment>description for Danso; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>朝鲜民间音乐使用的有孔、管端吹奏的竖竹笛</translation>
+        <translation>朝鲜民间音乐使用的有孔、管端吹奏的竖竹笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="259"/>
@@ -195,7 +195,7 @@
         <source>Flute in E♭, sounding a minor third above the standard flute.</source>
         <comment>soprano-flute description</comment>
         <extracomment>description for Soprano Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>E♭长笛，比标准长笛高小三度。</translation>
+        <translation>E♭调长笛，比标准长笛高小三度。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="268"/>
@@ -223,7 +223,7 @@
         <source>6-hole simple-system wooden transverse flute.</source>
         <comment>irish-flute description</comment>
         <extracomment>description for Irish Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>6孔简单木横笛</translation>
+        <translation>6孔简单木横笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="277"/>
@@ -251,7 +251,7 @@
         <source>Baroque wooden transverse flute.</source>
         <comment>traverso description</comment>
         <extracomment>description for Traverso; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>巴洛克木横笛</translation>
+        <translation>巴洛克木横笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="286"/>
@@ -279,7 +279,7 @@
         <source>Standard concert flute in C.</source>
         <comment>flute description</comment>
         <extracomment>description for Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>C调标准音乐会长笛</translation>
+        <translation>C调标准音乐会长笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="295"/>
@@ -307,7 +307,7 @@
         <source>Flute in G, sounding a fourth lower than the standard flute.</source>
         <comment>alto-flute description</comment>
         <extracomment>description for Alto Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>G调长笛，比标准长笛低四度</translation>
+        <translation>G调长笛，比标准长笛低四度。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="304"/>
@@ -335,7 +335,7 @@
         <source>Flute in C, sounding an octave lower than the standard flute.</source>
         <comment>bass-flute description</comment>
         <extracomment>description for Bass Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>C调长笛，比标准长笛低八度</translation>
+        <translation>C调长笛，比标准长笛低八度。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="313"/>
@@ -363,7 +363,7 @@
         <source>Flute in G, sounding an octave below the alto flute.</source>
         <comment>contra-alto-flute description</comment>
         <extracomment>description for Contra-alto Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>G调长笛，比中音长笛低八度</translation>
+        <translation>G调长笛，比中音长笛低八度。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="322"/>
@@ -391,7 +391,7 @@
         <source>Flute in C, sounding two octaves lower than the standard flute.</source>
         <comment>contrabass-flute description</comment>
         <extracomment>description for Contrabass Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>C调长笛，比标准长笛低两个八度</translation>
+        <translation>C调长笛，比标准长笛低两个八度。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="331"/>
@@ -419,7 +419,7 @@
         <source>Flute in G, sounding two octaves below the alto flute.</source>
         <comment>subcontra-alto-flute description</comment>
         <extracomment>description for Sub Contra-alto Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>G调长笛，比中音长笛低两个八度</translation>
+        <translation>G调长笛，比中音长笛低两个八度。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="340"/>
@@ -447,7 +447,7 @@
         <source>Flute in C, sounding three octaves below the standard flute.</source>
         <comment>double-contrabass-flute description</comment>
         <extracomment>description for Double Contrabass Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>C调长笛，比标准长笛低三个八度</translation>
+        <translation>C调长笛，比标准长笛低三个八度。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="349"/>
@@ -475,7 +475,7 @@
         <source>Flute in C, sounding four octaves below the standard flute.</source>
         <comment>hyperbass-flute description</comment>
         <extracomment>description for Hyperbass Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>C调长笛，比标准长笛低四个八度</translation>
+        <translation>C调长笛，比标准长笛低四个八度。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="358"/>
@@ -503,7 +503,7 @@
         <source>Chinese bamboo transverse flute, pitched in A.</source>
         <comment>a-dizi description</comment>
         <extracomment>description for Dizi; tuning: A; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>A调中国竹横笛</translation>
+        <translation>A调中国竹横笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="367"/>
@@ -538,7 +538,7 @@
         <source>Chinese bamboo transverse flute, pitched in G. The most common variant.</source>
         <comment>g-dizi description</comment>
         <extracomment>description for Dizi; tuning: G; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>G调中国竹横笛，笛子最常见的变种</translation>
+        <translation>G调中国竹横笛，最常见的变种。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="378"/>
@@ -573,7 +573,7 @@
         <source>Chinese bamboo transverse flute, pitched in F.</source>
         <comment>f-dizi description</comment>
         <extracomment>description for Dizi; tuning: F; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>F调中国竹横笛</translation>
+        <translation>F调中国竹横笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="389"/>
@@ -608,7 +608,7 @@
         <source>Chinese bamboo transverse flute, pitched in E.</source>
         <comment>e-dizi description</comment>
         <extracomment>description for Dizi; tuning: E; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>E调中国竹横笛</translation>
+        <translation>E调中国竹横笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="400"/>
@@ -643,7 +643,7 @@
         <source>Chinese bamboo transverse flute, pitched in D.</source>
         <comment>d-dizi description</comment>
         <extracomment>description for Dizi; tuning: D; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>D调中国竹横笛</translation>
+        <translation>D调中国竹横笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="411"/>
@@ -678,7 +678,7 @@
         <source>Chinese bamboo transverse flute, pitched in C.</source>
         <comment>c-dizi description</comment>
         <extracomment>description for Dizi; tuning: C; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>C调中国竹横笛</translation>
+        <translation>C调中国竹横笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="422"/>
@@ -713,7 +713,7 @@
         <source>Japanese bamboo end-blown flute.</source>
         <comment>shakuhachi description</comment>
         <extracomment>description for Shakuhachi; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>日本竹笛</translation>
+        <translation>日本管端吹奏的竹笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="433"/>
@@ -1728,7 +1728,7 @@
         <source>End-blown flute made of a row of closed tubes.</source>
         <comment>pan-flute description</comment>
         <extracomment>description for Pan Flute; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>由一排封闭的管子制成的末端吹笛。</translation>
+        <translation>由一排封闭的管子制成的管端吹奏的笛子。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="756"/>
@@ -1756,7 +1756,7 @@
         <source>South American traditional flute pitched in C.</source>
         <comment>quena description</comment>
         <extracomment>description for Quena; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>C调南美传统长笛</translation>
+        <translation>C调南美传统长笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="765"/>
@@ -1784,7 +1784,7 @@
         <source>South American traditional flute pitched in C.</source>
         <comment>c-quena description</comment>
         <extracomment>description for Quena; tuning: C; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>C调南美传统长笛</translation>
+        <translation>C调南美传统长笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="774"/>
@@ -1819,7 +1819,7 @@
         <source>South American traditional flute pitched in G. The most common variant.</source>
         <comment>g-quena description</comment>
         <extracomment>description for Quena; tuning: G; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>南美洲传统G调长笛。是最常见的变种。</translation>
+        <translation>G调南美传统长笛，最常见的变种。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="785"/>
@@ -1854,7 +1854,7 @@
         <source>South American traditional flute pitched in F.</source>
         <comment>f-quena description</comment>
         <extracomment>description for Quena; tuning: F; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>F调南美传统长笛</translation>
+        <translation>F调南美传统长笛，</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="796"/>
@@ -1889,7 +1889,7 @@
         <source>South American traditional flute pitched in D.</source>
         <comment>d-quena description</comment>
         <extracomment>description for Quena; tuning: D; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>D调南美传统长笛</translation>
+        <translation>D调南美传统长笛。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="807"/>
@@ -5872,14 +5872,14 @@
         <source>Brass</source>
         <comment>brass trackName</comment>
         <extracomment>trackName for Brass; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>铜管</translation>
+        <translation>铜管组</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="2084"/>
         <source>Brass</source>
         <comment>brass longName</comment>
         <extracomment>longName for Brass; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>铜管</translation>
+        <translation>铜管组</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="2086"/>
@@ -11556,7 +11556,7 @@
         <source>Sogo</source>
         <comment>sogo shortName</comment>
         <extracomment>shortName for Sogo; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>Sogo</translation>
+        <translation> 小鼓</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="3875"/>
@@ -11738,21 +11738,21 @@
         <source>Kakko</source>
         <comment>kakko trackName</comment>
         <extracomment>trackName for Kakko; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>括号</translation>
+        <translation>羯鼓</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="3933"/>
         <source>Kakko</source>
         <comment>kakko longName</comment>
         <extracomment>longName for Kakko; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>括号</translation>
+        <translation>羯鼓</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="3935"/>
         <source>Kakko</source>
         <comment>kakko shortName</comment>
         <extracomment>shortName for Kakko; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>括号</translation>
+        <translation>羯鼓</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="3938"/>
@@ -11871,7 +11871,7 @@
         <source>Brazilian friction drum played by rubbing a stick permanently fastened to the drum membrane on the inside. Applying pressure to the outside increases the pitch.</source>
         <comment>cuica description</comment>
         <extracomment>description for Cuíca; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>巴西摩擦鼓是通过在鼓膜内部摩擦固定在鼓膜上的棍子演奏的。对外部施加压力会提高音调。</translation>
+        <translation>通过在鼓膜内部摩擦固定在鼓膜上的棍子演奏的巴西摩擦鼓。对外部施加压力会提高音调。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="3976"/>
@@ -12732,7 +12732,7 @@
         <source>Kgwari.</source>
         <comment>kkwaenggwari shortName</comment>
         <extracomment>shortName for Kkwaenggwari; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>志愿者。</translation>
+        <translation> 伽倻琴。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4253"/>
@@ -13887,21 +13887,21 @@
         <source>Military cannon or gunshot sound.</source>
         <comment>cannon description</comment>
         <extracomment>description for Cannon; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation type="unfinished"/>
+        <translation>加农炮或枪声</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4624"/>
         <source>Cannon</source>
         <comment>cannon trackName</comment>
         <extracomment>trackName for Cannon; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation type="unfinished"/>
+        <translation>加农炮</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4626"/>
         <source>Cannon</source>
         <comment>cannon longName</comment>
         <extracomment>longName for Cannon; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation type="unfinished"/>
+        <translation>加农炮</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4628"/>
@@ -13936,7 +13936,7 @@
         <source>Bird</source>
         <comment>bird-call shortName</comment>
         <extracomment>shortName for Bird Call; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation type="unfinished"/>
+        <translation>鸟鸣</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4640"/>
@@ -14426,14 +14426,14 @@
         <source>Countertenor</source>
         <comment>countertenor trackName</comment>
         <extracomment>trackName for Countertenor; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>男超高音</translation>
+        <translation>高男高音</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4806"/>
         <source>Countertenor</source>
         <comment>countertenor longName</comment>
         <extracomment>longName for Countertenor; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>男超高音</translation>
+        <translation>高男高音</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4808"/>
@@ -14454,14 +14454,14 @@
         <source>Alto</source>
         <comment>alto trackName</comment>
         <extracomment>trackName for Alto; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>女低音</translation>
+        <translation>中音声部</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4815"/>
         <source>Alto</source>
         <comment>alto longName</comment>
         <extracomment>longName for Alto; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>女低音</translation>
+        <translation>中音声部</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4817"/>
@@ -14475,21 +14475,21 @@
         <source>Alto voice (notated in C clef).</source>
         <comment>alto-c-clef description</comment>
         <extracomment>description for Alto (C clef); Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>女低音/男最高音声部（C谱号）。</translation>
+        <translation>女低音声部；高男高音声部（C谱号）。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4822"/>
         <source>Alto (C clef)</source>
         <comment>alto-c-clef trackName</comment>
         <extracomment>trackName for Alto (C clef); Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>Alto（C谱号）</translation>
+        <translation>中音声部（C谱号）</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4824"/>
         <source>Alto</source>
         <comment>alto-c-clef longName</comment>
         <extracomment>longName for Alto (C clef); Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>女低音</translation>
+        <translation>中音声部</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="4826"/>
@@ -18612,7 +18612,7 @@
         <source>Chinese plucked half-tube zither.</source>
         <comment>guzheng description</comment>
         <extracomment>description for Guzheng; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation type="unfinished"/>
+        <translation> 卧箜篌。</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="6145"/>
@@ -18990,7 +18990,7 @@
         <source>Small Spanish 5-string guitar (staff notation).</source>
         <comment>timple-canario description</comment>
         <extracomment>description for Timple Canario; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation type="unfinished"/>
+        <translation>西班牙五弦吉他（五线谱）</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="6267"/>
@@ -19018,7 +19018,7 @@
         <source>Small Spanish 5-string guitar (tablature).</source>
         <comment>timple-canario-tablature description</comment>
         <extracomment>description for Timple Canario (tablature); Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation type="unfinished"/>
+        <translation>西班牙五弦吉他（指法谱）</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="6276"/>
@@ -19046,14 +19046,14 @@
         <source>Strings</source>
         <comment>strings trackName</comment>
         <extracomment>trackName for Strings; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>弦数</translation>
+        <translation>弦乐组</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="6288"/>
         <source>Strings</source>
         <comment>strings longName</comment>
         <extracomment>longName for Strings; Please see https://github.com/musescore/MuseScore/wiki/Translating-instrument-names</extracomment>
-        <translation>弦数</translation>
+        <translation>弦乐组</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="6290"/>
@@ -20090,7 +20090,7 @@
     <message>
         <location filename="../instruments/instrumentsxml.h" line="88"/>
         <source>Winds</source>
-        <translation>木管</translation>
+        <translation>木管乐器</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="89"/>
@@ -20774,7 +20774,7 @@
     <message>
         <location filename="../instruments/instrumentsxml.h" line="6607"/>
         <source>Choir</source>
-        <translation>合唱</translation>
+        <translation>合唱团</translation>
     </message>
     <message>
         <location filename="../instruments/instrumentsxml.h" line="6608"/>

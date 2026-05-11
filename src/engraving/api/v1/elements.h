@@ -2188,8 +2188,21 @@ class SpannerSegment : public EngravingItem
     /// including manual offset through \ref userOff2.
     /// \see EngravingItem::userOff2
     Q_PROPERTY(QPointF pos2 READ pos2)
+    /// For line segments:
     /// The manual offset of the spanner segment's end part.
     API_PROPERTY_T(QPointF, userOff2,     OFFSET2)
+    /// For slur and tie segments:
+    /// The manual offset applied to the first point.
+    API_PROPERTY_T(QPointF, slurUoff1,    SLUR_UOFF1)
+    /// For slur and tie segments:
+    /// The manual offset applied to the second point.
+    API_PROPERTY_T(QPointF, slurUoff2,    SLUR_UOFF2)
+    /// For slur and tie segments:
+    /// The manual offset applied to the third point.
+    API_PROPERTY_T(QPointF, slurUoff3,    SLUR_UOFF3)
+    /// For slur and tie segments:
+    /// The manual offset applied to the fourth point.
+    API_PROPERTY_T(QPointF, slurUoff4,    SLUR_UOFF4)
 
     /// \cond MS_INTERNAL
 
@@ -2226,18 +2239,6 @@ class Spanner : public EngravingItem
     /// The Anchor type for this spanner,
     /// one of PluginAPI::PluginAPI::Anchor values.
     API_PROPERTY_T(int, anchor,           ANCHOR)
-    /// For slur and tie segments:
-    /// The manual offset applied to the first point.
-    API_PROPERTY_T(QPointF, slurUoff1,    SLUR_UOFF1)
-    /// For slur and tie segments:
-    /// The manual offset applied to the second point.
-    API_PROPERTY_T(QPointF, slurUoff2,    SLUR_UOFF2)
-    /// For slur and tie segments:
-    /// The manual offset applied to the third point.
-    API_PROPERTY_T(QPointF, slurUoff3,    SLUR_UOFF3)
-    /// For slur and tie segments:
-    /// The manual offset applied to the fourth point.
-    API_PROPERTY_T(QPointF, slurUoff4,    SLUR_UOFF4)
 
     /// The starting element of the spanner.
     Q_PROPERTY(apiv1::EngravingItem * startElement READ startElement)
@@ -2256,7 +2257,7 @@ public:
     const mu::engraving::Spanner* spanner() const { return toSpanner(e); }
 
     EngravingItem* startElement() const { return wrap(spanner()->startElement()); }
-    EngravingItem* endElement() const { return wrap(spanner()->startElement()); }
+    EngravingItem* endElement() const { return wrap(spanner()->endElement()); }
 
     QQmlListProperty<SpannerSegment> spannerSegments()
     {
@@ -2293,7 +2294,7 @@ public:
     const mu::engraving::Tie* tie() const { return toTie(e); }
 
     Note* startNote() const { return wrap<Note>(tie()->startNote()); }
-    Note* endNote() const { return wrap<Note>(tie()->startNote()); }
+    Note* endNote() const { return wrap<Note>(tie()->endNote()); }
     bool isInside() const { return tie()->isInside(); }
 
     /// \endcond
