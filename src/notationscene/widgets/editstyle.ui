@@ -261,7 +261,7 @@
        </sizepolicy>
       </property>
       <property name="currentIndex">
-       <number>39</number>
+       <number>40</number>
       </property>
       <widget class="QWidget" name="PageScore">
        <layout class="QVBoxLayout" name="verticalLayout_20">
@@ -296,8 +296,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>654</width>
-                <height>723</height>
+                <width>542</width>
+                <height>651</height>
                </rect>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_10">
@@ -940,8 +940,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>633</width>
-             <height>1534</height>
+             <width>527</width>
+             <height>1374</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_72">
@@ -3243,8 +3243,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>695</width>
-             <height>684</height>
+             <width>688</width>
+             <height>656</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_9">
@@ -4550,8 +4550,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>414</width>
-             <height>745</height>
+             <width>347</width>
+             <height>671</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_38">
@@ -5353,8 +5353,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>615</width>
-             <height>817</height>
+             <width>518</width>
+             <height>733</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_67">
@@ -6076,8 +6076,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>547</width>
-                <height>576</height>
+                <width>475</width>
+                <height>516</height>
                </rect>
               </property>
               <layout class="QGridLayout" name="gridLayout_54" rowstretch="0,0,0,2">
@@ -7072,8 +7072,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>621</width>
-             <height>677</height>
+             <width>543</width>
+             <height>619</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_68">
@@ -10324,8 +10324,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>750</width>
-             <height>776</height>
+             <width>631</width>
+             <height>688</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_64" stretch="0,0,2">
@@ -11913,8 +11913,8 @@ followed by dashes</string>
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>582</width>
-                <height>768</height>
+                <width>477</width>
+                <height>672</height>
                </rect>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_40">
@@ -12506,8 +12506,8 @@ followed by dashes</string>
                 <rect>
                  <x>0</x>
                  <y>0</y>
-                 <width>413</width>
-                 <height>724</height>
+                 <width>398</width>
+                 <height>746</height>
                 </rect>
                </property>
                <layout class="QGridLayout" name="gridLayout_30">
@@ -13134,7 +13134,7 @@ followed by dashes</string>
            </sizepolicy>
           </property>
           <property name="currentIndex">
-           <number>1</number>
+           <number>5</number>
           </property>
           <widget class="QWidget" name="page_3">
            <layout class="QGridLayout" name="gridLayout_58">

@@ -2009,7 +2009,7 @@ void TDraw::draw(const Hook* item, Painter* painter, const PaintOptions& opt)
     TRACE_DRAW_ITEM;
 
     if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
-        painter->setPen(Pen(item->curColor(), item->get_cipherLineThick()));
+        painter->setPen(Pen(item->curColor(opt), item->get_cipherLineThick()));
         for (int i = 0; i < qAbs(item->hookType()); ++i) {
 
             painter->drawLine(LineF(item->get_cipherLine().x1(),
@@ -2116,7 +2116,7 @@ void TDraw::draw(const KeySig* item, Painter* painter, const PaintOptions& opt)
     if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
 
         Font font = item->cipherKeySigFont();
-        font.setPointSizeF(font.pointSizeF() * item->magS() * MScore::pixelRatio);
+        font.setPointSizeF(font.pointSizeF() * item->magS());
         painter->setFont(font);
 
         if (!item->segment()->isKeySigAnnounceType()) {
@@ -2125,7 +2125,7 @@ void TDraw::draw(const KeySig* item, Painter* painter, const PaintOptions& opt)
 
                 font.setItalic(true);
                 painter->setFont(font);
-                painter->setPen(item->curColor());
+                painter->setPen(item->curColor(opt));
                 painter->drawText(item->get_cipherPoint(), item->get_cipherString());
             }
         }
@@ -2136,12 +2136,12 @@ void TDraw::draw(const KeySig* item, Painter* painter, const PaintOptions& opt)
             if (item->get_cipherAccidentalShift() != 0) {
                 if (item->get_cipherAccidentalShift() == 1) {
                     Font fontAccidental = item->cipherKeySigFont();
-                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() * MScore::pixelRatio / SPATIUM20));
+                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() / item->defaultSpatium()));
                     item->drawSharp(painter, item->get_cipherAccidentalPoint(), fontAccidental);
                 }
                 if (item->get_cipherAccidentalShift() == -1) {
                     Font fontAccidental = item->cipherKeySigFont();
-                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() * MScore::pixelRatio / SPATIUM20));
+                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() / item->defaultSpatium()));
                     item->drawFlat(painter, item->get_cipherAccidentalPoint(), fontAccidental);
                 }
             }
@@ -2217,7 +2217,7 @@ void TDraw::draw(const LedgerLine* item, Painter* painter, const PaintOptions& o
     TRACE_DRAW_ITEM;
 
     if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
-        painter->setPen(Pen(item->curColor(), item->get_width()));
+        painter->setPen(Pen(item->curColor(opt), item->get_width()));
         painter->drawLine(LineF(0.0, 0.0, item->len(), 0.0));
         return;
     }
@@ -2417,20 +2417,20 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
     else if (cipher) {
 
         Font font = item->get_cipherFont();
-        font.setPointSizeF(font.pointSizeF() * item->magS() * MScore::pixelRatio);
+        font.setPointSizeF(font.pointSizeF() * item->magS());
         painter->setFont(font);
-        painter->setPen(c);
+        painter->setPen(item->curColor(opt));
         painter->drawText(item->get_cipherTextPos(), item->fretString());
         if (item->accidental() || item->get_drawFlat() || item->get_drawSharp()) {
             if (item->get_drawSharp()) {
                 Font fontAccidental = item->get_cipherAccidentalFont();
-                fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignSharp) * item->spatium() * MScore::pixelRatio / SPATIUM20) * item->get_trackthick());
+                fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignSharp) * item->spatium() / item->defaultSpatium()) * item->get_trackthick());
                 item->drawSharp(painter, item->get_cipherAccidentalPos(), fontAccidental);
                 //score()->scoreFont()->draw(SymId::cipherAccidentalSharp, painter,( score()->styleD(Sid::cipherSizeSignSharp)/100*_cipherHigth), _cipherAccidentalPos);
             }
             if (item->get_drawFlat()) {
                 Font fontAccidental = item->get_cipherAccidentalFont();
-                fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() * MScore::pixelRatio / SPATIUM20) * item->get_trackthick());
+                fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() / item->defaultSpatium()) * item->get_trackthick());
                 item->drawFlat(painter, item->get_cipherAccidentalPos(), fontAccidental);
                 //score()->scoreFont()->draw(SymId::cipherAccidentalFlat, painter,( score()->styleD(Sid::cipherSizeSignFlat)/100*_cipherHigth),_cipherAccidentalPos);
             }
@@ -2610,16 +2610,16 @@ void TDraw::draw(const Rest* item, Painter* painter, const PaintOptions& opt)
 
     if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
 
-        Color c(item->curColor());
+        Color c(item->curColor(opt));
         painter->setPen(c);
 
         Font font = item->get_cipherFont();
-        font.setPointSizeF(font.pointSizeF() * item->magS() * MScore::pixelRatio);
+        font.setPointSizeF(font.pointSizeF() * item->magS());
         painter->setFont(font);
         painter->setPen(c);
         painter->drawText(PointF(-ldata->cipherWidth/2, ldata->cipherHeigth * item->style().styleD(Sid::cipherHeightDisplacement)), ldata->fretString);
 
-        painter->setPen(Pen(item->curColor(), ldata->cipherLineThick));
+        painter->setPen(Pen(item->curColor(opt), ldata->cipherLineThick));
         for (int i = 0; i < qAbs(item->durationType().hooks()); ++i) {
 
             painter->drawLine(LineF(ldata->cipherHeigth * item->style().styleD(Sid::cipherOffsetLine) - (ldata->cipherLineWidth / 2),
@@ -3280,18 +3280,20 @@ void TDraw::draw(const TimeSig* item, Painter* painter, const PaintOptions& opt)
 
     if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
         if (ldata->cipherVisible) {
-            Pen pen(item->curColor());
+            Pen pen(item->curColor(opt));
             muse::draw::Font font = item->cipherTimeSigFont();
-            font.setPointSizeF(font.pointSizeF() * item->magS() * MScore::pixelRatio);
+            font.setPointSizeF(font.pointSizeF() * item->magS());
+            painter->setFont(font);
+            painter->setPen(pen);
+            painter->drawText(ldata->pn, ldata->cipher_ds);
             painter->setFont(font);
             painter->setPen(pen);
             painter->drawText(ldata->pz, ldata->cipher_ns);
-            painter->drawText(ldata->pn, ldata->cipher_ds);
-            painter->setPen(Pen(item->curColor(), ldata->cipherLineThick));
+            painter->setPen(Pen(item->curColor(opt), ldata->cipherLineThick));
             painter->drawLine(ldata->cipherLine);
             if (!ldata->cipherBegin) {
                 qreal lw = item->style().styleMM(Sid::barWidth) * item->mag();
-                painter->setPen(Pen(item->curColor(), lw, PenStyle::SolidLine, PenCapStyle::FlatCap));
+                painter->setPen(Pen(item->curColor(opt), lw, PenStyle::SolidLine, PenCapStyle::FlatCap));
                 painter->drawLine(ldata->cipherBarLine);
             }
         }

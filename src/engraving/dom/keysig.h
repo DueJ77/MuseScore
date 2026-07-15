@@ -25,6 +25,7 @@
 
 #include "key.h"
 #include "engravingitem.h"
+#include "draw/types/font.h"
 
 namespace mu::engraving {
 class Factory;

@@ -74,6 +74,8 @@
 
 #include "log.h"
 
+#include "draw/painter.h" 
+
 using namespace mu;
 using namespace muse::draw;
 using namespace mu::engraving;
@@ -1313,7 +1315,7 @@ muse::draw::Font Note::get_cipherFont() const
 {
     const MStyle& st = style();
     Font f(st.styleSt(Sid::cipherFont), Font::Type::Text);
-    f.setPointSizeF((st.styleD(Sid::cipherFontSize) * (spatium() / SPATIUM20)) * m_trackthick);
+    f.setPointSizeF((st.styleD(Sid::cipherFontSize) * (spatium() / style().defaultSpatium())) * m_trackthick);
     return f;
 }
 //---------------------------------------------------------
@@ -1323,7 +1325,7 @@ muse::draw::Font Note::get_cipherAccidentalFont() const
 {
     const MStyle& st = style();
     Font f(st.styleSt(Sid::cipherAccidentalFont), Font::Type::Text);
-    //f.setPointSizeF((st.styleD(Sid::cipherFontSize) * spatium() * MScore::pixelRatio / SPATIUM20) * m_trackthick);
+    //f.setPointSizeF((st.styleD(Sid::cipherFontSize) * spatium() * MScore::pixelRatio / style().defaultSpatium()) * m_trackthick);
     return f;
 }
 //---------------------------------------------------------

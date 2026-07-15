@@ -98,7 +98,8 @@ static const QStringList ALL_PAGE_CODES {
     "chord-symbols",
     "fretboard-diagrams",
     "tablature-styles",
-    "text-styles"
+    "text-styles",
+    "cipher-system"
 };
 
 static const QStringList ALL_TEXT_STYLE_SUBPAGE_CODES {

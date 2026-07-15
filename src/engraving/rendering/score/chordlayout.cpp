@@ -806,7 +806,7 @@ void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
         }
         Arpeggio::LayoutData* arpldata = spanArp->mutldata();
         const Segment* seg = spanArp->chord()->segment();
-        const EngravingItem* endItem = seg->elementAt(spanArp->endTrack());
+        const EngravingItem* endItem = seg->element(spanArp->endTrack());
         const Chord* endChord = item;
         if (endItem && endItem->isChord()) {
             endChord = toChord(endItem);

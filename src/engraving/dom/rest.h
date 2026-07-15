@@ -27,6 +27,8 @@
 #include "chordrest.h"
 #include "notedot.h"
 
+#include "draw/types/font.h"
+
 namespace mu::engraving {
 class TDuration;
 
@@ -125,7 +127,7 @@ public:
 
     String get_cipherDuration(int n) const;
     String get_cipherDurationDot(int n) const;
-    muse::draw::Font& get_cipherFont() const;
+    muse::draw::Font get_cipherFont() const;
 
     bool shouldNotBeDrawn() const;
     bool debugDrawGap() const;

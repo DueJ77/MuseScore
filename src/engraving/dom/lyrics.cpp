@@ -21,6 +21,7 @@
  */
 
 #include "lyrics.h"
+#include "system.h"
 
 #include "types/translatablestring.h"
 
@@ -60,7 +61,6 @@ Lyrics::Lyrics(ChordRest* parent)
     m_separator  = 0;
     initElementStyle(&lyricsElementStyle);
     m_verse         = 0;
-    m_no         = 0;
     m_move_lyrics = 0;
     m_ticks      = Fraction(0, 1);
     m_syllabic   = LyricsSyllabic::SINGLE;
@@ -70,7 +70,6 @@ Lyrics::Lyrics(const Lyrics& l)
     : TextBase(l)
 {
     m_verse        = l.m_verse;
-    m_no        = l.m_no;
     m_move_lyrics = l.m_move_lyrics;
     m_ticks     = l.m_ticks;
     m_syllabic  = l.m_syllabic;
@@ -596,16 +595,16 @@ void Lyrics::undoChangeProperty(Pid id, const PropertyValue& v, PropertyFlags ps
         separator()->undoChangeProperty(Pid::VISIBLE, v.toBool(), ps);
     }
     if (id == Pid::LYRICS_STAFF_SHIFT && move_lyrics() != v.toInt()) {
-        for (Lyrics* l : chordRest()->lyrics()) {
-            if (l->move_lyrics() == v.toInt()) {
-                // verse already exists, swap
-                l->TextBase::undoChangeProperty(id, move_lyrics(), ps);
-                PlacementV p = l->placement();
-                l->TextBase::undoChangeProperty(Pid::PLACEMENT, int(placement()), ps);
-                TextBase::undoChangeProperty(Pid::PLACEMENT, int(p), ps);
-                break;
-            }
-        }
+        //for (Lyrics* l : chordRest()->lyrics()) {
+        //    if (l->move_lyrics() == v.toInt()) {
+        //        // verse already exists, swap
+        //        l->TextBase::undoChangeProperty(id, move_lyrics(), ps);
+        //        PlacementV p = l->placement();
+        //        l->TextBase::undoChangeProperty(Pid::PLACEMENT, int(placement()), ps);
+        //        TextBase::undoChangeProperty(Pid::PLACEMENT, int(p), ps);
+        //        break;
+        //    }
+        //}
         TextBase::undoChangeProperty(id, v, ps);
         return;
     }

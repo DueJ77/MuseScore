@@ -34,6 +34,8 @@
 
 #include "log.h"
 
+#include "draw/painter.h" 
+
 using namespace mu;
 using namespace mu::engraving;
 
@@ -383,7 +385,7 @@ muse::draw::Font KeySig::cipherKeySigFont() const
 {
     const MStyle& st = style();
     muse::draw::Font f(st.styleSt(Sid::cipherKeySigFont), muse::draw::Font::Type::Text);
-    f.setPointSizeF(st.styleD(Sid::cipherFontSize) * st.styleD(Sid::cipherKeySigSize) * (spatium() / SPATIUM20));
+    f.setPointSizeF(st.styleD(Sid::cipherFontSize) * st.styleD(Sid::cipherKeySigSize) * (spatium() / style().defaultSpatium()));
     return f;
 }
 //---------------------------------------------------------

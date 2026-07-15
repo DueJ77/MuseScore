@@ -75,7 +75,7 @@ public:
     Skyline& skyline() { return m_skyline; }
 
     void set_distanceFirstStaff(qreal h) { m_distanceFirstStaff = h; }
-    qreal get_distanceFirstStaff() { return m_distanceFirstStaff; }
+    qreal get_distanceFirstStaff() const { return m_distanceFirstStaff; }
 
 private:
     RectF m_bbox;               // Bbox of StaffLines.

@@ -45,6 +45,7 @@
 #include "parenthesis.h"
 
 #include "log.h"
+#include "draw/painter.h" 
 
 using namespace mu;
 using namespace mu::engraving;
@@ -694,22 +695,6 @@ EngravingItem* Rest::prevElement()
     return ChordRest::prevElement();
 }
 
-//---------------------------------------------------------
-//   editDrag
-//---------------------------------------------------------
-
-void Rest::editDrag(EditData& editData)
-{
-    Segment* seg = segment();
-
-    if (editData.modifiers & ShiftModifier) {
-        const Spatium deltaSp = Spatium(editData.delta.x() / spatium());
-        seg->undoChangeProperty(Pid::LEADING_SPACE, seg->extraLeadingSpace() + deltaSp);
-    } else {
-        setOffset(offset() + editData.evtDelta);
-    }
-    triggerLayout();
-}
 
 //---------------------------------------------------------
 //   get_cipherDuration
@@ -742,7 +727,7 @@ muse::draw::Font Rest::get_cipherFont() const
 {
     const MStyle& st = style();
     muse::draw::Font f(st.styleSt(Sid::cipherFont), muse::draw::Font::Type::Text);
-    f.setPointSizeF((st.styleD(Sid::cipherFontSize) * (spatium() / SPATIUM20)) * m_trackthick);
+    f.setPointSizeF((st.styleD(Sid::cipherFontSize) * (spatium() / style().defaultSpatium())) * m_trackthick);
     return f;
 }
 
