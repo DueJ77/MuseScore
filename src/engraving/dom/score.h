@@ -206,6 +206,7 @@ struct Position {
     int line = 0;
     int fret = INVALID_FRET_INDEX;
     PointF pos;
+    int step;
 };
 
 enum class PlayMode : char {

@@ -2007,6 +2007,18 @@ void TDraw::draw(const Harmony* item, Painter* painter, const PaintOptions& opt)
 void TDraw::draw(const Hook* item, Painter* painter, const PaintOptions& opt)
 {
     TRACE_DRAW_ITEM;
+
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        painter->setPen(Pen(item->curColor(), item->get_cipherLineThick()));
+        for (int i = 0; i < qAbs(item->hookType()); ++i) {
+
+            painter->drawLine(LineF(item->get_cipherLine().x1(),
+                item->get_cipherLine().y1() + (i * item->get_cipherLineSpace()),
+                item->get_cipherLine().x2(),
+                item->get_cipherLine().y1() + (i * item->get_cipherLineSpace())));
+        }
+        return;
+    }
     // hide if belonging to the second chord of a cross-measure pair
     if (item->chord() && item->chord()->crossMeasure() == CrossMeasure::SECOND) {
         return;
@@ -2101,6 +2113,43 @@ void TDraw::draw(const KeySig* item, Painter* painter, const PaintOptions& opt)
     TRACE_DRAW_ITEM;
     const KeySig::LayoutData* ldata = item->ldata();
 
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        Font font = item->cipherKeySigFont();
+        font.setPointSizeF(font.pointSizeF() * item->magS() * MScore::pixelRatio);
+        painter->setFont(font);
+
+        if (!item->segment()->isKeySigAnnounceType()) {
+
+            if ((item->tick().isZero() || item->staff()->key(item->tick() - Fraction::fromTicks(1)) != item->keySigEvent().key()) && item->staff() && (item->staff()->idx()) < 1) {
+
+                font.setItalic(true);
+                painter->setFont(font);
+                painter->setPen(item->curColor());
+                painter->drawText(item->get_cipherPoint(), item->get_cipherString());
+            }
+        }
+        if (item->get_cipherDrawNote()) {
+
+            painter->drawText(item->get_cipherNotePoint(), item->get_cipherNoteString());
+            painter->drawText(item->get_cipherNoteKlammerPoint(), (String)"(");
+            if (item->get_cipherAccidentalShift() != 0) {
+                if (item->get_cipherAccidentalShift() == 1) {
+                    Font fontAccidental = item->cipherKeySigFont();
+                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() * MScore::pixelRatio / SPATIUM20));
+                    item->drawSharp(painter, item->get_cipherAccidentalPoint(), fontAccidental);
+                }
+                if (item->get_cipherAccidentalShift() == -1) {
+                    Font fontAccidental = item->cipherKeySigFont();
+                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() * MScore::pixelRatio / SPATIUM20));
+                    item->drawFlat(painter, item->get_cipherAccidentalPoint(), fontAccidental);
+                }
+            }
+
+        }
+        return;
+    }
+
     painter->setPen(item->curColor(opt));
     double _spatium = item->spatium();
     double step = _spatium * (item->staff() ? item->staff()->staffTypeForElement(item)->lineDistance().val() * 0.5 : 0.5);
@@ -2167,6 +2216,11 @@ void TDraw::draw(const LedgerLine* item, Painter* painter, const PaintOptions& o
 {
     TRACE_DRAW_ITEM;
 
+    if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        painter->setPen(Pen(item->curColor(), item->get_width()));
+        painter->drawLine(LineF(0.0, 0.0, item->len(), 0.0));
+        return;
+    }
     if (item->chord()->crossMeasure() == CrossMeasure::SECOND) {
         return;
     }
@@ -2332,6 +2386,8 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
     const bool negativeFret = isTabStaff && item->negativeFretUsed();
     const bool useCriticalColor = negativeFret && !item->deadNote() && opt.isPrinting;
 
+    bool tablature = item->staff() && item->staff()->isTabStaff(item->chord()->tick());
+    bool cipher = item->staff() && item->staff()->isCipherStaff(item->chord()->tick());
     painter->setPen(useCriticalColor ? config->criticalColor() : item->curColor(opt));
 
     // tablature
@@ -2358,7 +2414,35 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
         const double yOffset = tab->fretFontYOffset();
         painter->drawText(PointF(startPosX, yOffset * item->magS()), item->fretString());
     }
-    // NOT tablature
+    else if (cipher) {
+
+        Font font = item->get_cipherFont();
+        font.setPointSizeF(font.pointSizeF() * item->magS() * MScore::pixelRatio);
+        painter->setFont(font);
+        painter->setPen(c);
+        painter->drawText(item->get_cipherTextPos(), item->fretString());
+        if (item->accidental() || item->get_drawFlat() || item->get_drawSharp()) {
+            if (item->get_drawSharp()) {
+                Font fontAccidental = item->get_cipherAccidentalFont();
+                fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignSharp) * item->spatium() * MScore::pixelRatio / SPATIUM20) * item->get_trackthick());
+                item->drawSharp(painter, item->get_cipherAccidentalPos(), fontAccidental);
+                //score()->scoreFont()->draw(SymId::cipherAccidentalSharp, painter,( score()->styleD(Sid::cipherSizeSignSharp)/100*_cipherHigth), _cipherAccidentalPos);
+            }
+            if (item->get_drawFlat()) {
+                Font fontAccidental = item->get_cipherAccidentalFont();
+                fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() * MScore::pixelRatio / SPATIUM20) * item->get_trackthick());
+                item->drawFlat(painter, item->get_cipherAccidentalPos(), fontAccidental);
+                //score()->scoreFont()->draw(SymId::cipherAccidentalFlat, painter,( score()->styleD(Sid::cipherSizeSignFlat)/100*_cipherHigth),_cipherAccidentalPos);
+            }
+        }
+        if (item->get_trackthick() != 1.0 && item->style().styleB(Sid::cipherbracket)) {
+
+            painter->drawText(item->get_cipherKlammerPos(), (String)"(");
+            painter->drawText((PointF(item->get_cipherTextPos().x() + item->get_cipherWidth2(), item->get_cipherKlammerPos().y())), (String)")");
+        }
+    }
+
+    // NOT tablature and cipher
     else {
         // skip drawing, if second note of a cross-measure value
         if (item->chord() && item->chord()->crossMeasure() == CrossMeasure::SECOND) {
@@ -2524,6 +2608,27 @@ void TDraw::draw(const Rest* item, Painter* painter, const PaintOptions& opt)
 
     const Rest::LayoutData* ldata = item->ldata();
 
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        Color c(item->curColor());
+        painter->setPen(c);
+
+        Font font = item->get_cipherFont();
+        font.setPointSizeF(font.pointSizeF() * item->magS() * MScore::pixelRatio);
+        painter->setFont(font);
+        painter->setPen(c);
+        painter->drawText(PointF(-ldata->cipherWidth/2, ldata->cipherHeigth * item->style().styleD(Sid::cipherHeightDisplacement)), ldata->fretString);
+
+        painter->setPen(Pen(item->curColor(), ldata->cipherLineThick));
+        for (int i = 0; i < qAbs(item->durationType().hooks()); ++i) {
+
+            painter->drawLine(LineF(ldata->cipherHeigth * item->style().styleD(Sid::cipherOffsetLine) - (ldata->cipherLineWidth / 2),
+                ldata->cipherHeigthLine + (i * ldata->cipherLineSpace),
+                ldata->cipherHeigth * item->style().styleD(Sid::cipherOffsetLine) + (ldata->cipherLineWidth / 2),
+                ldata->cipherHeigthLine + (i * ldata->cipherLineSpace)));
+        }
+        return;
+    }
     painter->setPen(item->curColor(opt));
 
     if (DeadSlapped* ds = item->deadSlapped()) {
@@ -2660,9 +2765,14 @@ void TDraw::draw(const SlurSegment* item, Painter* painter, const PaintOptions& 
 
     switch (item->slurTie()->styleType()) {
     case SlurStyleType::Solid:
-        painter->setBrush(Brush(pen.color()));
-        pen.setCapStyle(PenCapStyle::RoundCap);
-        pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        if (!(item->staff() && item->staff()->isCipherStaff(item->tick()))) {
+            painter->setBrush(Brush(pen.color()));
+            pen.setCapStyle(PenCapStyle::RoundCap);
+            pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        }
+        else {
+            painter->setBrush(BrushStyle::NoBrush);
+        }
         pen.setWidthF(item->endWidth() * mag);
         break;
     case SlurStyleType::Dotted:
@@ -2683,6 +2793,11 @@ void TDraw::draw(const SlurSegment* item, Painter* painter, const PaintOptions& 
         break;
     case SlurStyleType::Undefined:
         break;
+    }
+
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        pen.setWidthF(item->style().styleD(Sid::cipherSlurThick));
     }
     painter->setPen(pen);
     painter->drawPath(item->ldata()->path());
@@ -2795,6 +2910,9 @@ void TDraw::draw(const Stem* item, Painter* painter, const PaintOptions& opt)
     if (!item->chord()) { // may be need assert?
         return;
     }
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        return;
+    }
 
     // hide if second chord of a cross-measure pair
     if (item->chord()->crossMeasure() == CrossMeasure::SECOND) {
@@ -2866,6 +2984,9 @@ void TDraw::draw(const Stem* item, Painter* painter, const PaintOptions& opt)
 void TDraw::draw(const StemSlash* item, Painter* painter, const PaintOptions& opt)
 {
     TRACE_DRAW_ITEM;
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        return;
+    }
     const StemSlash::LayoutData* ldata = item->ldata();
     painter->setPen(Pen(item->curColor(opt), ldata->stemWidth, PenStyle::SolidLine, PenCapStyle::FlatCap));
     painter->drawLine(ldata->line);
@@ -3106,9 +3227,14 @@ void TDraw::draw(const TieSegment* item, Painter* painter, const PaintOptions& o
 
     switch (item->slurTie()->styleType()) {
     case SlurStyleType::Solid:
-        painter->setBrush(Brush(pen.color()));
-        pen.setCapStyle(PenCapStyle::RoundCap);
-        pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        if (!(item->staff() && item->staff()->isCipherStaff(item->tick()))) {
+            painter->setBrush(Brush(pen.color()));
+            pen.setCapStyle(PenCapStyle::RoundCap);
+            pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        }
+        else {
+            painter->setBrush(BrushStyle::NoBrush);
+        }
         pen.setWidthF(item->endWidth() * mag);
         break;
     case SlurStyleType::Dotted:
@@ -3130,6 +3256,10 @@ void TDraw::draw(const TieSegment* item, Painter* painter, const PaintOptions& o
     case SlurStyleType::Undefined:
         break;
     }
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        pen.setWidthF(item->style().styleD(Sid::cipherSlurThick));
+    }
     painter->setPen(pen);
     painter->drawPath(item->ldata()->path());
 }
@@ -3147,6 +3277,26 @@ void TDraw::draw(const TimeSig* item, Painter* painter, const PaintOptions& opt)
     painter->setPen(item->curColor(opt));
 
     const TimeSig::LayoutData* ldata = item->ldata();
+
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        if (ldata->cipherVisible) {
+            Pen pen(item->curColor());
+            muse::draw::Font font = item->cipherTimeSigFont();
+            font.setPointSizeF(font.pointSizeF() * item->magS() * MScore::pixelRatio);
+            painter->setFont(font);
+            painter->setPen(pen);
+            painter->drawText(ldata->pz, ldata->cipher_ns);
+            painter->drawText(ldata->pn, ldata->cipher_ds);
+            painter->setPen(Pen(item->curColor(), ldata->cipherLineThick));
+            painter->drawLine(ldata->cipherLine);
+            if (!ldata->cipherBegin) {
+                qreal lw = item->style().styleMM(Sid::barWidth) * item->mag();
+                painter->setPen(Pen(item->curColor(), lw, PenStyle::SolidLine, PenCapStyle::FlatCap));
+                painter->drawLine(ldata->cipherBarLine);
+            }
+        }
+        return;
+    }
 
     item->drawSymbols(ldata->ns, painter, ldata->pz, item->scale());
     item->drawSymbols(ldata->ds, painter, ldata->pn, item->scale());
@@ -3278,7 +3428,16 @@ void TDraw::draw(const Tuplet* item, Painter* painter, const PaintOptions& opt)
         draw(item->number(), painter, opt);
         painter->translate(-pos);
     }
-    if (item->hasBracket()) {
+    if (item->hasSlur()) {
+
+        Pen pen(color);
+        pen.setCapStyle(PenCapStyle::RoundCap);
+        pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        pen.setWidthF(item->style().styleD(Sid::cipherTupletSlurThickness)*item->mag());
+        painter->setPen(pen);
+        painter->drawPath(item->get_SlurPath());
+    }
+    else if (item->hasBracket()) {
         Pen pen(color, item->absoluteFromSpatium(item->bracketWidth()));
         pen.setJoinStyle(PenJoinStyle::MiterJoin);
         pen.setCapStyle(PenCapStyle::FlatCap);

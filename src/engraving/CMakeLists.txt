@@ -26,6 +26,7 @@ muse_create_module(engraving)
 muse_module_add_qrc(engraving
     engraving.qrc
     data/fonts/fonts_Smufl.qrc
+    data/fonts/fonts_Cipher.qrc
 )
 
 # TODO: convert to target-based variant of qt_add_resources
@@ -43,6 +44,7 @@ muse_module_add_qrc(engraving BIG_RESOURCES
     data/fonts/fonts_FinaleMaestro.qrc
     data/fonts/fonts_FinaleBroadway.qrc
     data/fonts/fonts_Tabulature.qrc
+    data/fonts/fonts_Cipher.qrc
 )
 
 include(dom/dom.cmake)

@@ -72,6 +72,7 @@ Tuplet::Tuplet(Measure* parent)
     m_ratio        = Fraction(1, 1);
     m_number       = 0;
     m_hasBracket   = false;
+    m_hasSlur      = false;
     m_isUp         = true;
     m_id           = 0;
     initElementStyle(&tupletStyle);
@@ -82,6 +83,7 @@ Tuplet::Tuplet(const Tuplet& t)
 {
     m_tick         = t.m_tick;
     m_hasBracket   = t.m_hasBracket;
+    m_hasSlur      = t.m_hasSlur;
     m_ratio        = t.m_ratio;
     m_baseLen      = t.m_baseLen;
     m_direction    = t.m_direction;

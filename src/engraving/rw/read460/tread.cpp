@@ -3204,7 +3204,11 @@ bool TRead::readProperties(Lyrics* l, XmlReader& e, ReadContext& ctx)
         }
     } else if (tag == "syllabic") {
         l->setSyllabic(TConv::fromXml(e.readAsciiText(), LyricsSyllabic::SINGLE));
-    } else if (tag == "ticks_f") {
+    }
+    else if (tag == "lyricsStaffShift") {
+        l->setMove_lyrics(e.readInt());
+    }
+    else if (tag == "ticks_f") {
         l->setTicks(e.readFraction());
     } else if (TRead::readProperty(l, tag, e, ctx, Pid::PLACEMENT)) {
     } else if (tag == "LyricsLine") {
@@ -3565,6 +3569,7 @@ void TRead::read(PartialLyricsLine* p, XmlReader& xml, ReadContext& ctx)
         if (tag == "isEndMelisma") {
             p->setIsEndMelisma(xml.readBool());
         } else if (TRead::readProperty(p, tag, xml, ctx, Pid::VERSE)) {
+        } else if (TRead::readProperty(p, tag, xml, ctx, Pid::LYRICS_STAFF_SHIFT)) {
         } else if (!readProperties(static_cast<SLine*>(p), xml, ctx)) {
             xml.unknown();
         }

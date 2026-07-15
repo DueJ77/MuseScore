@@ -123,6 +123,10 @@ public:
     String accessibleInfo() const override;
     String screenReaderInfo() const override;
 
+    String get_cipherDuration(int n) const;
+    String get_cipherDurationDot(int n) const;
+    muse::draw::Font& get_cipherFont() const;
+
     bool shouldNotBeDrawn() const;
     bool debugDrawGap() const;
 
@@ -131,6 +135,14 @@ public:
     struct LayoutData : public ChordRest::LayoutData {
         std::vector<Rest*> mergedRests;     // Rests from other voices that may be merged with this
         ld_field<SymId> sym = { "[Rest] sym", SymId::restQuarter };
+
+        String fretString;
+        qreal cipherWidth;
+        qreal cipherLineWidth;
+        qreal cipherLineThick;
+        qreal cipherLineSpace;
+        qreal cipherHeigthLine;
+        qreal cipherHeigth = 0.0;
     };
     DECLARE_LAYOUTDATA_METHODS(Rest)
 
@@ -166,5 +178,7 @@ private:
     RestVerticalClearance m_verticalClearance;
 
     bool m_alignWithOtherRests = true;
+    
+    qreal m_trackthick = 1.0;
 };
 }

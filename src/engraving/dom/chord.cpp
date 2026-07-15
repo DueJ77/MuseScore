@@ -1150,6 +1150,10 @@ void Chord::cmdUpdateNotes(AccidentalState* as, staff_idx_t staffIdx)
         }
         stringData->fretChords(this);
         return;
+    } else if (staffGroup == StaffGroup::CIPHER) {
+        // Cipher notation - for now, treat as pitched
+        // TODO: Implement full cipher note updating logic
+        staffGroup = StaffGroup::STANDARD;
     } else {
         // if not tablature, use instrument->useDrumset to set staffGroup (to allow pitched to unpitched in same staff)
         staffGroup = st->part()->instrument(this->tick())->useDrumset() ? StaffGroup::PERCUSSION : StaffGroup::STANDARD;
@@ -1904,7 +1908,7 @@ void Chord::setSlash(bool flag, bool stemless)
     int line = 0;
     NoteHeadGroup head = NoteHeadGroup::HEAD_SLASH;
 
-    if (!flag) {
+    if (!flag&& !(staff() && staff()->isCipherStaff(tick()))) {
         // restore to normal
         undoChangeProperty(Pid::NO_STEM, false);
         undoChangeProperty(Pid::SMALL, false);
@@ -2179,17 +2183,22 @@ void Chord::setShowStemSlashInAdvance()
     if (m_noteType == NoteType::NORMAL) {
         return;
     }
+    if (staff() && staff()->isCipherStaff(tick())) {
+        return;
+
+    }
     if (isGraceBefore()) {
         GraceNotesGroup& graceBefore = toChord(explicitParent())->graceNotesBefore();
         Chord* grace = graceBefore.empty() ? nullptr : graceBefore.front();
-        if (grace && grace->beamMode() != BeamMode::NONE && grace->beamMode() != BeamMode::BEGIN) {
+        if (grace && grace->beamMode() != BeamMode::NONE && grace->beamMode() != BeamMode::BEGIN 
+            && !(staff() && staff()->isCipherStaff(tick()))) {
             grace->requestShowStemSlash(showStemSlash());
         }
     }
     if (isGraceAfter()) {
         GraceNotesGroup& graceAfter = toChord(explicitParent())->graceNotesAfter();
         Chord* grace = graceAfter.empty() ? nullptr : graceAfter.back();
-        if (grace && grace->beamMode() != BeamMode::NONE) {
+        if (grace && grace->beamMode() != BeamMode::NONE && !(staff() && staff()->isCipherStaff(tick()))) {
             grace->requestShowStemSlash(showStemSlash());
         }
     }

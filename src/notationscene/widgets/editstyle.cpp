@@ -670,6 +670,58 @@ EditStyle::EditStyle(QWidget* parent)
         { StyleId::tabShowTiedFret, false, tabShowTiedFrets, 0 },
         { StyleId::tabParenthesizeTiedFret, false, tabParenthFrets, 0 },
         { StyleId::parenthesizeTiedFretIfArticulation, false, tabParenthArticulation, 0 },
+
+        { Sid::cipherHeightDisplacement,        false, cipherHeightDisplacement,          resetCipherHeightDisplacement },
+        { Sid::cipherDistanceOctave,            false, cipherDistanceOctave,              resetCipherDistanceOctave },
+        { Sid::cipherHeigthLine,                false, cipherHeigthLine,                  resetCipherHeigthLine },
+        { Sid::cipherOffsetLine,                false, cipherOffsetLine,                  resetCipherOffsetLine },
+        { Sid::cipherDistanceBetweenLines,      false, cipherDistanceBetweenLines,        resetCipherDistanceBetweenLines },
+        { Sid::cipherWideLine,                  false, cipherWideLine,                    resetCipherWideLine },
+        { Sid::cipherThickLine,                 false, cipherThickLine,                   resetCipherThickLine },
+        { Sid::cipherSizeSignSharp,             false, cipherSizeSignSharp,               resetCipherSizeSignSharp },
+        { Sid::cipherSizeSignFlat,              false, cipherSizeSignFlat,                resetCipherSizeSignFlat },
+        { Sid::cipherDistanceSignSharp,         false, cipherDistanceSignSharp,           resetCipherDistanceSignSharp },
+        { Sid::cipherDistanceSignFlat,          false, cipherDistanceSignFlat,            resetCipherDistanceSignFlat },
+        { Sid::cipherHeigthSignSharp,           false, cipherHeigthSignSharp,             resetCipherHeigthSignSharp },
+        { Sid::cipherHeigthSignFlat,            false, cipherHeigthSignFlat,              resetCipherHeigthSignFlat },
+        { Sid::cipherFont,                      false, cipherFont,                        resetCipherFont },
+        { Sid::cipherbracket,                   false, cipherbracket,                     resetCipherbracket },
+        { Sid::cipherAlternativSize,            false, cipherAlternativSize,              resetCipherAlternativSize },
+        { Sid::cipherAlternativSpace,           false, cipherAlternativSpace,             resetCipherAlternativSpace },
+        { Sid::cipherSlurEckenform,             false, cipherSlurEckenform,               resetCipherSlurEckenform },
+        { Sid::cipherSlurThick,                 false, cipherSlurThick,                   resetCipherSlurThick },
+        { Sid::cipherSlurHeigth,                false, cipherSlurHeigth,                  resetCipherSlurHeigth },
+        { Sid::cipherSlurUberhang,              false, cipherSlurUberhang,                resetCipherSlurUberhang },
+        { Sid::cipherSlurShift,                 false, cipherSlurShift,                   resetCipherSlurShift },
+        { Sid::cipherLedgerlineThick,           false, cipherLedgerlineThick,             resetCipherLedgerlineThick },
+        { Sid::cipherLedgerlineLength,          false, cipherLedgerlineLength,            resetCipherLedgerlineLength },
+        { Sid::cipherLedgerlineShift,           false, cipherLedgerlineShift,             resetCipherLedgerlineShift },
+        { Sid::cipherStaffDistans,              false, cipherStaffDistans,                resetCipherStaffDistans },
+        { Sid::cipherTimeSigSize,               false, cipherTimeSigSize,                 resetCipherTimeSigSize },
+        { Sid::cipherTimeSigDistance,           false, cipherTimeSigDistance,             resetCipherTimeSigDistance },
+        { Sid::cipherTimeSigLineThick,          false, cipherTimeSigLineThick,            resetCipherTimeSigLineThick },
+        { Sid::cipherTimeSigLineSize,           false, cipherTimeSigLineSize,             resetCipherTimeSigLineSize },
+        { Sid::cipherTimeSigFont,               false, cipherTimeSigFont,                 resetCipherTimeSigFont },
+        { Sid::cipherKeySigFont,                false, cipherKeySigFont,                  resetCipherKeySigFont },
+        { Sid::cipherKeySigSize,                false, cipherKeySigSize,                  resetCipherKeySigSize },
+        { Sid::cipherKeySigHorizontalShift,     false, cipherKeySigHorizontalShift,       resetCipherKeySigHorizontalShift },
+        { Sid::cipherKeySigHigth,               false, cipherKeySigHigth,                 resetCipherKeySigHigth },
+        { Sid::cipherKeysigNoteDistancLeft,     false, cipherKeysigNoteDistancLeft,       resetCipherKeysigNoteDistancLeft },
+        { Sid::cipherKeysigNoteDistancReigth,   false, cipherKeysigNoteDistancReigth,     resetCipherKeysigNoteDistancReigth },
+        { Sid::cipherBarlineLength,             false, cipherBarlineLength,               resetCipherBarlineLength },
+        { Sid::cipherFontSize,                  false, cipherFontSize,                    resetCipherFontSize },
+        { Sid::cipherRestDistanc,               false, cipherRestDistanc,                 resetCipherRestDistanc },
+        { Sid::cipherNoteDistanc,               false, cipherNoteDistanc,                 resetCipherNoteDistanc },
+        { Sid::cipherAccidentalFont,            false, cipherAccidentalFont,              resetCipherAccidentalFont },
+        { Sid::cipherTupletSlurEcke,            false, cipherTupletSlurEcke,              resetCipherTupletSlurEcke },
+        { Sid::cipherTupletSlurhigth,           false, cipherTupletSlurhigth,             resetCipherTupletSlurhigth },
+        { Sid::cipherTupletSlurdistans,         false, cipherTupletSlurdistans,           resetCipherTupletSlurdistans },
+        { Sid::cipherTupletSlurshift,           false, cipherTupletSlurshift,             resetCipherTupletSlurshift },
+        { Sid::cipherTupletSluruberhang,        false, cipherTupletSluruberhang,          resetCipherTupletSluruberhang },
+        { Sid::cipherTupletNummerHigth,         false, cipherTupletNummerHigth,           resetCipherTupletNummerHigth },
+        { Sid::cipherTupletSlurThickness,       false, cipherTupletSlurThickness,         resetCipherTupletSlurThickness },
+        { Sid::cipherTupletNummerFontSize,      false, cipherTupletNummerFontSize,        resetCipherTupletNummerFontSize },
+        { Sid::cipherTupletNummerFont,          false, cipherTupletNummerFont,            resetCipherTupletNummerFont },
     };
 
     // ====================================================
@@ -750,6 +802,7 @@ EditStyle::EditStyle(QWidget* parent)
     tupletBracketType->clear();
     tupletBracketType->addItem(muse::qtrc("notation/editstyle", "Automatic"), int(TupletBracketType::AUTO_BRACKET));
     tupletBracketType->addItem(muse::qtrc("notation/editstyle", "Bracket"), int(TupletBracketType::SHOW_BRACKET));
+    tupletBracketType->addItem(muse::qtrc("notation/editstyle", "SHOW_SLUR"), int(TupletBracketType::SHOW_SLUR));
     tupletBracketType->addItem(muse::qtrc("notation/editstyle", "None", "no tuplet bracket type"), int(TupletBracketType::SHOW_NO_BRACKET));
 
     lyricsDashStartSystemPlacement->clear();
@@ -1253,6 +1306,7 @@ EditStyle::EditStyle(QWidget* parent)
     });
 
     adjustPagesStackSize(0);
+    connect(cipherListPage, &QListWidget::currentRowChanged, cipherPageStack, &QStackedWidget::setCurrentIndex);
 
     // Consistency checks
     qDebug() << "codes size:" << ALL_PAGE_CODES.size() << "pageList count:" << pageList->count();

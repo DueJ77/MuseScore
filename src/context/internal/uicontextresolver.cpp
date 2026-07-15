@@ -204,7 +204,7 @@ bool UiContextResolver::isShortcutContextAllowed(const std::string& scContext) c
         return matchWithCurrent(context::UiCtxProjectFocused);
     } else if (CTX_NOT_NOTATION_FOCUSED == scContext) {
         return !matchWithCurrent(context::UiCtxProjectFocused);
-    } else if (CTX_NOTATION_NOT_NOTE_INPUT_STAFF_TAB == scContext) {
+    } else if (CTX_NOTATION_NOT_NOTE_INPUT_STAFF_TAB_CIPHER == scContext) {
         if (!matchWithCurrent(context::UiCtxProjectFocused)) {
             return false;
         }
@@ -213,7 +213,8 @@ bool UiContextResolver::isShortcutContextAllowed(const std::string& scContext) c
             return false;
         }
         auto noteInput = notation->interaction()->noteInput();
-        return !noteInput->isNoteInputMode() || noteInput->state().staffGroup() != mu::engraving::StaffGroup::TAB;
+        return !noteInput->isNoteInputMode() || (noteInput->state().staffGroup() != mu::engraving::StaffGroup::TAB &&
+            noteInput->state().staffGroup() != mu::engraving::StaffGroup::CIPHER);
     } else if (CTX_NOTATION_NOTE_INPUT_STAFF_TAB == scContext) {
         if (!matchWithCurrent(context::UiCtxProjectFocused)) {
             return false;
@@ -224,7 +225,8 @@ bool UiContextResolver::isShortcutContextAllowed(const std::string& scContext) c
         }
         auto noteInput = notation->interaction()->noteInput();
         return noteInput->isNoteInputMode() && noteInput->state().staffGroup() == mu::engraving::StaffGroup::TAB;
-    } else if (CTX_NOTATION_TEXT_EDITING == scContext) {
+    }
+    else if (CTX_NOTATION_NOTE_INPUT_STAFF_CIPHER == scContext) {
         if (!matchWithCurrent(context::UiCtxProjectFocused)) {
             return false;
         }
@@ -232,7 +234,19 @@ bool UiContextResolver::isShortcutContextAllowed(const std::string& scContext) c
         if (!notation) {
             return false;
         }
-        return notation->interaction()->isTextEditingStarted();
+        auto noteInput = notation->interaction()->noteInput();
+        return noteInput->isNoteInputMode() && noteInput->state().staffGroup() == mu::engraving::StaffGroup::CIPHER;
+    }
+    else if (CTX_NOTATION_TEXT_EDITING == scContext) {
+        if (!matchWithCurrent(context::UiCtxProjectFocused)) {
+            return false;
+        }
+        auto notation = globalContext()->currentNotation();
+        if (!notation) {
+            return false;
+        }
+        auto noteInput = notation->interaction()->noteInput();
+        return notation->interaction()->isTextEditingStarted() && !(noteInput->state().staffGroup() == mu::engraving::StaffGroup::CIPHER);
     } else if (CTX_NOTATION_LIST_SELECTION == scContext) {
         if (!matchWithCurrent(context::UiCtxProjectFocused)) {
             return false;

@@ -114,6 +114,69 @@ void RestLayout::layoutRest(const Rest* item, Rest::LayoutData* ldata, const Lay
         }
     }
 
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        ldata->setPos(0.0, 0.0);             // no rest is drawn: reset any position might be set for it
+        muse::draw::Font font=item->get_cipherFont();
+        ldata->fretString = (String)"0";
+        muse::draw::FontMetrics fm2(item->get_cipherFont());
+        qreal height = fm2.tightBoundingRect((String)"1234567890").height();
+        ldata->cipherHeigth=height;
+        String duration = item->get_cipherDuration(int(item->durationType().type()));
+        if (int(item->durationType().type()) == 14) {
+            Fraction len = item->measure()->ticks();   // z.B. 4/4
+            int ticks = len.ticks();           // 1920
+            int TICKS_PER_QUARTER = 480;
+            switch (ticks)
+            {
+            case 3840:
+                duration = (String)",,,";
+                break;
+            case 2880:
+                duration = (String)",,.";
+                break;
+            case 1920:
+                duration = (String)",,";
+                break;
+            case 1440:
+                duration = (String)",.";
+                break;
+            case 960:
+                duration = (String)",";
+                break;
+            case 720:
+                duration = (String)".";
+                break;
+            default:
+                break;
+            }
+        }
+        ldata->fretString = (String)"0" +
+            duration +
+            item->get_cipherDurationDot(int(item->durationType().dots()));
+        ldata->cipherWidth = fm2.tightBoundingRect(ldata->fretString).width();
+
+        //staff()->set_cipherHeight(_cipherHigth);
+        ldata->cipherLineThick = ldata->cipherHeigth * item->style().styleD(Sid::cipherThickLine);
+        ldata->cipherLineSpace = ldata->cipherHeigth * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1);
+        ldata->cipherHeigthLine = ldata->cipherHeigth * item->style().styleD(Sid::cipherHeightDisplacement) - ldata->cipherHeigth - ldata->cipherHeigth * 
+            item->style().styleD(Sid::cipherHeigthLine);
+        qreal linienlaenge = ldata->cipherHeigth * item->style().styleD(Sid::cipherWideLine);
+        ldata->cipherLineWidth = linienlaenge;
+        qreal distance = ldata->cipherWidth * item->style().styleD(Sid::cipherRestDistanc);
+        qreal x = -ldata->cipherWidth / 2;
+        RectF hookbox = RectF(x - distance / 2, (ldata->cipherHeigthLine)+((qAbs(item->durationType().hooks()) - 1) * ldata->cipherLineSpace) - 
+            ldata->cipherLineThick,
+            ldata->cipherWidth + distance, (ldata->cipherHeigth * item->style().styleD(Sid::cipherHeightDisplacement) + ((ldata->cipherHeigthLine)+
+                ((qAbs(item->durationType().hooks()) - 1) * ldata->cipherLineSpace) - ldata->cipherLineThick) * -1));
+        RectF stringbox = RectF(x, ldata->cipherHeigth * item->style().styleD(Sid::cipherHeightDisplacement),
+            ldata->cipherWidth, ldata->cipherHeigth);
+        ldata->setBbox(hookbox);
+        item->staff()->set_cipherHeight(ldata->cipherHeigth);
+        return;
+
+
+    }
     const_cast<Rest*>(item)->setDotLine(Rest::getDotline(item->durationType().type()));
 
     double yOff = item->offset().y();
@@ -651,6 +714,7 @@ void RestLayout::checkFullMeasureRestCollisions(const System* system, LayoutCont
 
 void RestLayout::fillShape(const Rest* item, Rest::LayoutData* ldata)
 {
+    if (item->staff()->isCipherStaff(item->tick())) return;
     Shape shape(Shape::Type::Composite);
 
     if ((!item->isGap() || item->debugDrawGap()) && !item->shouldNotBeDrawn()) {
@@ -674,6 +738,7 @@ void RestLayout::fillShape(const Rest* item, Rest::LayoutData* ldata)
 
 void RestLayout::fillShape(const MMRest* item, MMRest::LayoutData* ldata, const LayoutConfiguration& conf)
 {
+    if (item->staff()->isCipherStaff(item->tick())) return;
     Shape shape(Shape::Type::Composite);
 
     double vStrokeHeight = conf.styleMM(Sid::mmRestHBarVStrokeHeight);

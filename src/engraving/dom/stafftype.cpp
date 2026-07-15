@@ -121,7 +121,7 @@ StaffType::StaffType(StaffGroup sg, const String& xml, const String& name, int l
     setShowBarlines(showBarLines);
     setStemless(stemless);
     setGenTimesig(genTimesig);
-    setGenKeysig(sg != StaffGroup::TAB);
+    setGenKeysig(sg != StaffGroup::TAB && sg != StaffGroup::CIPHER);
     setDurationFontName(durFontName);
     setDurationFontSize(durFontSize);
     setDurationFontUserY(durFontUserY);
@@ -266,6 +266,8 @@ StaffTypes StaffType::type() const
         { u"tab8StrSimple", StaffTypes::TAB_8SIMPLE },
         { u"tab9StrSimple", StaffTypes::TAB_9SIMPLE },
         { u"tab10StrSimple", StaffTypes::TAB_10SIMPLE },
+
+        { u"numStrCommon", StaffTypes::CIPHER },
     };
 
     return muse::value(xmlNameToType, m_xmlName, StaffTypes::STANDARD);
@@ -678,7 +680,7 @@ String StaffType::tabBassStringPrefix(int strg, bool* hasFret) const
 
 int StaffType::numOfTabLedgerLines(int string) const
 {
-    if (m_group != StaffGroup::TAB || !m_useNumbers) {
+    if ((m_group != StaffGroup::TAB && m_group != StaffGroup::CIPHER) || !m_useNumbers) {
         return 0;
     }
 
@@ -1152,6 +1154,7 @@ void StaffType::initStaffTypes(const Color& defaultColor)
         StaffType(StaffGroup::TAB, u"tab8StrSimple",  muse::mtrc("engraving", "Tab. 8-str. simple"),  8,  0, 1.5, true,  true, true, false, false,  defaultColor, u"MuseScore Tab Modern", 15, 0, false, true,  u"MuseScore Tab Sans",                     9, 0,  TablatureSymbolRepeat::NEVER, false, TablatureMinimStyle::NONE,    true,  false, true,  false, false, false, true,  false),
         StaffType(StaffGroup::TAB, u"tab9StrSimple",  muse::mtrc("engraving", "Tab. 9-str. simple"),  9,  0, 1.5, true,  true, true, false, false,  defaultColor, u"MuseScore Tab Modern", 15, 0, false, true,  u"MuseScore Tab Sans",                     9, 0,  TablatureSymbolRepeat::NEVER, false, TablatureMinimStyle::NONE,    true,  false, true,  false, false, false, true,  false),
         StaffType(StaffGroup::TAB, u"tab10StrSimple", muse::mtrc("engraving", "Tab. 10-str. simple"), 10, 0, 1.5, true,  true, true, false, false,  defaultColor, u"MuseScore Tab Modern", 15, 0, false, true,  u"MuseScore Tab Sans",                     9, 0,  TablatureSymbolRepeat::NEVER, false, TablatureMinimStyle::NONE,    true,  false, true,  false, false, false, true,  false),
+        StaffType(StaffGroup::CIPHER, u"numStrCommon", muse::mtrc("engraving", "Ciphersystem"),       1, 0,  1.5, false,  true, false, true, false, defaultColor, u"MuseScore Tab Modern", 15, 0, false, true,  u"MuseScore Tab Sans",                     9, 0, TablatureSymbolRepeat::NEVER, false, TablatureMinimStyle::NONE,     true,  false, true,  false, false, false, true,  true),
     };
 }
 /* *INDENT-ON* */

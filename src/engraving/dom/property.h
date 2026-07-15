@@ -268,6 +268,7 @@ enum class Pid : short {
     SLUR_UOFF4,
     STAFF_MOVE,
     VERSE,
+    LYRICS_STAFF_SHIFT,
 
     SYLLABIC,
     LYRIC_TICKS,

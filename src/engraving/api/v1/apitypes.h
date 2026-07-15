@@ -1003,6 +1003,7 @@ Q_ENUM_NS(TupletNumberType);
 enum class TupletBracketType {
     AUTO_BRACKET    = int(mu::engraving::TupletBracketType::AUTO_BRACKET),
     SHOW_BRACKET    = int(mu::engraving::TupletBracketType::SHOW_BRACKET),
+    SHOW_SLUR       = int(mu::engraving::TupletBracketType::SHOW_SLUR),
     SHOW_NO_BRACKET = int(mu::engraving::TupletBracketType::SHOW_NO_BRACKET),
 };
 Q_ENUM_NS(TupletBracketType);
@@ -1428,6 +1429,7 @@ enum class StaffGroup {
     STANDARD   = int(mu::engraving::StaffGroup::STANDARD),
     PERCUSSION = int(mu::engraving::StaffGroup::PERCUSSION),
     TAB        = int(mu::engraving::StaffGroup::TAB),
+    CIPHER     = int(mu::engraving::StaffGroup::CIPHER),
 };
 Q_ENUM_NS(StaffGroup);
 

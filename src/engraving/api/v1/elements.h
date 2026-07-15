@@ -748,6 +748,13 @@ class EngravingItem : public apiv1::ScoreElement
     /// For lyrics and lyrics lines: The verse they are assigned to.
     API_PROPERTY_T(int, verse,            VERSE)
 
+    API_PROPERTY_T(int, move, LYRICS_STAFF_SHIFT)
+
+    /// For lyrics: The syllabic, one of
+    /// PluginAPI::PluginAPI::Syllabic values.
+    API_PROPERTY_T(int, syllabic,         SYLLABIC)
+    /// The tick length of a lyrics object.
+    API_PROPERTY(lyricTicks,              LYRIC_TICKS)
     /// For voltas: The list of passes on which to play the underlying measures.
     API_PROPERTY(volta_ending,            VOLTA_ENDING)
     /// For line elements: Controls the visibility of the line.

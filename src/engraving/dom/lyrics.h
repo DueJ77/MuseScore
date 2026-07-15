@@ -63,6 +63,8 @@ public:
     void setVerse(int n) { m_verse = n; }
     int verse() const { return m_verse; }
     bool isEven() const { return m_verse % 2; }
+    void setMove_lyrics(int n) { m_move_lyrics = n; }
+    int move_lyrics() const { return m_move_lyrics; }
     void setSyllabic(LyricsSyllabic s) { m_syllabic = s; }
     LyricsSyllabic syllabic() const { return m_syllabic; }
     void add(EngravingItem*) override;
@@ -104,7 +106,9 @@ public:
 
     bool avoidBarlines() const { return m_avoidBarlines; }
     void setAvoidBarlines(bool v) { m_avoidBarlines = v; }
+    void layout3();
 
+    int m_move_lyrics = 0;  //Move lyrics to a different voice
 private:
 
     friend class Factory;
@@ -146,6 +150,7 @@ public:
     bool setProperty(Pid propertyId, const PropertyValue& v) override;
     PropertyValue propertyDefault(Pid id) const override;
     Sid getPropertyStyle(Pid) const override;
+    void layout3();
 
 protected:
     LyricsLine(const ElementType& type, EngravingItem* parent, ElementFlags = ElementFlag::NOTHING);
@@ -200,6 +205,8 @@ public:
     };
     DECLARE_LAYOUTDATA_METHODS(LyricsLineSegment)
 
+    void layout3();
+
 protected:
     LyricsLineSegment(const ElementType& type, LyricsLine* sp, System* parent, ElementFlags f = ElementFlag::NOTHING);
     void rebaseAnchors(EditData&, Grip) override;
@@ -210,6 +217,7 @@ class PartialLyricsLine final : public LyricsLine
     OBJECT_ALLOCATOR(engraving, PartialLyricsLine)
     DECLARE_CLASSOF(ElementType::PARTIAL_LYRICSLINE)
 
+    M_PROPERTY2(int, move_lyrics, setMove_lyrics, 0)
 public:
     PartialLyricsLine(EngravingItem* parent);
     PartialLyricsLine(const PartialLyricsLine&);

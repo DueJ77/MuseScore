@@ -936,6 +936,7 @@ TextBase* Score::addText(TextStyleType type, EngravingItem* destinationElement)
         }
 
         int no = static_cast<int>(chordRest->lyrics().size());
+        int move_lyrics = chordRest->lyrics().empty() ? 0 : static_cast<int>(chordRest->lyrics().front()->move_lyrics());
         const auto& spanners = spannerMap().findOverlapping(chordRest->tick().ticks(), chordRest->endTick().ticks());
         for (auto& spanner : spanners) {
             if (!spanner.value->isPartialLyricsLine() || spanner.start != chordRest->tick().ticks()) {
@@ -951,7 +952,8 @@ TextBase* Score::addText(TextStyleType type, EngravingItem* destinationElement)
         lyrics->setTrack(chordRest->track());
         lyrics->setParent(chordRest);
         lyrics->setProperty(Pid::VERSE, no);
-
+        lyrics->setProperty(Pid::LYRICS_STAFF_SHIFT, move_lyrics);
+        
         textBox = lyrics;
         undoAddElement(textBox);
         break;

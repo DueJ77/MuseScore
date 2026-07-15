@@ -60,6 +60,8 @@ Lyrics::Lyrics(ChordRest* parent)
     m_separator  = 0;
     initElementStyle(&lyricsElementStyle);
     m_verse         = 0;
+    m_no         = 0;
+    m_move_lyrics = 0;
     m_ticks      = Fraction(0, 1);
     m_syllabic   = LyricsSyllabic::SINGLE;
 }
@@ -68,6 +70,8 @@ Lyrics::Lyrics(const Lyrics& l)
     : TextBase(l)
 {
     m_verse        = l.m_verse;
+    m_no        = l.m_no;
+    m_move_lyrics = l.m_move_lyrics;
     m_ticks     = l.m_ticks;
     m_syllabic  = l.m_syllabic;
     m_separator = 0;
@@ -398,6 +402,8 @@ PropertyValue Lyrics::getProperty(Pid propertyId) const
         return m_verse;
     case Pid::AVOID_BARLINES:
         return m_avoidBarlines;
+    case Pid::LYRICS_STAFF_SHIFT:
+        return m_move_lyrics;
     default:
         return TextBase::getProperty(propertyId);
     }
@@ -468,6 +474,17 @@ bool Lyrics::setProperty(Pid propertyId, const PropertyValue& v)
     case Pid::VISIBLE:
         setVisible(v.toBool());
         break;
+    case Pid::LYRICS_STAFF_SHIFT:
+        if (placeBelow()) {
+            if ((v.toInt() + staffIdx()) > (score()->nstaves()-1)) m_move_lyrics = score()->nstaves() - staffIdx()-1;
+            else m_move_lyrics = v.toInt();
+        }
+        else {
+            int b = staffIdx() - v.toInt();
+            if (b < 0) m_move_lyrics = staffIdx();
+            else m_move_lyrics = v.toInt();
+        }
+        break;
     default:
         if (!TextBase::setProperty(propertyId, v)) {
             return false;
@@ -498,6 +515,9 @@ PropertyValue Lyrics::propertyDefault(Pid id) const
     case Pid::AVOID_BARLINES:
         return style().styleB(Sid::lyricsAvoidBarlines);
     case Pid::POSITION:
+    case Pid::LYRICS_STAFF_SHIFT:
+        return 0;
+    case Pid::ALIGN:
         if (isMelisma()) {
             return style().styleV(Sid::lyricsMelismaAlign).value<Align>().horizontal;
         }
@@ -575,6 +595,20 @@ void Lyrics::undoChangeProperty(Pid id, const PropertyValue& v, PropertyFlags ps
     } else if (id == Pid::VISIBLE && separator()) {
         separator()->undoChangeProperty(Pid::VISIBLE, v.toBool(), ps);
     }
+    if (id == Pid::LYRICS_STAFF_SHIFT && move_lyrics() != v.toInt()) {
+        for (Lyrics* l : chordRest()->lyrics()) {
+            if (l->move_lyrics() == v.toInt()) {
+                // verse already exists, swap
+                l->TextBase::undoChangeProperty(id, move_lyrics(), ps);
+                PlacementV p = l->placement();
+                l->TextBase::undoChangeProperty(Pid::PLACEMENT, int(placement()), ps);
+                TextBase::undoChangeProperty(Pid::PLACEMENT, int(p), ps);
+                break;
+            }
+        }
+        TextBase::undoChangeProperty(id, v, ps);
+        return;
+    }
 
     TextBase::undoChangeProperty(id, v, ps);
 }
@@ -599,6 +633,65 @@ void Lyrics::removeInvalidSegments()
         } else {
             undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::END));
         }
+    }
+}
+//---------------------------------------------------------
+//   layout3
+//    compute vertical position
+//---------------------------------------------------------
+
+void Lyrics::layout3()
+{
+
+    if (placeBelow()) {
+        int schift = staffIdx() + m_move_lyrics;
+        if (score()->nstaves() <= schift)
+            schift = score()->nstaves() - 1;
+        qreal y1 = segment()->measure()->system()->staff(staffIdx())->get_distanceFirstStaff();
+        qreal y2 = segment()->measure()->system()->staff(schift)->get_distanceFirstStaff();
+        mutldata()->moveY(y2 - y1);
+    }
+    else {
+        int schift = staffIdx() - m_move_lyrics;
+        if (0 > schift)
+            schift = 0;
+        qreal y1 = segment()->measure()->system()->staff(staffIdx())->get_distanceFirstStaff();
+        qreal y2 = segment()->measure()->system()->staff(schift)->get_distanceFirstStaff();
+        mutldata()->moveY(-(y1 - y2));
+    }
+}
+//---------------------------------------------------------
+//   layout3
+//    compute vertical position
+//---------------------------------------------------------
+
+void LyricsLineSegment::layout3()
+{
+    qreal y = 0.0;
+    if (lyrics()) {
+        y = lyrics()->yRelativeToStaff();
+        y += baseLineShift();
+        y -= offset().y();
+        mutldata()->setPosY(y);
+        return;
+    }
+    if (placeBelow()) {
+        int schift = staffIdx() + lyrics()->move_lyrics();
+        if (score()->nstaves() <= schift)
+            schift = score()->nstaves() - 1;
+        qreal y1 = lyrics()->segment()->measure()->system()->staff(staffIdx())->get_distanceFirstStaff();
+        qreal y2 = lyrics()->segment()->measure()->system()->staff(schift)->get_distanceFirstStaff();
+        qreal y = mutldata()->pos().y();
+        y += y2 - y1;
+        mutldata()->setPosY(y);
+    }
+    else {
+        int schift = staffIdx() - lyrics()->move_lyrics();
+        if (0 > schift)
+            schift = 0;
+        qreal y1 = lyrics()->segment()->measure()->system()->staff(staffIdx())->get_distanceFirstStaff();
+        qreal y2 = lyrics()->segment()->measure()->system()->staff(schift)->get_distanceFirstStaff();
+        mutldata()->moveY(y1 - y2);
     }
 }
 }

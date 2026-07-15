@@ -35,7 +35,7 @@ enum class TupletNumberType : unsigned char {
     SHOW_NUMBER, SHOW_RELATION, NO_TEXT
 };
 enum class TupletBracketType : unsigned char {
-    AUTO_BRACKET, SHOW_BRACKET, SHOW_NO_BRACKET
+    AUTO_BRACKET, SHOW_BRACKET, SHOW_SLUR, SHOW_NO_BRACKET
 };
 
 //------------------------------------------------------------------------
@@ -85,6 +85,8 @@ public:
     void setBracketType(TupletBracketType val) { m_bracketType = val; }
     bool hasBracket() const { return m_hasBracket; }
     void setHasBracket(bool b) { m_hasBracket = b; }
+    bool hasSlur() const { return m_hasSlur; }
+    void setHasSlur(bool b) { m_hasSlur = b; }
     Spatium bracketWidth() const { return m_bracketWidth; }
     void setBracketWidth(Spatium s) { m_bracketWidth = s; }
 
@@ -164,6 +166,9 @@ public:
     EngravingItem* nextElement() override;
     EngravingItem* prevElement() override;
 
+    const PainterPath get_SlurPath() const { return _SlurPath; }
+    void set_SlurPath(PainterPath SlurPath) { _SlurPath = SlurPath; }
+
 private:
 
     friend class DurationElement;
@@ -187,6 +192,7 @@ private:
     Spatium m_bracketWidth;
 
     bool m_hasBracket = false;
+    bool m_hasSlur = false;
     Fraction m_ratio;
     TDuration m_baseLen;        // 1/8 for a triplet of 1/8
 
@@ -200,5 +206,7 @@ private:
     mutable int m_id;                   // used during read/write
 
     Text* m_number = nullptr;
+
+    PainterPath _SlurPath;
 };
 }
