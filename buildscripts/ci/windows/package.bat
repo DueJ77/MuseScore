@@ -52,7 +52,7 @@ IF %BUILD_MODE% == testing ( SET PACKAGE_TYPE="msi") ELSE (
 IF %BUILD_MODE% == stable  ( SET PACKAGE_TYPE="msi") ELSE ( 
     ECHO "Unknown BUILD_MODE: %BUILD_MODE%"
     GOTO END_ERROR
-)))))
+))))))
 
 SET DO_SIGN=OFF
 IF %PACKAGE_TYPE% == "msi" ( 
