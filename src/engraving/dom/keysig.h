@@ -106,6 +106,8 @@ public:
     qreal get_cipherHeigth() const { return m_cipherHeigth; }
     qreal get_cipherLeftAdjust() const { return m_cipherLeftAdjust; }
     qreal get_cipherNoteShift() const { return m_cipherNoteShift; }
+    muse::draw::Font get_cipherFont() const{ return m_cipherFont; }
+    muse::draw::Font get_cipherAccidentalFont() const { return m_cipherAccidentalFont; }
     qreal get_cipherReigthAdjust() const { return m_cipherReigthAdjust; }
     int get_cipherAccidentalShift() const { return m_cipherAccidentalShift; }
     PointF get_cipherPoint() const { return m_cipherPoint; }
@@ -117,10 +119,12 @@ public:
     RectF get_cipherShape() const { return m_cipherShape; }
     bool get_cipherEnable() const { return m_cipherEnable; }
     bool get_cipherDrawNote()const { return m_cipherDrawNote; }
-    void set_cipherNote(String note, int Accidental, qreal shift) {
+    void set_cipherNote(String note, int Accidental, qreal shift, muse::draw::Font font, muse::draw::Font AccidentalFont) {
         m_cipherNoteString = note;
         m_cipherAccidentalShift = Accidental;
         m_cipherNoteShift = shift;
+        m_cipherFont = font;
+        m_cipherAccidentalFont = AccidentalFont;
     }
     void set_cipherHeigth(qreal r) { m_cipherHeigth = r; }
     void set_cipherLeftAdjust(qreal r) {m_cipherLeftAdjust = r; }
@@ -160,6 +164,8 @@ private:
     RectF m_cipherShape;
     int m_cipherAccidentalShift;
     qreal m_cipherNoteShift;
+    muse::draw::Font m_cipherFont;
+    muse::draw::Font m_cipherAccidentalFont;
     qreal m_cipherHeigth;
     PointF m_cipherPoint;
     PointF m_cipherNotePoint;

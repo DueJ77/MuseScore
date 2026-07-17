@@ -71,6 +71,7 @@
 #include "tie.h"
 #include "utils.h"
 #include "volta.h"
+#include "keysig.h"
 
 #include "log.h"
 
@@ -1167,24 +1168,26 @@ void Note::cipher_setKeysigNote(KeySig* sig)
     if (staff()->key(tick()) != staff()->key(tick() - Fraction::fromTicks(1)) && track() % 4 == 0) {
         bool drawFlatTemp = m_drawFlat;
         bool drawSharpTemp = m_drawSharp;
-
-        m_drawFlat = false;
-        m_drawSharp = false;
-        int numtransposeInterval = part()->instrument(chord()->tick())->transpose().chromatic;
-        int clefshift = get_cipherOktave();
-        int grundtonverschibung = get_cipherTrans(staff()->key(tick() - Fraction::fromTicks(1)));
-        int zifferkomatik = ((m_pitch + grundtonverschibung + numtransposeInterval) % 12) + 1;
-        QString fretString = get_cipherString(zifferkomatik);
-        qreal fretStringYShift = ((m_pitch + grundtonverschibung + numtransposeInterval) / 12 - 5 - clefshift) * m_cipherHeigth * style().styleD(Sid::cipherDistanceOctave);
         int accid = 0;
-        if (m_drawFlat) {
-            accid--;
-        }
-        if (m_drawSharp) {
+        int accidentalshift = 0;
+        int numtransposeInterval = part()->instrument(chord()->tick())->transpose().chromatic;
+        int step = tpc2stepByKey(tpc(), staff()->key(tick() - Fraction::fromTicks(1)), accidentalshift);
+        //qWarning().nospace() << "step" << step << "acci" << accidentalshift;
+        if (accidentalshift > 1 || accidentalshift < -1)accidentalshift = 0;
+        if (accidentalshift == 1) {
             accid++;
         }
+        else if (accidentalshift == -1) {
+            accid--;
+        }
 
-        //sig->set_cipherNote(fretString + ")", accid, fretStringYShift);
+        int clefshift = get_cipherOktave();
+        int grundtonverschibung = get_cipherTrans(staff()->key(tick() - Fraction::fromTicks(1)));
+        int zifferkomatik = ((pitch() - accidentalshift + grundtonverschibung + numtransposeInterval) % 12) + 1;
+        QString fretString = get_cipherString(zifferkomatik);
+        qreal fretStringYShift = ((pitch() + grundtonverschibung - accidentalshift + numtransposeInterval) / 12 - 5 - clefshift) * m_cipherHeigth *
+            style().styleD(Sid::cipherDistanceOctave);
+        sig->set_cipherNote(fretString, accid, fretStringYShift, get_cipherFont(), get_cipherAccidentalFont());
         m_drawFlat = drawFlatTemp;
         m_drawSharp = drawSharpTemp;
     }

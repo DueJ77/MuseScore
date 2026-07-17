@@ -3634,10 +3634,10 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
             qreal wds = 0.0;
             StaffType* cipher = item->staff()->staffType(item->tick());
             const_cast<KeySig*>(item)->set_cipherHeigth(cipher->fretBoxH() * item->magS() * item->style().styleD(Sid::cipherKeySigSize));
+            int staffindex = item->staff()->idx();
+            bool isZero = item->tick().isZero();
+            bool wechsel = item->staff()->key(item->tick() - Fraction::fromTicks(1)) != item->keySigEvent().key();
             if (!item->segment()->isKeySigAnnounceType()) {
-                int staffindex = item->staff()->idx();
-                bool isZero = item->tick().isZero();
-                bool wechsel = item->staff()->key(item->tick() - Fraction::fromTicks(1)) != item->keySigEvent().key();
                 //rxpos() = 0.0;
                 if ((isZero || wechsel) && item->staff() && staffindex < 1) {
                     const_cast<KeySig*>(item)->set_cipherEnable(item->enabled());
@@ -3660,9 +3660,9 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
                     ldata->setBbox(RectF());
                 }
             }
-            const_cast<KeySig*>(item)->set_cipherDrawNote(item->showCourtesy() && !item->tick().isZero());
+            const_cast<KeySig*>(item)->set_cipherDrawNote(!isZero && wechsel && item->showCourtesy());
             if (item->get_cipherDrawNote()) {
-                if (item->get_cipherDrawNote() && item->segment()->isKeySigType()) {
+                if (item->segment()->isKeySigType()) {
                     Segment* seg = item->segment()->next();
                     while (seg && !seg->isChordRestType()) {
                         seg = seg->next();
@@ -3689,9 +3689,13 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
                         }
                     }
                 }
+                //item->measure()->system()->firstMeasure() != item->measure()
+                if (item->measure()&&item->measure()->system()&&item->measure()->system()->firstMeasure() == item->measure()) const_cast<KeySig*>(item)->set_cipherNoteString((String)"");
                 if (item->get_cipherNoteString() != "") {
 
-                    const_cast<KeySig*>(item)->set_cipherNotePoint(PointF(0.0, item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeightDisplacement) - item->get_cipherNoteShift()));
+                    const_cast<KeySig*>(item)->set_cipherNotePoint(PointF((item->cipherGetWidth(cipher, item->get_cipherNoteString()))/2,
+                        item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeightDisplacement) - item->get_cipherNoteShift()));
+                    const_cast<KeySig*>(item)->set_cipherNoteString(item->get_cipherNoteString()+(String)")");
                     const_cast<KeySig*>(item)->set_cipherNoteRecht(RectF(item->get_cipherNotePoint().x(), item->get_cipherNotePoint().y() - item->get_cipherHeigth(), item->cipherGetWidth(cipher,
                         item->get_cipherNoteString()), item->get_cipherHeigth()));
                     ldata->setBbox(item->get_cipherNoteRecht());
@@ -3737,6 +3741,7 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
                 else {
                     const_cast<KeySig*>(item)->set_cipherShape(RectF());
                     const_cast<KeySig*>(item)->set_cipherReigthAdjust(wds);
+                    const_cast<KeySig*>(item)->set_cipherDrawNote(false);
                     //rxpos()=get_cipherXpos() + _cipherHigth*-score()->styleD(Sid::cipherKeySigHorizontalShift);
                 }
             }
@@ -4244,7 +4249,7 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
 
         noteBBox = RectF(0, y * mags, w, height * mags);
     } else if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
-        StaffType* cipher = item->staff()->staffType(item->tick());
+        //StaffType* cipher = item->staff()->staffType(item->tick());
 
         int accidentalshift = 0;
         const_cast<Note*>(item)->set_drawFlat(false);

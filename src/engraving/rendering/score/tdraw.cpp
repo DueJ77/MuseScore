@@ -2131,16 +2131,20 @@ void TDraw::draw(const KeySig* item, Painter* painter, const PaintOptions& opt)
         }
         if (item->get_cipherDrawNote()) {
 
+            font = item->get_cipherFont();
+            font.setPointSizeF(font.pointSizeF() * item->magS());
+            painter->setFont(font);
             painter->drawText(item->get_cipherNotePoint(), item->get_cipherNoteString());
+            painter->setFont(font);
             painter->drawText(item->get_cipherNoteKlammerPoint(), (String)"(");
             if (item->get_cipherAccidentalShift() != 0) {
                 if (item->get_cipherAccidentalShift() == 1) {
-                    Font fontAccidental = item->cipherKeySigFont();
-                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() / item->defaultSpatium()));
+                    Font fontAccidental = item->get_cipherAccidentalFont();
+                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignSharp) * item->spatium() / item->defaultSpatium()));
                     item->drawSharp(painter, item->get_cipherAccidentalPoint(), fontAccidental);
                 }
                 if (item->get_cipherAccidentalShift() == -1) {
-                    Font fontAccidental = item->cipherKeySigFont();
+                    Font fontAccidental = item->get_cipherAccidentalFont();
                     fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() / item->defaultSpatium()));
                     item->drawFlat(painter, item->get_cipherAccidentalPoint(), fontAccidental);
                 }
@@ -2437,7 +2441,9 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
         }
         if (item->get_trackthick() != 1.0 && item->style().styleB(Sid::cipherbracket)) {
 
+            painter->setFont(font);
             painter->drawText(item->get_cipherKlammerPos(), (String)"(");
+            painter->setFont(font);
             painter->drawText((PointF(item->get_cipherTextPos().x() + item->get_cipherWidth2(), item->get_cipherKlammerPos().y())), (String)")");
         }
     }
