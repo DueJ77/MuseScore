@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -261,11 +261,11 @@ bool LineSegment::edit(EditData& ed)
         } else {
             s2 = MoveElementAnchors::findNewAnchorSegmentForLine(this, ed, s2);
         }
-        if (s1 == 0 || s2 == 0 || s1->tick() >= s2->tick()) {
+        if (!s1 || !s2 || s1->tick() >= s2->tick()) {
             return true;
         }
 
-        undoMoveStartEndAndSnappedItems(moveStart, moveEnd, s1, s2);
+        undoMoveStartEndAndSnappedItems(ed, moveStart, moveEnd, s1, s2);
 
         EditTimeTickAnchors::updateAnchors(this);
     }
@@ -357,6 +357,18 @@ bool LineSegment::edit(EditData& ed)
                 if (m2->nextMeasure()) {
                     m2 = m2->nextMeasure();
                 }
+            }
+        } else if (ed.key == Key_Home) {
+            if (moveStart) {
+                m1 = m1->system()->firstMeasure();
+            } else if (moveEnd) {
+                m2 = m2->system()->firstMeasure();
+            }
+        } else if (ed.key == Key_End) {
+            if (moveStart) {
+                m1 = m1->system()->lastMeasure();
+            } else if (moveEnd) {
+                m2 = m2->system()->lastMeasure();
             }
         }
         if (m1->tick() > m2->tick()) {
@@ -584,14 +596,6 @@ void LineSegment::rebaseAnchors(EditData& ed, Grip grip)
         return;
     }
 
-    if (isTrillSegment()) {
-        EngravingItem* startElement = spanner()->startElement();
-        if (startElement && startElement->isChord() && toChord(startElement)->staffMove() != 0) {
-            // This trill is on a cross-staff chord. Don't try to rebase its anchors when dragging.
-            return;
-        }
-    }
-
     // don't change anchors on keyboard adjustment or if Ctrl is pressed
     // (Ctrl+Left/Right is handled elsewhere!)
     if (ed.key == Key_Left || ed.key == Key_Right || ed.key == Key_Up || ed.key == Key_Down || ed.modifiers & ControlModifier) {
@@ -686,7 +690,7 @@ void LineSegment::rebaseAnchors(EditData& ed, Grip grip)
         PointF oldStartPos = line()->linePos(Grip::START, &sys);
         PointF oldEndPos = line()->linePos(Grip::END, &sys);
 
-        undoMoveStartEndAndSnappedItems(true, true, seg1, seg2);
+        undoMoveStartEndAndSnappedItems(ed, true, true, seg1, seg2);
 
         rebaseOffsetsOnAnchorChanged(Grip::START, oldStartPos, sys);
         rebaseOffsetsOnAnchorChanged(Grip::END, oldEndPos, sys);
@@ -843,12 +847,13 @@ double LineSegment::absoluteFromSpatium(const Spatium& sp) const
     return line()->absoluteFromSpatium(sp);
 }
 
-void LineSegment::undoMoveStartEndAndSnappedItems(bool moveStart, bool moveEnd, Segment* s1, Segment* s2)
+void LineSegment::undoMoveStartEndAndSnappedItems(EditData& ed, bool moveStart, bool moveEnd, Segment* s1, Segment* s2)
 {
+    bool moveSnapped = !(ed.modifiers & AltModifier);
     SLine* thisLine = line();
     if (moveStart) {
         Fraction tickDiff = s1->tick() - thisLine->tick();
-        if (EngravingItem* itemSnappedBefore = ldata()->itemSnappedBefore()) {
+        if (EngravingItem* itemSnappedBefore = ldata()->itemSnappedBefore(); itemSnappedBefore && moveSnapped) {
             if (itemSnappedBefore->isTextBase()) {
                 MoveElementAnchors::moveSegment(itemSnappedBefore, s1, tickDiff);
             } else if (itemSnappedBefore->isLineSegment()) {
@@ -861,7 +866,7 @@ void LineSegment::undoMoveStartEndAndSnappedItems(bool moveStart, bool moveEnd, 
     }
     if (moveEnd) {
         Fraction tickDiff = s2->tick() - thisLine->tick2();
-        if (EngravingItem* itemSnappedAfter = thisLine->backSegment()->ldata()->itemSnappedAfter()) {
+        if (EngravingItem* itemSnappedAfter = thisLine->backSegment()->ldata()->itemSnappedAfter(); itemSnappedAfter && moveSnapped) {
             if (itemSnappedAfter->isTextBase()) {
                 MoveElementAnchors::moveSegment(itemSnappedAfter, s2, tickDiff);
             } else if (itemSnappedAfter->isLineSegment()) {

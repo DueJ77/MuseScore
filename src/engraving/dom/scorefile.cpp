@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -80,16 +80,13 @@ std::shared_ptr<Pixmap> Score::createThumbnail()
 
     Page* page = pages().at(0);
     RectF fr = page->pageBoundingRect();
-    double mag = 256.0 / std::max(fr.width(), fr.height());
+    double mag = 512.0 / std::max(fr.width(), fr.height());
     int w = int(fr.width() * mag);
     int h = int(fr.height() * mag);
 
     int dpm = lrint(DPMM * 1000.0);
 
     auto pixmap = imageProvider()->createPixmap(w, h, dpm, configuration()->thumbnailBackgroundColor());
-
-    double pr = MScore::pixelRatio;
-    MScore::pixelRatio = 1.0;
 
     auto painterProvider = imageProvider()->painterForImage(pixmap);
     Painter p(painterProvider, "thumbnail");
@@ -98,8 +95,6 @@ std::shared_ptr<Pixmap> Score::createThumbnail()
     p.scale(mag, mag);
     print(&p, 0);
     p.endDraw();
-
-    MScore::pixelRatio = pr;
 
     if (layoutMode() != mode) {
         setLayoutMode(mode);

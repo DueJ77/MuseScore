@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -182,6 +182,7 @@ public:
     static void write(const ActionIcon* item, XmlWriter& xml, WriteContext& ctx);
     static void write(const Ambitus* item, XmlWriter& xml, WriteContext& ctx);
     static void write(const Arpeggio* item, XmlWriter& xml, WriteContext& ctx);
+    static void write(const ChordBracket* item, XmlWriter& xml, WriteContext& ctx);
     static void write(const Articulation* item, XmlWriter& xml, WriteContext& ctx);
     static void write(const Audio* item, XmlWriter& xml, WriteContext& ctx);
 
@@ -237,6 +238,7 @@ public:
     static void write(const LetRing* item, XmlWriter& xml, WriteContext& ctx);
     static void write(const Location* item, XmlWriter& xml, WriteContext& ctx);
     static void write(const Lyrics* item, XmlWriter& xml, WriteContext& ctx);
+    static void write(const LyricsLine* item, XmlWriter& xml, WriteContext& ctx);
 
     static void write(const Marker* item, XmlWriter& xml, WriteContext& ctx);
     static void write(const MeasureNumber* item, XmlWriter& xml, WriteContext& ctx);
@@ -314,6 +316,7 @@ public:
     static void writeProperty(const EngravingItem* item, XmlWriter& xml, Pid pid, bool force = false);
 
     static void writeSystemLocks(const Score* score, XmlWriter& xml);
+    static void writeSystemDividers(const Score* score, XmlWriter& xml, WriteContext& ctx);
 
     static void writeItemEid(const EngravingObject* item, XmlWriter& xml, WriteContext& ctx);
     static void writeItemLink(const EngravingObject* item, XmlWriter& xml, WriteContext& ctx);
@@ -325,6 +328,7 @@ private:
     static void writeItemProperties(const EngravingItem* item, XmlWriter& xml, WriteContext& ctx);
     static void writeBoxProperties(const Box* item, XmlWriter& xml, WriteContext& ctx);
     static void writeProperties(const Articulation* item, XmlWriter& xml, WriteContext& ctx);
+    static void writeProperties(const Arpeggio* item, XmlWriter& xml, WriteContext& ctx);
     static void writeProperties(const Box* item, XmlWriter& xml, WriteContext& ctx);
     static void writeProperties(const HBox* item, XmlWriter& xml, WriteContext& ctx);
 
@@ -358,5 +362,7 @@ private:
     static void writeTupletEnd(DurationElement* item, XmlWriter& xml, WriteContext& ctx);
 
     static void writeSystemLock(const SystemLock* systemLock, XmlWriter& xml);
+
+    static void lineBreakToTag(String& str);
 };
 }

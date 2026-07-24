@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -87,15 +87,11 @@ public:
 
     void setParent(Segment* parent);
 
-    // Score Tree functions
-    EngravingObject* scanParent() const override;
-    EngravingObjectList scanChildren() const override;
-
     BarLine* clone() const override { return new BarLine(*this); }
     PointF canvasPos() const override;      ///< position in canvas coordinates
     PointF pagePos() const override;        ///< position in page coordinates
 
-    void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all=true) override;
+    void scanElements(std::function<void(EngravingItem*)> func) override;
     void setTrack(track_idx_t t) override;
     void add(EngravingItem*) override;
     void remove(EngravingItem*) override;

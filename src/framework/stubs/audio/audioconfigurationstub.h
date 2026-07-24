@@ -29,6 +29,7 @@ class AudioConfigurationStub : public IAudioConfiguration
 public:
     AudioEngineConfig engineConfig() const override;
 
+    std::string defaultAudioApi() const override;
     std::string currentAudioApi() const override;
     void setCurrentAudioApi(const std::string& name) override;
     async::Notification currentAudioApiChanged() const override;
@@ -43,15 +44,14 @@ public:
     void setDriverBufferSize(unsigned int size) override;
     async::Notification driverBufferSizeChanged() const override;
 
-    samples_t samplesToPreallocate() const override;
-    async::Channel<samples_t> samplesToPreallocateChanged() const override;
-
     unsigned int sampleRate() const override;
     void setSampleRate(unsigned int sampleRate) override;
     async::Notification sampleRateChanged() const override;
 
-    // synthesizers
+    OutputSpec defaultOutputSpec() const override;
+    OutputSpec desiredOutputSpec() const override;
 
+    // synthesizers
     io::paths_t soundFontDirectories() const override;
     io::paths_t userSoundFontDirectories() const override;
     void setUserSoundFontDirectories(const io::paths_t& paths) override;
@@ -60,6 +60,10 @@ public:
     bool autoProcessOnlineSoundsInBackground() const override;
     void setAutoProcessOnlineSoundsInBackground(bool process) override;
     async::Channel<bool> autoProcessOnlineSoundsInBackgroundChanged() const override;
+
+    bool useSoundFontLowPassFilter() const override;
+    void setUseSoundFontLowPassFilter(bool value) override;
+    async::Channel<bool> useSoundFontLowPassFilterChanged() const override;
 
     bool shouldMeasureInputLag() const override;
 };

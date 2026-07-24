@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,7 +35,7 @@
 #include "types/projecttypes.h"
 
 namespace mu::project {
-class IProjectConfiguration : MODULE_EXPORT_INTERFACE
+class IProjectConfiguration : MODULE_GLOBAL_INTERFACE
 {
     INTERFACE_ID(IProjectConfiguration)
 
@@ -138,6 +138,8 @@ public:
     virtual void setShouldDestinationFolderBeOpenedOnExport(bool shouldDestinationFolderBeOpenedOnExport) = 0;
 
     virtual QUrl supportForumUrl() const = 0;
+
+    virtual QUrl dotComBugReportUrl() const = 0;
 
     virtual bool openDetailedProjectUploadedDialog() const = 0;
     virtual void setOpenDetailedProjectUploadedDialog(bool show) = 0;

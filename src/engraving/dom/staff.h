@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,7 +32,7 @@
 #include "cleflist.h"
 #include "groups.h"
 #include "keylist.h"
-#include "pitch.h"
+#include "mscore.h"
 #include "stafftypelist.h"
 
 #include "../types/types.h"
@@ -114,8 +114,6 @@ public:
     TimeSig* nextTimeSig(const Fraction&) const;
     Fraction currentTimeSigTick(const Fraction&) const;
 
-    bool isLocalTimeSignature(const Fraction& tick) { return timeStretch(tick) != Fraction(1, 1); }
-
     const Groups& group(const Fraction&) const;
 
     Interval transpose(const Fraction& tick) const;
@@ -154,6 +152,9 @@ public:
     double staffHeight() const;
     double staffHeight(const Fraction& tick) const;
 
+    void set_cipherHeight(qreal h) { m_cipherHeigth = h; }
+    qreal get_cipherHeight() { return m_cipherHeigth; }
+
     int channel(const Fraction&, voice_idx_t voice) const;
 
     void clearChannelList(voice_idx_t voice) { m_channelList[voice].clear(); }
@@ -163,12 +164,12 @@ public:
     }
 
     SwingParameters swing(const Fraction&)  const;
-    void clearSwingList() { m_swingList.clear(); }
-    void insertIntoSwingList(const Fraction& tick, SwingParameters sp) { m_swingList.insert({ tick.ticks(), sp }); }
+    void clearSwingMap() { m_swingMap.clear(); }
+    void insertIntoSwingMap(const Fraction& tick, SwingParameters sp) { m_swingMap.insert({ tick.ticks(), sp }); }
 
     const CapoParams& capo(const Fraction&) const;
-    void insertCapoParams(const Fraction& tick, const CapoParams& params);
-    void clearCapoParams();
+    void insertCapoParams(const Fraction& tick, const CapoParams& params, bool ignoreNotationUpdate);
+    void removeCapoParams(const Fraction& tick);
 
     //==== staff type helper function
     const StaffType* staffType(const Fraction& = Fraction(0, 1)) const;
@@ -187,6 +188,8 @@ public:
     bool isTabStaff(const Fraction&) const;
     bool isDrumStaff(const Fraction&) const;
 
+    bool isCipherStaff(const Fraction&) const;
+
     int lines(const Fraction&) const;
     void setLines(const Fraction&, int lines);
     double lineDistance(const Fraction&) const;
@@ -204,9 +207,7 @@ public:
     double spatium(const EngravingItem*) const;
     //===========
 
-    PitchList& pitchOffsets() { return m_pitchOffsets; }
-
-    int pitchOffset(const Fraction& tick) const { return m_pitchOffsets.pitchOffset(tick.ticks()); }
+    int pitchOffset(const Fraction& tick) const;
     void updateOttava();
 
     std::vector<Staff*> staffList() const;
@@ -224,7 +225,6 @@ public:
     using EngravingItem::setColor;
     Color color(const Fraction&) const;
     void setColor(const Fraction&, const Color& val);
-    void undoSetColor(const Color& val);
     void insertTime(const Fraction&, const Fraction& len);
 
     PropertyValue getProperty(Pid) const override;
@@ -309,15 +309,16 @@ private:
     StaffTypeList m_staffTypeList;
 
     std::map<int, int> m_channelList[VOICES];
-    std::map<int, SwingParameters> m_swingList;
+    std::map<int, SwingParameters> m_swingMap;
     std::map<int, CapoParams> m_capoMap;
+    std::map<int, int> m_pitchOffsetMap;
     bool m_playbackVoice[VOICES] { true, true, true, true };
     std::array<bool, VOICES> m_visibilityVoices { true, true, true, true };
-
-    PitchList m_pitchOffsets;               // cached value
 
     bool m_reflectTranspositionInLinkedTab = true;
 
     AutoOnOff m_showMeasureNumbers = AutoOnOff::AUTO;
+
+    qreal m_cipherHeigth;
 };
 }

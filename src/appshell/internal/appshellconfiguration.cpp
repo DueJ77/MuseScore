@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,7 @@
 
 #include "settings.h"
 
-#include "multiinstances/resourcelockguard.h"
+#include "multiwindows/resourcelockguard.h"
 
 #include "log.h"
 
@@ -49,6 +49,7 @@ static const Settings::Key STARTUP_SCORE_PATH(module_name, "application/startup/
 static const std::string MUSESCORE_ONLINE_HANDBOOK_URL("https://handbook.musescore.org");
 
 static const std::string MUSESCORE_ASK_FOR_HELP_URL_PATH("/redirect/post/question");
+static const std::string MUSESCORE_ACCESSIBILITY_STATEMENT_URL_PATH("/about/musescore-studio-accessibility-statement");
 static const std::string MUSESCORE_FORUM_URL_PATH("/forum");
 static const std::string MUSESCORE_CONTRIBUTE_URL_PATH("/contribute");
 static const std::string MUSEHUB_FREE_MUSE_SOUNDS_URL("https://www.musehub.com/free-musesounds"
@@ -172,11 +173,6 @@ async::Notification AppShellConfiguration::startupScorePathChanged() const
     return m_startupScorePathChanged;
 }
 
-muse::io::path_t AppShellConfiguration::userDataPath() const
-{
-    return globalConfiguration()->userDataPath();
-}
-
 std::string AppShellConfiguration::handbookUrl() const
 {
     std::string utm = utmParameters(UTM_MEDIUM_MENU);
@@ -200,6 +196,11 @@ std::string AppShellConfiguration::askForHelpUrl() const
     };
 
     return museScoreUrl() + MUSESCORE_ASK_FOR_HELP_URL_PATH + "?" + params.join("&").toStdString();
+}
+
+std::string AppShellConfiguration::accessibilityStatementUrl() const
+{
+    return museScoreUrl() + MUSESCORE_ACCESSIBILITY_STATEMENT_URL_PATH;
 }
 
 std::string AppShellConfiguration::museScoreUrl() const
@@ -346,13 +347,13 @@ muse::io::path_t AppShellConfiguration::sessionFilePath() const
 
 RetVal<muse::ByteArray> AppShellConfiguration::readSessionState() const
 {
-    muse::mi::ReadResourceLockGuard lock_guard(multiInstancesProvider.get(), SESSION_RESOURCE_NAME);
+    muse::mi::ReadResourceLockGuard lock_guard(multiwindowsProvider.get(), SESSION_RESOURCE_NAME);
     return fileSystem()->readFile(sessionFilePath());
 }
 
 muse::Ret AppShellConfiguration::writeSessionState(const QByteArray& data)
 {
-    muse::mi::WriteResourceLockGuard lock_guard(multiInstancesProvider.get(), SESSION_RESOURCE_NAME);
+    muse::mi::WriteResourceLockGuard lock_guard(multiwindowsProvider.get(), SESSION_RESOURCE_NAME);
     return fileSystem()->writeFile(sessionFilePath(), ByteArray::fromQByteArrayNoCopy(data));
 }
 

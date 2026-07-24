@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -364,6 +364,11 @@ const SystemLocks* DomAccessor::systemLocks() const
         return nullptr;
     }
     return score()->systemLocks();
+}
+
+const PaddingTable& DomAccessor::paddingTable() const
+{
+    return score()->paddingTable();
 }
 
 ChordRest* DomAccessor::findCR(Fraction tick, track_idx_t track)

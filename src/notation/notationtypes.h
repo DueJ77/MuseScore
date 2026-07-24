@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,7 +23,6 @@
 
 #include <QPixmap>
 #include <QDate>
-#include <unordered_set>
 
 #include "translation.h"
 
@@ -368,17 +367,6 @@ struct PartInstrumentListScoreOrder
     ScoreOrder scoreOrder;
 };
 
-struct SearchCommand
-{
-    ElementType searchElementType = ElementType::INVALID;
-    std::string code;
-    std::string description;
-
-    SearchCommand(const ElementType& searchElementType, const std::string& code, const std::string& description)
-        : searchElementType(searchElementType), code(code), description(description) {}
-};
-using SearchCommands = QList<SearchCommand>;
-
 struct FilterElementsOptions
 {
     ElementType elementType = ElementType::INVALID;
@@ -605,12 +593,6 @@ struct StringTuningsInfo
 };
 
 using InstrumentStringTuningsMap = std::map<std::string, std::vector<StringTuningsInfo> >;
-
-enum class PercussionPanelAutoShowMode {
-    UNPITCHED_STAFF,
-    UNPITCHED_STAFF_NOTE_INPUT,
-    NEVER,
-};
 
 static const mu::engraving::ElementTypeSet NOTE_REST_TYPES {
     mu::engraving::ElementType::NOTE,

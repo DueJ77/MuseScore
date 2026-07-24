@@ -47,11 +47,11 @@ jobs:
     if: github.event_name != 'schedule' || github.repository == 'musescore/MuseScore'
     steps:
     - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.12.1
+      uses: styfle/cancel-workflow-action@0.13.0
       with:
         access_token: ${{ github.token }}
     - name: Clone repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: "Configure workflow"
       run: |
@@ -102,11 +102,12 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: 6.9.3
+        version: 6.10.2
         host: 'linux'
         target: 'desktop'
         arch: 'linux_gcc_64'
-        modules: 'qt5compat qtnetworkauth qtscxml qtshadertools qtwebsockets'
+        modules: 'qt5compat qtnetworkauth qtshadertools qtwebsockets'
+        cache: true
 
     - name: Setup environment
       run: |
@@ -125,10 +126,7 @@ jobs:
       run: |
         bash ./buildscripts/ci/backend/publish_to_s3.sh \
           --s3_key ${{ secrets.S3_KEY_CONVERTER }} \
-          --s3_secret ${{ secrets.S3_SECRET_CONVERTER }} \
-          --stage ${{ inputs.build_mode }} \
-          --mu_version ${{ env.VERSION }} \
-          --mu_version_major_minor ${{ env.VERSION_MAJOR_MINOR }}
+          --s3_secret ${{ secrets.S3_SECRET_CONVERTER }}
 
     - name: Build Docker (used package from S3)
       if: env.DO_PUBLISH == 'true'
@@ -140,15 +138,25 @@ jobs:
       run: |
         bash ./buildscripts/ci/backend/publish_to_registry.sh --token ${{ secrets.PACKAGES_PAT }}
 
-    - name: Deploy to musescore.com
+    - name: Check and update config on S3
       if: env.DO_DEPLOY == 'true'
       run: |
-        pip install jenkinsapi
-        python3 ./buildscripts/ci/backend/deploy.py --mu_version ${{ env.VERSION_MAJOR_MINOR }} --api_token ${{ secrets.JENKINS_API_TOKEN }}
+        STAGE="devel"
+        if [ "${{ inputs.build_mode }}" = "stable" ]; then
+          STAGE="stable"
+        fi
+
+        bash ./buildscripts/ci/backend/check_update_config_on_s3.sh \
+          --token ${{ secrets.PACKAGES_PAT }} \
+          --s3_key ${{ secrets.S3_KEY_CONVERTER }} \
+          --s3_secret ${{ secrets.S3_SECRET_CONVERTER }} \
+          --stage ${STAGE} \
+          --mu_version ${{ env.VERSION }} \
+          --mu_version_major_minor ${{ env.VERSION_MAJOR_MINOR }}
 
     - name: Upload artifacts on GitHub
       if: ${{ always() }}
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ env.GITHUB_ARTIFACT_NAME }}
         path: ./build.artifacts/

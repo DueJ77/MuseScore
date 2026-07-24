@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -67,7 +67,6 @@ void Paint::paintScore(Painter* painter, Score* score, const IScoreRenderer::Sco
     }
 
     // Setup score draw system
-    mu::engraving::MScore::pixelRatio = mu::engraving::DPI / DEVICE_DPI;
     mu::engraving::MScore::pdfPrinting = opt.isPrinting;
 
     const bool wasPrinting = score->printing();

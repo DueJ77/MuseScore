@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,8 +21,8 @@
  */
 #include "exportprojectscenario.h"
 
-#include "global/io/file.h"
 #include "global/io/fileinfo.h"
+#include "global/io/filestream.h"
 
 #include "translation.h"
 #include "defer.h"
@@ -39,12 +39,11 @@ std::vector<INotationWriter::UnitType> ExportProjectScenario::supportedUnitTypes
         return {};
     }
 
-    auto writer = writers()->writer(exportType.suffixes.front().toStdString());
-    if (!writer) {
-        return {};
+    if (auto writer = writers()->writer(exportType.suffixes.front().toStdString())) {
+        return writer->supportedUnitTypes();
     }
 
-    return writer->supportedUnitTypes();
+    return {};
 }
 
 RetVal<muse::io::path_t> ExportProjectScenario::askExportPath(const INotationPtrList& notations, const ExportType& exportType,
@@ -96,7 +95,7 @@ RetVal<muse::io::path_t> ExportProjectScenario::askExportPath(const INotationPtr
     return exportPath;
 }
 
-bool ExportProjectScenario::exportScores(const notation::INotationPtrList& notations, const muse::io::path_t destinationPath,
+bool ExportProjectScenario::exportScores(notation::INotationPtrList notations, const muse::io::path_t destinationPath,
                                          INotationWriter::UnitType unitType, bool openDestinationFolderOnExport) const
 {
     std::string suffix = io::suffix(destinationPath);
@@ -157,7 +156,7 @@ bool ExportProjectScenario::exportScores(const notation::INotationPtrList& notat
 
         m_exportProgress.canceled().onNotify(this, [writer]() {
             writer->abort();
-        });
+        }, muse::async::Asyncable::Mode::SetReplace);
     }
 
     DEFER {
@@ -404,9 +403,9 @@ Ret ExportProjectScenario::doExportLoop(const muse::io::path_t& scorePath, std::
     }
 
     while (true) {
-        io::File outputFile(scorePath);
+        io::FileStream outputFile(scorePath);
         outputFile.setMeta("file_path", scorePath.toStdString());
-        if (!outputFile.open(File::WriteOnly)) {
+        if (!outputFile.open(FileStream::WriteOnly)) {
             if (askForRetry(filename)) {
                 continue;
             } else {
@@ -417,9 +416,18 @@ Ret ExportProjectScenario::doExportLoop(const muse::io::path_t& scorePath, std::
         Ret ret = exportFunction(outputFile);
         outputFile.close();
 
-        if (!ret) {
+        if (!ret || outputFile.hasError()) {
             if (ret.code() == static_cast<int>(Ret::Code::Cancel)) {
-                fileSystem()->remove(scorePath);
+                // On Windows, remove() may fail immediately after close()
+                // because the file lock has not been released yet
+                for (int i = 0; i < 10; ++i) {
+                    if (fileSystem()->remove(scorePath)) {
+                        return ret;
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+
                 return ret;
             }
 

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -135,11 +135,11 @@ void EditModeRenderer::drawItem(const EngravingItem* item, muse::draw::Painter* 
 }
 
 void EditModeRenderer::drawEngravingItem(const EngravingItem* item, muse::draw::Painter* painter, const EditData& ed,
-                                         double currentViewScaling, const PaintOptions&)
+                                         double currentViewScaling, const PaintOptions& opt)
 {
     UNUSED(currentViewScaling);
 
-    Pen pen(item->configuration()->scoreInversionEnabled()
+    Pen pen(opt.invertColors
             ? item->configuration()->scoreInversionColor()
             : item->configuration()->defaultColor(), 0.0);
     painter->setPen(pen);
@@ -240,7 +240,6 @@ void EditModeRenderer::drawTextBase(const TextBase* item, muse::draw::Painter* p
         TextBase::sort(r1, c1, r2, c2);
         size_t row = 0;
         for (const TextBlock& t : ldata->blocks) {
-            t.draw(painter, item);
             if (row >= r1 && row <= r2) {
                 RectF br;
                 if (row == r1 && r1 == r2) {
@@ -277,4 +276,19 @@ void EditModeRenderer::drawTextBase(const TextBase* item, muse::draw::Painter* p
 
     painter->drawRect(r);
     pen = Pen(item->configuration()->defaultColor(), 0.0);
+}
+
+void EditModeRenderer::draw(const TextBlock& textBlock, const TextBase* item, muse::draw::Painter* painter)
+{
+    painter->translate(0.0, textBlock.y());
+    for (const TextFragment& f : textBlock.fragments()) {
+        draw(f, item, painter);
+    }
+    painter->translate(0.0, -textBlock.y());
+}
+
+void EditModeRenderer::draw(const TextFragment& textFragment, const TextBase* item, muse::draw::Painter* painter)
+{
+    painter->setFont(textFragment.font(item));
+    painter->drawText(textFragment.pos, textFragment.text);
 }

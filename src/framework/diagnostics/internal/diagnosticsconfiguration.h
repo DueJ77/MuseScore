@@ -28,13 +28,13 @@
 #include "iglobalconfiguration.h"
 
 namespace muse::diagnostics {
-class DiagnosticsConfiguration : public IDiagnosticsConfiguration, public Injectable
+class DiagnosticsConfiguration : public IDiagnosticsConfiguration, public Contextable
 {
-    Inject<muse::IGlobalConfiguration> globalConfiguration = { this };
+    GlobalInject<muse::IGlobalConfiguration> globalConfiguration;
 
 public:
     DiagnosticsConfiguration(const modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx) {}
+        : Contextable(iocCtx) {}
 
     void init();
 

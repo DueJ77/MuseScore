@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,8 +27,8 @@
 
 #include "settings.h"
 #include "importexport/musicxml/imusicxmlconfiguration.h"
-#include "importexport/musicxml/internal/musicxml/import/importmusicxml.h"
-#include "importexport/musicxml/internal/musicxml/export/exportmusicxml.h"
+#include "importexport/musicxml/internal/import/importmusicxml.h"
+#include "importexport/musicxml/internal/export/exportmusicxml.h"
 
 #include "engraving/tests/utils/scorerw.h"
 #include "engraving/tests/utils/scorecomp.h"
@@ -84,7 +84,6 @@ static void fixupScore(MasterScore* score)
 {
     score->connectTies();
     score->masterScore()->rebuildMidiMapping();
-    score->setSaved(false);
 }
 
 void MusicXml_Tests::setValue(const std::string& key, const Val& value)
@@ -757,8 +756,11 @@ TEST_F(MusicXml_Tests, incompleteTuplet) {
 TEST_F(MusicXml_Tests, incorrectMidiProgram) {
     musicXmlIoTestRef("testIncorrectMidiProgram");
 }
-TEST_F(MusicXml_Tests, invisibleNotations) {
-    musicXmlIoTest("testInvisibleNotations");
+TEST_F(MusicXml_Tests, invisibleNotations1) {
+    musicXmlIoTest("testInvisibleNotations1");
+}
+TEST_F(MusicXml_Tests, invisibleNotations2) {
+    musicXmlIoTest("testInvisibleNotations2");
 }
 TEST_F(MusicXml_Tests, incorrectStaffNumber1) {
     musicXmlIoTestRef("testIncorrectStaffNumber1");
@@ -1216,6 +1218,9 @@ TEST_F(MusicXml_Tests, tablature4) {
 TEST_F(MusicXml_Tests, tablature5) {
     musicXmlIoTestRef("testTablature5");
 }
+TEST_F(MusicXml_Tests, tablature6) {
+    musicXmlMscxExportTestRef("testTabs");
+}
 TEST_F(MusicXml_Tests, tapping) {
     musicXmlIoTest("testTapping");
 }
@@ -1248,6 +1253,9 @@ TEST_F(MusicXml_Tests, tempo3) {
 }
 TEST_F(MusicXml_Tests, tempo4) {
     musicXmlIoTestRef("testTempo4");
+}
+TEST_F(MusicXml_Tests, metronome) {
+    musicXmlIoTest("testMetronome");
 }
 TEST_F(MusicXml_Tests, tempo5) {
     musicXmlIoTest("testTempo5");
@@ -1407,6 +1415,9 @@ TEST_F(MusicXml_Tests, voltaHiding2) {
 }
 TEST_F(MusicXml_Tests, wedgeOffset) {
     musicXmlImportTestRef("testWedgeOffset");
+}
+TEST_F(MusicXml_Tests, wedgeCR) {
+    musicXmlMscxExportTestRef("testWedgeCR");
 }
 TEST_F(MusicXml_Tests, wedge1) {
     musicXmlIoTest("testWedge1");

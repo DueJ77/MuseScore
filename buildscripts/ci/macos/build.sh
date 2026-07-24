@@ -5,7 +5,7 @@
 # MuseScore Studio
 # Music Composition & Notation
 #
-# Copyright (C) 2021 MuseScore Limited
+# Copyright (C) 2021 MuseScore Limited and others
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -25,17 +25,18 @@ SKIP_ERR=true
 
 ARTIFACTS_DIR=build.artifacts
 CRASH_REPORT_URL=""
+BUILD_CRASHPAD_CLIENT="OFF"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -n|--number) BUILD_NUMBER="$2"; shift ;;
-        --crash_log_url) CRASH_REPORT_URL="$2"; shift ;;
+        --crash_log_url) CRASH_REPORT_URL="$2"; BUILD_CRASHPAD_CLIENT=ON; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
 
-export MUSESCORE_DIAGNOSTICS_CRASHPAD_CLIENT=OFF
+export MUSESCORE_BUILD_CRASHPAD_CLIENT=OFF
 
 if [ -z "$BUILD_NUMBER" ]; then echo "error: not set BUILD_NUMBER"; exit 1; fi
 
@@ -59,9 +60,9 @@ MUSE_APP_BUILD_MODE=$MUSE_APP_BUILD_MODE \
 MUSESCORE_BUILD_NUMBER=$BUILD_NUMBER \
 MUSESCORE_REVISION=$MUSESCORE_REVISION \
 MUSESCORE_CRASHREPORT_URL=$CRASH_REPORT_URL \
+MUSESCORE_BUILD_CRASHPAD_CLIENT=$BUILD_CRASHPAD_CLIENT \
 MUSESCORE_BUILD_VST_MODULE="ON" \
 MUSESCORE_BUILD_WEBSOCKET="ON" \
-MUSESCORE_DIAGNOSTICS_CRASHPAD_CLIENT=$MUSESCORE_DIAGNOSTICS_CRASHPAD_CLIENT \
 bash ./ninja_build.sh -t install
 
 bash ./buildscripts/ci/tools/make_release_channel_env.sh -c $MUSE_APP_BUILD_MODE

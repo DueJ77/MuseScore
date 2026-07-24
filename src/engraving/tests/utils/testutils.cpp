@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2024 MuseScore Limited
+ * Copyright (C) 2024 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,6 +40,22 @@ Score* TestUtils::createPart(MasterScore* masterScore, size_t partNumber)
     ex->setExcerptScore(nscore);
     ex->setParts(parts);
     ex->setName(parts.front()->partName());
+    Excerpt::createExcerpt(ex);
+
+    masterScore->excerpts().push_back(ex);
+    masterScore->setExcerptsChanged(true);
+
+    EXPECT_TRUE(nscore);
+    return nscore;
+}
+
+Score* TestUtils::createEmptyPart(MasterScore* masterScore)
+{
+    Score* nscore = masterScore->createScore();
+
+    Excerpt* ex = new Excerpt(masterScore);
+    ex->setExcerptScore(nscore);
+
     Excerpt::createExcerpt(ex);
 
     masterScore->excerpts().push_back(ex);

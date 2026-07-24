@@ -24,7 +24,6 @@
 #include "imusesamplercheckupdateservice.h"
 
 #include "async/asyncable.h"
-#include "async/promise.h"
 #include "modularity/ioc.h"
 #include "musesampler/imusesamplerinfo.h"
 #include "musesampler/imusesamplerconfiguration.h"
@@ -32,20 +31,23 @@
 #include "imusesoundsconfiguration.h"
 
 namespace mu::musesounds {
-class MuseSamplerCheckUpdateService : public IMuseSamplerCheckUpdateService, public muse::Injectable, public muse::async::Asyncable
+class MuseSamplerCheckUpdateService : public IMuseSamplerCheckUpdateService, public muse::Contextable, public muse::async::Asyncable
 {
-    muse::ThreadSafeInject<muse::musesampler::IMuseSamplerInfo> museSampler = { this };
-    muse::ThreadSafeInject<muse::musesampler::IMuseSamplerConfiguration> museSamplerConfiguration = { this };
-    muse::ThreadSafeInject<muse::network::INetworkManagerCreator> networkManagerCreator = { this };
-    muse::ThreadSafeInject<IMuseSoundsConfiguration> configuration = { this };
+    muse::GlobalInject<IMuseSoundsConfiguration> configuration;
+    muse::GlobalInject<muse::network::INetworkManagerCreator> networkManagerCreator;
+    muse::GlobalInject<muse::musesampler::IMuseSamplerConfiguration> museSamplerConfiguration;
+    muse::ContextInject<muse::musesampler::IMuseSamplerInfo> museSampler = { this };
 
 public:
     MuseSamplerCheckUpdateService(const muse::modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx) {}
+        : muse::Contextable(iocCtx) {}
 
     bool canCheckForUpdate() const override;
     bool incompatibleLocalVersion() const override;
 
     muse::async::Promise<muse::RetVal<bool> > checkForUpdate() override;
+
+private:
+    muse::network::INetworkManagerPtr m_networkManager;
 };
 }

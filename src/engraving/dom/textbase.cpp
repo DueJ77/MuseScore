@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,8 +23,8 @@
 #include <cmath>
 #include <stack>
 
+#include "dom/harppedaldiagram.h"
 #include "draw/fontmetrics.h"
-#include "draw/painter.h"
 
 #include "iengravingfont.h"
 
@@ -239,6 +239,7 @@ Char TextCursor::currentCharacter() const
 
     const TextBlock& t = ldata->blocks.at(row());
     String s = t.text(static_cast<int>(column()), 1);
+    s = TextBase::unEscape(s);
     if (s.isEmpty()) {
         return Char();
     }
@@ -852,37 +853,6 @@ bool TextFragment::operator ==(const TextFragment& f) const
 }
 
 //---------------------------------------------------------
-//   draw
-//---------------------------------------------------------
-
-void TextFragment::draw(Painter* p, const TextBase* t) const
-{
-    Font f(font(t));
-    f.setPointSizeF(f.pointSizeF() * MScore::pixelRatio);
-#ifndef Q_OS_MACOS
-    TextBase::drawTextWorkaround(p, f, pos, text);
-#else
-    p->setFont(f);
-    p->drawText(pos, text);
-#endif
-}
-
-//---------------------------------------------------------
-//   drawTextWorkaround
-//---------------------------------------------------------
-
-void TextBase::drawTextWorkaround(Painter* p, Font& f, const PointF& pos, const String& text)
-{
-    double mm = p->worldTransform().m11();
-    if (!(MScore::pdfPrinting) && (mm < 1.0) && f.bold() && !(f.underline() || f.strike())) {
-        p->drawTextWorkaround(f, pos, text);
-    } else {
-        p->setFont(f);
-        p->drawText(pos, text);
-    }
-}
-
-//---------------------------------------------------------
 //   font
 //---------------------------------------------------------
 
@@ -894,9 +864,9 @@ Font TextFragment::font(const TextBase* t) const
     double spatiumScaling = 0.0;
 
     if (t->isInstrumentName()) {
-        spatiumScaling = toInstrumentName(t)->largestStaffSpatium() / SPATIUM20;
+        spatiumScaling = toInstrumentName(t)->largestStaffSpatium() / t->defaultSpatium();
     } else {
-        spatiumScaling = t->spatium() / SPATIUM20;
+        spatiumScaling = t->spatium() / t->defaultSpatium();
     }
 
     if (t->sizeIsSpatiumDependent()) {
@@ -909,40 +879,23 @@ Font TextFragment::font(const TextBase* t) const
     String family;
     Font::Type fontType = Font::Type::Unknown;
     if (format.fontFamily() == "ScoreText") {
-        if (t->isDynamic()
-            || t->isStringTunings()
-            || t->isPlayTechAnnotation()
-            || t->textStyleType() == TextStyleType::OTTAVA
-            || t->textStyleType() == TextStyleType::HARP_PEDAL_DIAGRAM
-            || t->textStyleType() == TextStyleType::TUPLET
-            || t->textStyleType() == TextStyleType::PEDAL
-            ) {
+        if (t->hasSymbolScale()) {
             std::string fontName = engravingFonts()->fontByName(t->style().styleSt(Sid::musicalSymbolFont).toStdString())->family();
             family = String::fromStdString(fontName);
             fontType = Font::Type::MusicSymbol;
-            if (!t->isStringTunings()) {
-                m = MUSICAL_SYMBOLS_DEFAULT_FONT_SIZE;
-                if (t->isDynamic()) {
-                    m *= t->getProperty(Pid::DYNAMICS_SIZE).toDouble() * spatiumScaling;
-                    if (t->style().styleB(Sid::dynamicsOverrideFont)) {
-                        std::string fontName2 = engravingFonts()->fontByName(t->style().styleSt(Sid::dynamicsFont).toStdString())->family();
-                        family = String::fromStdString(fontName2);
-                    }
-                } else {
-                    for (const auto& a : *textStyle(t->textStyleType())) {
-                        if (a.type == TextStylePropertyType::MusicalSymbolsScale) {
-                            m *= t->style().styleD(a.sid);
-                            if (t->sizeIsSpatiumDependent()) {
-                                m *= spatiumScaling;
-                            }
-                            break;
-                        }
-                    }
-                }
+
+            m = StyleDef::DEFAULT_SMUFL_POINT_SIZE();
+            m *= t->getProperty(Pid::MUSICAL_SYMBOLS_SCALE).toDouble();
+            if (t->sizeIsSpatiumDependent()) {
+                m *= spatiumScaling;
             }
-            // We use a default font size of 10pt for historical reasons,
-            // but SMuFL standard is 20pt so multiply x2 here.
-            m *= 2;
+
+            if (t->style().styleB(Sid::dynamicsOverrideFont)) {
+                std::string fontName2 = engravingFonts()->fontByName(t->style().styleSt(Sid::dynamicsFont).toStdString())->family();
+                family = String::fromStdString(fontName2);
+            }
+
+            m *= t->mag();
         } else if (t->hasSymbolSize()) {
             family = t->style().styleSt(Sid::musicalTextFont);
             fontType = Font::Type::MusicSymbolText;
@@ -950,43 +903,13 @@ Font TextFragment::font(const TextBase* t) const
             if (t->sizeIsSpatiumDependent()) {
                 m *= spatiumScaling;
             }
-        } else {
-            family = t->style().styleSt(Sid::musicalTextFont);
-            fontType = Font::Type::MusicSymbolText;
         }
         // check if all symbols are available
         font.setFamily(family, fontType);
         font.setNoFontMerging(true);
         FontMetrics fm(font);
 
-        bool fail = false;
-        for (size_t i = 0; i < text.size(); ++i) {
-            const Char& c = text.at(i);
-            if (c.isHighSurrogate()) {
-                if (i + 1 == text.size()) {
-                    ASSERT_X("bad string");
-                }
-                const Char& c2 = text.at(i + 1);
-                ++i;
-                char32_t v = Char::surrogateToUcs4(c, c2);
-                if (!fm.inFontUcs4(v)) {
-                    fail = true;
-                    break;
-                }
-            } else {
-                if (!fm.inFont(c)) {
-                    fail = true;
-                    break;
-                }
-            }
-        }
-        if (fail) {
-            if (fontType == Font::Type::MusicSymbol) {
-                family = String::fromUtf8(FALLBACK_SYMBOL_FONT);
-            } else {
-                family = String::fromUtf8(FALLBACK_SYMBOLTEXT_FONT);
-            }
-        }
+        resolveFallback(fontType, fm, family);
     } else {
         family = format.fontFamily();
         fontType = Font::Type::Unknown;
@@ -1003,20 +926,53 @@ Font TextFragment::font(const TextBase* t) const
     return font;
 }
 
-//---------------------------------------------------------
-//   draw
-//---------------------------------------------------------
-
-void TextBlock::draw(Painter* p, const TextBase* t) const
+void TextFragment::resolveFallback(muse::draw::Font::Type fontType, const muse::draw::FontMetrics& fm,
+                                   String& family) const
 {
-    p->translate(0.0, m_y);
-    for (const TextFragment& f : m_fragments) {
-        f.draw(p, t);
+    std::vector<char32_t> missingChars;
+    for (size_t i = 0; i < text.size(); ++i) {
+        const Char& c = text.at(i);
+        if (c.isHighSurrogate()) {
+            if (i + 1 == text.size()) {
+                ASSERT_X("bad string");
+            }
+            const Char& c2 = text.at(i + 1);
+            ++i;
+            char32_t v = Char::surrogateToUcs4(c, c2);
+            if (!fm.inFont(v)) {
+                missingChars.push_back(v);
+            }
+        } else {
+            if (!fm.inFont(c.unicode())) {
+                missingChars.push_back(c.unicode());
+            }
+        }
     }
-    p->translate(0.0, -m_y);
+
+    static String fallbackSymbolFontFamily = String::fromUtf8(FALLBACK_SYMBOL_FONT);
+    static String fallbackSymbolTextFontFamily = String::fromUtf8(FALLBACK_SYMBOLTEXT_FONT);
+    static FontMetrics fallbackSymbolFM(Font(fallbackSymbolFontFamily, Font::Type::MusicSymbol));
+    static FontMetrics fallbackSymbolTextFM(Font(fallbackSymbolTextFontFamily, Font::Type::MusicSymbolText));
+
+    if (fontType == Font::Type::MusicSymbol) {
+        for (char32_t missingChar : missingChars) {
+            if (fallbackSymbolFM.inFont(missingChar)) {
+                family = fallbackSymbolFontFamily;
+                return;
+            }
+        }
+    } else {
+        for (char32_t missingChar : missingChars) {
+            if (fallbackSymbolTextFM.inFont(missingChar)) {
+                family = fallbackSymbolTextFontFamily;
+                return;
+            }
+        }
+    }
 }
 
 //---------------------------------------------------------
+
 //   fragmentsWithoutEmpty
 //---------------------------------------------------------
 
@@ -1581,7 +1537,7 @@ TextBase::TextBase(const ElementType& type, EngravingItem* parent, TextStyleType
     m_frameType              = FrameType::NO_FRAME;
     m_frameWidth             = 0.1_sp;
     m_paddingWidth           = 0.2_sp;
-    m_frameRound             = 0;
+    m_frameRound             = 0_sp;
 
     m_cursor                 = new TextCursor(this);
     m_cursor->init();
@@ -1613,6 +1569,7 @@ TextBase::TextBase(const TextBase& st)
     m_frameRound                  = st.m_frameRound;
     m_position                    = st.m_position;
     m_symbolSize                  = st.m_symbolSize;
+    m_symbolScale                 = st.m_symbolScale;
 
     m_voiceAssignment = st.m_voiceAssignment;
     m_direction = st.m_direction;
@@ -1911,6 +1868,15 @@ void TextBase::layoutFrame(LayoutData* ldata) const
     w = 0.5 * frameWidth().val() * _spatium;
     ldata->setBbox(ldata->frame.adjusted(-w, -w, w, w));
 }
+
+// bool TextBase::positionRelativeToNoteheadRest() const
+// {
+//     if (!parent()) {
+//         return false;
+//     }
+
+//     return true;
+// }
 
 //---------------------------------------------------------
 //   lineSpacing
@@ -2415,6 +2381,7 @@ String TextBase::unEscape(String s)
     s.replace(u"&lt;", u"<");
     s.replace(u"&gt;", u">");
     s.replace(u"&amp;", u"&");
+    s.replace(u"&apos;", u"'");
     s.replace(u"&quot;", u"\"");
     return s;
 }
@@ -2428,6 +2395,7 @@ String TextBase::escape(String s)
     s.replace(u"<", u"&lt;");
     s.replace(u">", u"&gt;");
     s.replace(u"&", u"&amp;");
+    s.replace(u"'", u"&apos;");
     s.replace(u"\"", u"&quot;");
     return s;
 }
@@ -2580,7 +2548,7 @@ Font TextBase::font() const
 {
     double m = size();
     if (sizeIsSpatiumDependent()) {
-        m *= spatium() / SPATIUM20;
+        m *= spatium() / defaultSpatium();
     }
     Font f(family(), Font::Type::Unknown);
     f.setPointSizeF(m);
@@ -2671,6 +2639,8 @@ PropertyValue TextBase::getProperty(Pid propertyId) const
         return voiceAssignment();
     case Pid::MUSIC_SYMBOL_SIZE:
         return symbolSize();
+    case Pid::MUSICAL_SYMBOLS_SCALE:
+        return symbolScale();
     default:
         return EngravingItem::getProperty(propertyId);
     }
@@ -2719,7 +2689,7 @@ bool TextBase::setProperty(Pid pid, const PropertyValue& v)
         setPaddingWidth(v.value<Spatium>());
         break;
     case Pid::FRAME_ROUND:
-        setFrameRound(v.toInt());
+        setFrameRound(v.value<Spatium>());
         break;
     case Pid::FRAME_FG_COLOR:
         setFrameColor(v.value<Color>());
@@ -2759,6 +2729,9 @@ bool TextBase::setProperty(Pid pid, const PropertyValue& v)
         break;
     case Pid::MUSIC_SYMBOL_SIZE:
         setSymbolSize(v.toDouble());
+        break;
+    case Pid::MUSICAL_SYMBOLS_SCALE:
+        setSymbolScale(v.toDouble());
         break;
     default:
         rv = EngravingItem::setProperty(pid, v);
@@ -2807,8 +2780,6 @@ PropertyValue TextBase::propertyDefault(Pid id) const
         return AutoOnOff::AUTO;
     case Pid::VOICE_ASSIGNMENT:
         return VoiceAssignment::ALL_VOICE_IN_INSTRUMENT;
-    case Pid::MUSIC_SYMBOL_SIZE:
-        return styleValue(Pid::FONT_SIZE, getPropertyStyle(Pid::FONT_SIZE));
     default:
         for (const auto& p : *textStyle(TextStyleType::DEFAULT)) {
             if (p.pid == id) {
@@ -3126,8 +3097,6 @@ void TextBase::initTextStyleType(TextStyleType tid)
     for (const auto& p : *textStyle(tid)) {
         setProperty(getTextPID(p.pid), styleValue(p.pid, p.sid));
     }
-
-    resetProperty(Pid::MUSIC_SYMBOL_SIZE);
 }
 
 RectF TextBase::drag(EditData& ed)
@@ -3451,5 +3420,18 @@ void TextBase::undoChangeProperty(Pid id, const PropertyValue& v, PropertyFlags 
             break;
         }
     }
+}
+
+bool mu::engraving::TextBase::hasSymbolScale() const
+{
+    bool hasSymbolScale = isDynamic()
+                          || isStringTunings()
+                          || isPlayTechAnnotation()
+                          || (isHarpPedalDiagram() && toHarpPedalDiagram(this)->isDiagram())
+                          || (parent() && parent()->isOttavaSegment())
+                          || (parent() && parent()->isTuplet())
+                          || (parent() && parent()->isPedalSegment());
+
+    return hasSymbolScale;
 }
 }

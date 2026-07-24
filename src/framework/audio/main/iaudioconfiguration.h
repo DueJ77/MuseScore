@@ -31,7 +31,7 @@
 #include "audio/common/audiotypes.h"
 
 namespace muse::audio {
-class IAudioConfiguration : MODULE_EXPORT_INTERFACE
+class IAudioConfiguration : MODULE_GLOBAL_INTERFACE
 {
     INTERFACE_ID(IAudioConfiguration)
 public:
@@ -39,6 +39,7 @@ public:
 
     virtual AudioEngineConfig engineConfig() const = 0;
 
+    virtual std::string defaultAudioApi() const = 0;
     virtual std::string currentAudioApi() const = 0;
     virtual void setCurrentAudioApi(const std::string& name) = 0;
     virtual async::Notification currentAudioApiChanged() const = 0;
@@ -53,12 +54,12 @@ public:
     virtual void setDriverBufferSize(unsigned int size) = 0;
     virtual async::Notification driverBufferSizeChanged() const = 0;
 
-    virtual samples_t samplesToPreallocate() const = 0;
-    virtual async::Channel<samples_t> samplesToPreallocateChanged() const = 0;
-
     virtual unsigned int sampleRate() const = 0;
     virtual void setSampleRate(unsigned int sampleRate) = 0;
     virtual async::Notification sampleRateChanged() const = 0;
+
+    virtual OutputSpec defaultOutputSpec() const = 0;
+    virtual OutputSpec desiredOutputSpec() const = 0;
 
     // synthesizers
     virtual io::paths_t soundFontDirectories() const = 0;
@@ -69,6 +70,10 @@ public:
     virtual bool autoProcessOnlineSoundsInBackground() const = 0;
     virtual void setAutoProcessOnlineSoundsInBackground(bool value) = 0;
     virtual async::Channel<bool> autoProcessOnlineSoundsInBackgroundChanged() const = 0;
+
+    virtual bool useSoundFontLowPassFilter() const = 0;
+    virtual void setUseSoundFontLowPassFilter(bool value) = 0;
+    virtual async::Channel<bool> useSoundFontLowPassFilterChanged() const = 0;
 
     virtual bool shouldMeasureInputLag() const = 0;
 };

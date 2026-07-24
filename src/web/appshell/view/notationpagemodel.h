@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,19 +35,19 @@
 #include "dockwindow/idockwindowprovider.h"
 
 namespace mu::appshell {
-class NotationPageModel : public QObject, public muse::Injectable, public muse::async::Asyncable, public muse::actions::Actionable
+class NotationPageModel : public QObject, public muse::Contextable, public muse::async::Asyncable, public muse::actions::Actionable
 {
     Q_OBJECT
 
     Q_PROPERTY(bool isNavigatorVisible READ isNavigatorVisible NOTIFY isNavigatorVisibleChanged)
     Q_PROPERTY(bool isBraillePanelVisible READ isBraillePanelVisible NOTIFY isBraillePanelVisibleChanged)
 
-    muse::Inject<muse::actions::IActionsDispatcher> dispatcher = { this };
-    muse::Inject<context::IGlobalContext> globalContext = { this };
-    muse::Inject<IAppShellConfiguration> configuration = { this };
-    muse::Inject<notation::INotationConfiguration> notationConfiguration = { this };
-    muse::Inject<braille::IBrailleConfiguration> brailleConfiguration = { this };
-    muse::Inject<muse::dock::IDockWindowProvider> dockWindowProvider = { this };
+    muse::GlobalInject<IAppShellConfiguration> configuration;
+    muse::GlobalInject<notation::INotationConfiguration> notationConfiguration;
+    muse::GlobalInject<braille::IBrailleConfiguration> brailleConfiguration;
+    muse::ContextInject<muse::actions::IActionsDispatcher> dispatcher = { this };
+    muse::ContextInject<context::IGlobalContext> globalContext = { this };
+    muse::ContextInject<muse::dock::IDockWindowProvider> dockWindowProvider = { this };
 
 public:
     explicit NotationPageModel(QObject* parent = nullptr);

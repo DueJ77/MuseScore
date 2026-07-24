@@ -29,13 +29,13 @@
 #include "global/types/config.h"
 
 namespace muse::languages {
-class LanguagesConfiguration : public ILanguagesConfiguration, public Injectable
+class LanguagesConfiguration : public ILanguagesConfiguration, public Contextable
 {
-    Inject<IGlobalConfiguration> globalConfiguration = { this };
+    GlobalInject<IGlobalConfiguration> globalConfiguration;
 
 public:
     LanguagesConfiguration(const modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx) {}
+        : Contextable(iocCtx) {}
 
     void init();
 

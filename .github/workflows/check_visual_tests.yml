@@ -7,18 +7,18 @@ on:
 jobs:
   setup:
     name: "Setup VTests workflow"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-slim
     outputs:
       do_run: ${{ steps.output_data.outputs.do_run }}
       reference_sha: ${{ steps.output_data.outputs.reference_sha }}
       artifact_name: ${{ steps.output_data.outputs.artifact_name }}
     steps:
     - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.12.1
+      uses: styfle/cancel-workflow-action@0.13.0
       with:
         access_token: ${{ github.token }}
     - name: Clone repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
     - name: "Configure workflow"
@@ -65,16 +65,19 @@ jobs:
     if: needs.setup.outputs.do_run == 'true'
     steps:
     - name: Clone repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
-    - name: Get ccache timestamp
-      run: echo "CCACHE_TIMESTAMP=$(date -u +"%F-%T")" | tee -a $GITHUB_ENV
     - name: Restore ccache files
-      uses: actions/cache@v4
+      id: restore-ccache
+      uses: actions/cache/restore@v5
       with:
         path: ${{ github.workspace }}/.ccache
-        key: ${{runner.os}}-${{runner.arch}}-tests-ccache-${{ env.CCACHE_TIMESTAMP }}
-        restore-keys: ${{runner.os}}-${{runner.arch}}-tests-ccache-
+        key: ${{runner.os}}-${{runner.arch}}-vtests-current-ccache-
+        restore-keys: |
+          ${{runner.os}}-${{runner.arch}}-vtests-current-ccache-
+          ${{runner.os}}-${{runner.arch}}-vtests-reference-ccache-
+          ${{runner.os}}-${{runner.arch}}-utests-ccache-
+          ${{runner.os}}-${{runner.arch}}-ccache-
     - name: Setup ccache
       run: |
         sudo apt-get update && sudo apt-get install -y ccache
@@ -83,11 +86,12 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: 6.9.3
+        version: 6.10.2
         host: 'linux'
         target: 'desktop'
         arch: 'linux_gcc_64'
-        modules: 'qt5compat qtnetworkauth qtscxml qtshadertools qtwebsockets'
+        modules: 'qt5compat qtnetworkauth qtshadertools qtwebsockets'
+        cache: true
     - name: Setup environment
       run: |
         bash ./buildscripts/ci/linux/setup.sh
@@ -95,13 +99,29 @@ jobs:
     - name: Build and Pack
       run: |
         bash ./buildscripts/ci/vtests/build_and_pack.sh
-        echo "============== ccache ==============="
+
+    - name: Show ccache stats
+      run: |
         ccache -sv
     - name: Upload
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: current_build
         path: ./build.artifacts/
+
+    - name: Prepare ccache files for saving
+      id: prepare-save-ccache
+      if: always()
+      run: |
+        ccache --recompress 10
+        echo "CCACHE_TIMESTAMP=$(date -u +"%F-%T")" | tee -a $GITHUB_OUTPUT
+    - name: Save ccache files
+      if: always()
+      uses: actions/cache/save@v5
+      with:
+        key: ${{ steps.restore-ccache.outputs.cache-primary-key }}${{ steps.prepare-save-ccache.outputs.CCACHE_TIMESTAMP }}
+        path: ${{ github.workspace }}/.ccache
+
 
   build_reference:
     name: "Build reference"
@@ -110,18 +130,22 @@ jobs:
     if: needs.setup.outputs.do_run == 'true'
     steps:
     - name: Clone repository and checkout reference commit
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         ref: ${{ needs.setup.outputs.reference_sha }}
 
     - name: Get ccache timestamp
       run: echo "CCACHE_TIMESTAMP=$(date -u +"%F-%T")" | tee -a $GITHUB_ENV
     - name: Restore ccache files
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ${{ github.workspace }}/.ccache
-        key: ${{runner.os}}-${{runner.arch}}-tests-ccache-${{ env.CCACHE_TIMESTAMP }}
-        restore-keys: ${{runner.os}}-${{runner.arch}}-tests-ccache-
+        key: ${{runner.os}}-${{runner.arch}}-vtests-reference-ccache-${{ env.CCACHE_TIMESTAMP }}
+        restore-keys: |
+          ${{runner.os}}-${{runner.arch}}-vtests-reference-ccache-
+          ${{runner.os}}-${{runner.arch}}-vtests-current-ccache-
+          ${{runner.os}}-${{runner.arch}}-utests-ccache-
+          ${{runner.os}}-${{runner.arch}}-ccache-
     - name: Setup ccache
       run: |
         sudo apt-get update && sudo apt-get install -y ccache
@@ -130,11 +154,12 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: 6.9.3
+        version: 6.10.2
         host: 'linux'
         target: 'desktop'
         arch: 'linux_gcc_64'
-        modules: 'qt5compat qtnetworkauth qtscxml qtshadertools qtwebsockets'
+        modules: 'qt5compat qtnetworkauth qtshadertools qtwebsockets'
+        cache: true
     - name: Setup environment
       run: |
         bash ./buildscripts/ci/linux/setup.sh
@@ -142,13 +167,28 @@ jobs:
     - name: Build and Pack
       run: |
         bash ./buildscripts/ci/vtests/build_and_pack.sh
-        echo "============== ccache ==============="
+    - name: Show ccache stats
+      run: |
         ccache -sv
     - name: Upload
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: reference_build
         path: ./build.artifacts/
+
+    - name: Prepare ccache files for saving
+      id: prepare-save-ccache
+      if: always()
+      run: |
+        ccache --recompress 10
+        echo "CCACHE_TIMESTAMP=$(date -u +"%F-%T")" | tee -a $GITHUB_OUTPUT
+    - name: Save ccache files
+      if: always()
+      uses: actions/cache/save@v5
+      with:
+        key: ${{ steps.restore-ccache.outputs.cache-primary-key }}${{ steps.prepare-save-ccache.outputs.CCACHE_TIMESTAMP }}
+        path: ${{ github.workspace }}/.ccache
+
 
   generate_and_compare:
     name: "Generate and Compare"
@@ -157,14 +197,14 @@ jobs:
     if: needs.setup.outputs.do_run == 'true'
     steps:
     - name: Clone repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Download current
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: current_build
         path: ./musescore_current
     - name: Download reference
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: reference_build
         path: ./musescore_reference
@@ -185,7 +225,7 @@ jobs:
         ./vtest/vtest-compare-pngs.sh --ci 1 -c ./current_pngs_gp_small -r ./reference_pngs_gp_small -o ./comparison/gp
     - name: Upload comparison
       if: env.VTEST_DIFF_FOUND == 'true'
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ needs.setup.outputs.artifact_name }}
         path: ./comparison

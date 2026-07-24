@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<museScore version="4.60">
+<museScore version="4.70">
   <Score>
     <eid>B_B</eid>
     <Division>480</Division>
@@ -186,8 +186,7 @@ Arranged by [Arranger]</metaTag>
         <Text>
           <eid>G_G</eid>
           <style>composer</style>
-          <text>[COMPOSER]
-Arranged by [Arranger]</text>
+          <text>[COMPOSER]<br/>Arranged by [Arranger]</text>
           </Text>
         </VBox>
       <HBox>

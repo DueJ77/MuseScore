@@ -69,12 +69,8 @@ void MuseSamplerModule::resolveImports()
     }
 }
 
-void MuseSamplerModule::onInit(const IApplication::RunMode& mode)
+void MuseSamplerModule::onInit(const IApplication::RunMode&)
 {
-    if (IApplication::RunMode::AudioPluginRegistration == mode) {
-        return;
-    }
-
     m_configuration->init();
     m_resolver->init();
     m_actionController->init(m_resolver);
@@ -83,4 +79,9 @@ void MuseSamplerModule::onInit(const IApplication::RunMode& mode)
     if (pr) {
         pr->reg("musesampler", m_configuration->libraryPath());
     }
+}
+
+void MuseSamplerModule::onDeinit()
+{
+    m_resolver->deinit();
 }

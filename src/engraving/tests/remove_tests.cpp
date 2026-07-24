@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -38,29 +38,6 @@ class Engraving_RemoveTests : public ::testing::Test
 {
 };
 
-//---------------------------------------------------------
-//    For passing to the defined below inStaff() function.
-//---------------------------------------------------------
-
-struct StaffCheckData {
-    staff_idx_t staffIdx;
-    bool staffHasElements;
-};
-
-//---------------------------------------------------------
-//    for usage with Score::scanElements to check whether
-//    the element belongs to a staff with a certain number.
-//---------------------------------------------------------
-
-static void inStaff(void* staffCheckData, EngravingItem* e)
-{
-    StaffCheckData* checkData = static_cast<StaffCheckData*>(staffCheckData);
-    if (e->staffIdx() == checkData->staffIdx) {
-        LOGD() << e->typeName() << " is in staff " << checkData->staffIdx;
-        checkData->staffHasElements = true;
-    }
-}
-
 static bool staffHasElements(Score* score, staff_idx_t staffIdx)
 {
     for (auto i = score->spannerMap().cbegin(); i != score->spannerMap().cend(); ++i) {
@@ -76,9 +53,17 @@ static bool staffHasElements(Score* score, staff_idx_t staffIdx)
             return true;
         }
     }
-    StaffCheckData checkData { staffIdx, false };
-    score->scanElements(&checkData, inStaff, true);
-    return checkData.staffHasElements;
+
+    bool staffHasElements = false;
+
+    auto inStaff = [&](EngravingItem* item) {
+        if (item->staffIdx() == staffIdx) {
+            staffHasElements = true;
+        }
+    };
+    score->scanElements(inStaff);
+
+    return staffHasElements;
 }
 
 //---------------------------------------------------------
@@ -104,4 +89,27 @@ TEST_F(Engraving_RemoveTests, removeStaff)
     }
 
     delete score;
+}
+
+TEST_F(Engraving_RemoveTests, removeStaffWithCourtesyClefs)
+{
+    MasterScore* score = ScoreRW::readScore(REMOVE_DATA_DIR + u"remove_staff_courtesy.mscx");
+    EXPECT_TRUE(score);
+
+    score->startCmd(TranslatableString::untranslatable("Engraving remove tests"));
+    score->cmdRemoveStaff(0);
+    score->endCmd(false, /*layoutAllParts = */ true);
+
+    score->doLayout();
+
+    Measure* m1 = score->firstMeasure();
+    Measure* m2 = m1->nextMeasure();
+    EXPECT_TRUE(m2);
+    Segment* courtesyClefSeg = m2->findSegmentR(SegmentType::ClefRepeatAnnounce, m2->ticks());
+    EXPECT_TRUE(courtesyClefSeg);
+    Clef* courtesyClef = toClef(courtesyClefSeg->element(0));
+
+    EXPECT_TRUE(courtesyClef);
+    EXPECT_TRUE(courtesyClef->leftParen());
+    EXPECT_TRUE(courtesyClef->rightParen());
 }

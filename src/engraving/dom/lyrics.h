@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -58,19 +58,21 @@ public:
     Measure* measure() const { return toMeasure(explicitParent()->explicitParent()->explicitParent()); }
     ChordRest* chordRest() const { return toChordRest(explicitParent()); }
 
-    void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all=true) override;
-
     int subtype() const override { return m_verse; }
     TranslatableString subtypeUserName() const override;
     void setVerse(int n) { m_verse = n; }
     int verse() const { return m_verse; }
     bool isEven() const { return m_verse % 2; }
+    void setMove_lyrics(int n) { m_move_lyrics = n; }
+    int move_lyrics() const { return m_move_lyrics; }
     void setSyllabic(LyricsSyllabic s) { m_syllabic = s; }
     LyricsSyllabic syllabic() const { return m_syllabic; }
     void add(EngravingItem*) override;
     void remove(EngravingItem*) override;
     bool isEditAllowed(EditData&) const override;
     void endEdit(EditData&) override;
+
+    bool positionRelativeToNoteheadRest() const override { return true; }
 
     const Fraction& ticks() const { return m_ticks; }
     void setTicks(const Fraction& tick) { m_ticks = tick; }
@@ -96,6 +98,7 @@ public:
     PropertyValue getProperty(Pid propertyId) const override;
     bool setProperty(Pid propertyId, const PropertyValue&) override;
     PropertyValue propertyDefault(Pid id) const override;
+    void undoChangeProperty(Pid id, const PropertyValue&, PropertyFlags ps) override;
     void triggerLayout() const override;
 
     double yRelativeToStaff() const;
@@ -103,16 +106,14 @@ public:
 
     bool avoidBarlines() const { return m_avoidBarlines; }
     void setAvoidBarlines(bool v) { m_avoidBarlines = v; }
+    void layout3();
 
-protected:
-
+    int m_move_lyrics = 0;  //Move lyrics to a different voice
 private:
 
     friend class Factory;
     Lyrics(ChordRest* parent);
     Lyrics(const Lyrics&);
-
-    void undoChangeProperty(Pid id, const PropertyValue&, PropertyFlags ps) override;
 
     int m_verse = 0;              // row index
     Fraction m_ticks;          // if > 0 then draw an underline to tick() + _ticks (melisma)
@@ -140,7 +141,6 @@ public:
 
     LineSegment* createLineSegment(System* parent) override;
     void removeUnmanaged() override;
-    void styleChanged() override;
 
     virtual Lyrics* lyrics() const { return toLyrics(explicitParent()); }
     Lyrics* nextLyrics() const { return m_nextLyrics; }
@@ -148,6 +148,9 @@ public:
     virtual bool isEndMelisma() const { return lyrics() && lyrics()->ticks().isNotZero(); }
     bool isDash() const { return !isEndMelisma(); }
     bool setProperty(Pid propertyId, const PropertyValue& v) override;
+    PropertyValue propertyDefault(Pid id) const override;
+    Sid getPropertyStyle(Pid) const override;
+    void layout3();
 
 protected:
     LyricsLine(const ElementType& type, EngravingItem* parent, ElementFlags = ElementFlag::NOTHING);
@@ -182,10 +185,15 @@ public:
     virtual bool lyricsAddToSkyline() const { return lyrics()->addToSkyline(); }
     virtual double lineSpacing() const { return lyrics()->lineSpacing(); }
     Color color() const override { return lyrics()->color(); }
-    int gripsCount() const override { return 0; }
-    Grip initialEditModeGrip() const override { return Grip::NO_GRIP; }
-    Grip defaultGrip() const override { return Grip::NO_GRIP; }
-    bool needStartEditingAfterSelecting() const override { return false; }
+
+    PropertyValue getProperty(Pid propertyId) const override;
+    bool setProperty(Pid propertyId, const PropertyValue&) override;
+    PropertyValue propertyDefault(Pid propertyId) const override;
+    EngravingObject* propertyDelegate(Pid propertyId) const override;
+
+    bool allowTimeAnchor() const override { return false; }
+
+    virtual bool isEditAllowed(EditData&) const override { return false; }
 
     struct LayoutData : public LineSegment::LayoutData {
     public:
@@ -197,8 +205,11 @@ public:
     };
     DECLARE_LAYOUTDATA_METHODS(LyricsLineSegment)
 
+    void layout3();
+
 protected:
     LyricsLineSegment(const ElementType& type, LyricsLine* sp, System* parent, ElementFlags f = ElementFlag::NOTHING);
+    void rebaseAnchors(EditData&, Grip) override;
 };
 
 class PartialLyricsLine final : public LyricsLine
@@ -206,6 +217,7 @@ class PartialLyricsLine final : public LyricsLine
     OBJECT_ALLOCATOR(engraving, PartialLyricsLine)
     DECLARE_CLASSOF(ElementType::PARTIAL_LYRICSLINE)
 
+    M_PROPERTY2(int, move_lyrics, setMove_lyrics, 0)
 public:
     PartialLyricsLine(EngravingItem* parent);
     PartialLyricsLine(const PartialLyricsLine&);
@@ -224,6 +236,7 @@ public:
     bool setProperty(Pid propertyId, const PropertyValue&) override;
     PropertyValue propertyDefault(Pid propertyId) const override;
     Sid getPropertyStyle(Pid propertyId) const override;
+    void undoChangeProperty(Pid id, const PropertyValue&, PropertyFlags ps) override;
 
     Lyrics* findLyricsInPreviousRepeatSeg() const;
     Lyrics* findAdjacentLyricsOrDefault() const;

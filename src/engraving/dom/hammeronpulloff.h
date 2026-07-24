@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,6 +54,8 @@ public:
 
     PropertyValue propertyDefault(Pid id) const override;
 
+    bool positionRelativeToNoteheadRest() const override { return false; }
+
 private:
     Chord* m_startChord = nullptr;
     Chord* m_endChord = nullptr;
@@ -76,8 +78,7 @@ public:
 
     Color curColor(const rendering::PaintOptions& opt) const override;
 
-    void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all=true) override;
-    EngravingObjectList scanChildren() const override;
+    void scanElements(std::function<void(EngravingItem*)> func) override;
 
     void setTrack(track_idx_t idx) override;
     void setSelected(bool f) override;

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@
 #include "containers.h"
 
 #include "engravingitem.h"
+#include "interval.h"
 #include "noteevent.h"
 #include "noteval.h"
 #include "pitchspelling.h"
@@ -46,6 +47,7 @@ class StaffType;
 class NoteEditData;
 enum class AccidentalType : unsigned char;
 enum class NoteType : unsigned char;
+struct NoteParenthesisInfo;
 
 static constexpr int MAX_DOTS = 4;
 
@@ -157,16 +159,12 @@ public:
     Chord* chord() const { return (Chord*)explicitParent(); }
     void setParent(Chord* ch);
 
-    // Score Tree functions
-    EngravingObject* scanParent() const override;
-    EngravingObjectList scanChildren() const override;
-
     void undoUnlink() override;
 
     double mag() const override;
     EngravingItem* elementBase() const override;
 
-    void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all = true) override;
+    void scanElements(std::function<void(EngravingItem*)> func) override;
     void setTrack(track_idx_t val) override;
 
     int playTicks() const;
@@ -176,6 +174,47 @@ public:
     double headHeight() const;
     double tabHeadWidth(const StaffType* tab = 0) const;
     double tabHeadHeight(const StaffType* tab = 0) const;
+    
+    // Cipher notation accessors
+    void cipher_setKeysigNote(KeySig* sig);
+    qreal fretStringYShift() const { return m_fretStringYShift; }
+    qreal get_cipherWidth() const { return m_cipherWidth; }
+    qreal get_cipherWidth2() const { return m_cipherWidth2; }
+    qreal get_cipherHeigth() const { return m_cipherHeigth; }
+    int get_cipherLedgerline() { return m_cipherLedgerline; }
+    int get_cipherGroundPitch();
+    bool get_fretHidden() { return m_fretHidden; }
+    void set_drawFlat(bool v) { m_drawFlat = v; }
+    void set_drawSharp(bool v) { m_drawSharp = v; }
+    void set_fretString(String s) { m_fretString = s; }
+    void set_cipherWidth(qreal r) { m_cipherWidth = r; }
+    void set_trackthick(qreal r) { m_trackthick = r; }
+    void set_cipherWidth2(qreal r) { m_cipherWidth2 = r; }
+    void set_cipherLedgerline(int i) { m_cipherLedgerline = i; }
+    void set_fretStringYShift(qreal r) { m_fretStringYShift = r; }
+    void set_cipherHeigth(qreal r) { m_cipherHeigth = r; }
+    void set_fretHidden(bool b) { m_fretHidden = b; }
+    void set_cipherTextPos(PointF p) { m_cipherTextPos = p; }
+    void set_cipherAccidentalPos(PointF p) { m_cipherAccidentalPos = p; }
+    void set_cipherKlammerPos(PointF p) { m_cipherKlammerPos = p; }
+    muse::draw::Font get_cipherFont() const;
+    muse::draw::Font get_cipherAccidentalFont() const;
+    // Cipher notation string generation
+    int setAccidentalTypeBack(int defaultdirection);
+    String get_cipherString(int numkro) ;
+    String get_cipherDuration(int n) const;
+    String get_cipherDurationDot(int n) const;
+    static int get_cipherTrans(Key key);
+    int get_cipherOktave() const;
+    bool get_drawFlat() const { return m_drawFlat; }
+    bool get_drawSharp() const { return m_drawSharp; }
+    qreal get_trackthick() const { return m_trackthick; }
+    PointF get_cipherAccidentalPos() const { return m_cipherAccidentalPos; }
+    PointF get_cipherTextPos() const { return m_cipherTextPos; }
+    PointF get_cipherKlammerPos() const { return m_cipherKlammerPos; }
+    void drawSharp(muse::draw::Painter* painter, const muse::PointF& pos, const muse::draw::Font& font) const;
+    void drawFlat(muse::draw::Painter* painter, const muse::PointF& pos, const muse::draw::Font& font) const;
+    
     PointF stemDownNW() const;
     PointF stemUpSE() const;
     double bboxXShift() const;
@@ -198,6 +237,11 @@ public:
     void setPitch(int val, bool notifyAboutChanged = true);
     void setPitch(int pitch, int tpc1, int tpc2);
     int pitch() const { return m_pitch; }
+
+    double centOffset() const { return m_centOffset; }
+    void setCentOffset(double v) { m_centOffset = v; }
+    int quarterToneOffset() const { return std::round(m_centOffset / 50); }
+
     int ottaveCapoFret() const;
     int linkedOttavaPitchOffset() const;
     int ppitch() const;             // playback pitch
@@ -249,6 +293,8 @@ public:
     String fretString() const { return m_fretString; }
     void setFretString(const String& s) { m_fretString = s; }
     bool negativeFretUsed() const;
+    
+    
     int string() const { return m_string; }
     void setString(int val) { m_string = val; }
     int stringOrLine() const;
@@ -272,6 +318,8 @@ public:
 
     GuitarBend* bendFor() const;
     GuitarBend* bendBack() const;
+    GuitarBend* diveFor() const;
+    GuitarBend* diveBack() const;
     Tie* tieFor() const { return m_tieFor; }
     Tie* tieBack() const { return m_tieBack; }
     Tie* tieForNonPartial() const;
@@ -359,7 +407,8 @@ public:
 
     bool removeSpannerFor(Spanner* e) { return muse::remove(m_spannerFor, e); }
 
-    void transposeDiatonic(int interval, bool keepAlterations, bool useDoubleAccidentals);
+    bool transposeDiatonic(int interval, bool keepAlterations, bool useDoubleAccidentals);
+    bool transpose(Interval interval, bool useDoubleSharpsFlats);
 
     void localSpatiumChanged(double oldValue, double newValue) override;
     PropertyValue getProperty(Pid propertyId) const override;
@@ -402,12 +451,16 @@ public:
     SlideType slideToType() const { return m_slideToType; }
     SlideType slideFromType() const { return m_slideFromType; }
 
+    void setParenthesesMode(const ParenthesesMode& v, bool addToLinked = true, bool generated = false) override;
+
+    const NoteParenthesisInfo* parenthesisInfo() const;
+
     void setHarmonic(bool val) { m_harmonic = val; }
     bool harmonic() const { return m_harmonic; }
 
     bool isGrace() const;
 
-    bool isPreBendStart() const;
+    bool isPreBendOrDiveStart() const;
     bool isGraceBendStart() const;
     bool isContinuationOfBend() const;
 
@@ -432,6 +485,12 @@ public:
 
     void setVisible(bool v) override;
 
+    bool overrideBendVisibilityRules() const { return m_overrideBendVisibilityRules; }
+    void setOverrideBendVisibilityRules(bool v) { m_overrideBendVisibilityRules = v; }
+
+    bool hideGeneratedParens() const { return m_hideGeneratedParens; }
+    void setHideGeneratedParens(bool v) { m_hideGeneratedParens = v; }
+
     TieJumpPointList* tieJumpPoints() { return &m_jumpPoints; }
     const TieJumpPointList* tieJumpPoints() const { return &m_jumpPoints; }
 
@@ -440,6 +499,7 @@ public:
         ld_field<SymId> cachedNoteheadSym = { "[Note] cachedNoteheadSym", SymId::noSym };    // use in draw to avoid recomputing at every update
         ld_field<SymId> cachedSymNull = { "[Note] cachedSymNull", SymId::noSym };            // additional symbol for some transparent notehead
         ld_field<bool> mirror = { "[Note] mirror", false };                                  // True if note is mirrored at stem.
+        ld_field<bool> hasGeneratedParens = { "[Note] hasGeneratedParens", false };          // Should generated parens be created
     };
     DECLARE_LAYOUTDATA_METHODS(Note)
 
@@ -466,8 +526,6 @@ private:
 
     void normalizeLeftDragDelta(Segment* seg, EditData& ed, NoteEditData* ned);
 
-    static String tpcUserName(int tpc, int pitch, bool explicitAccidental, bool full = false);
-
     void getNoteListForDots(std::vector<Note*>& topDownNotes, std::vector<Note*>& bottomUpNotes, std::vector<int>& anchoredDots);
 
     void addLineAttachPoint(PointF point, EngravingItem* line, bool start);
@@ -488,6 +546,10 @@ private:
     bool m_play = true;           // note is not played if false
     mutable bool m_mark = false;  // for use in sequencer
     bool m_fixed = false;         // for slash notation
+
+    bool m_overrideBendVisibilityRules = false;
+
+    bool m_hideGeneratedParens = false;
 
     SlideType m_slideToType = SlideType::Undefined;
     SlideType m_slideFromType = SlideType::Undefined;
@@ -514,6 +576,7 @@ private:
     int m_string = -1;
     mutable int m_tpc[2] = { Tpc::TPC_INVALID, Tpc::TPC_INVALID };   // tonal pitch class  (concert/transposing)
     mutable int m_pitch = 0;      // Note pitch as midi value (0 - 127).
+    mutable double m_centOffset = 0.0; // Pitch offset in cents (100 cents = 1 semitone)
 
     int m_userVelocity = 0;     // velocity user offset in percent, or absolute velocity for this note
     int m_fixedLine = 0;        // fixed line number if _fixed == true
@@ -526,6 +589,8 @@ private:
 
     bool m_harmonic = false;
 
+    bool m_hasParens = false;
+
     ElementList m_el;          // fingering, other text, symbols or images
     std::vector<NoteDot*> m_dots;
     NoteEventList m_playEvents;
@@ -536,5 +601,19 @@ private:
 
     std::vector<LineAttachPoint> m_lineAttachPoints;
     TieJumpPointList m_jumpPoints { this };
+
+    // Cipher notation members
+    qreal m_fretStringYShift;
+    qreal m_cipherWidth;
+    qreal m_cipherWidth2;
+    qreal m_cipherHeigth;
+    qreal m_trackthick = 1.0;
+    PointF m_cipherAccidentalPos;
+    PointF m_cipherTextPos;
+    PointF m_cipherKlammerPos;
+    int m_cipherLedgerline;
+    bool m_fretHidden = false;
+    bool m_drawFlat = false;
+    bool m_drawSharp = false;
 };
 } // namespace mu::engraving

@@ -24,11 +24,12 @@
 #include "global/modularity/imoduleinterface.h"
 #include "global/types/retval.h"
 #include "global/io/path.h"
+#include "global/async/promise.h"
 
 #include "audio/common/audiotypes.h"
 
 namespace muse::audio::engine {
-class IEnginePlayback : MODULE_EXPORT_INTERFACE
+class IEnginePlayback : MODULE_CONTEXT_INTERFACE
 {
     INTERFACE_ID(IEnginePlayback)
 public:
@@ -69,6 +70,8 @@ public:
     virtual void clearSources() = 0;
 
     // 3. Play Sequence
+    virtual async::Promise<Ret> prepareToPlay(TrackSequenceId sequenceId) = 0;
+
     virtual void play(TrackSequenceId sequenceId, const secs_t delay = 0.0) = 0;
     virtual void seek(TrackSequenceId sequenceId, const secs_t newPosition, const bool flushSound = true) = 0;
     virtual void stop(TrackSequenceId sequenceId) = 0;
@@ -99,10 +102,11 @@ public:
     virtual RetVal<AudioSignalChanges> signalChanges(const TrackSequenceId sequenceId, const TrackId trackId) const = 0;
     virtual RetVal<AudioSignalChanges> masterSignalChanges() const = 0;
 
-    virtual Ret saveSoundTrack(const TrackSequenceId sequenceId, const io::path_t& destination, const SoundTrackFormat& format) = 0;
+    virtual async::Promise<Ret> saveSoundTrack(const TrackSequenceId sequenceId, const io::path_t& destination,
+                                               const SoundTrackFormat& format) = 0;
     virtual void abortSavingAllSoundTracks() = 0;
-    virtual async::Channel<int64_t /*current*/, int64_t /*total*/>
-    saveSoundTrackProgressChanged(const TrackSequenceId sequenceId) const = 0;
+
+    virtual SaveSoundTrackProgress saveSoundTrackProgressChanged(const TrackSequenceId sequenceId) const = 0;
 
     virtual void clearAllFx() = 0;
 };

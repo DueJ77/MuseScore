@@ -22,7 +22,7 @@ on:
 
 jobs:
   tx_pull:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     if: github.event_name != 'schedule' || github.repository == 'musescore/MuseScore'
     steps:
       - name: Check preconditions
@@ -66,16 +66,17 @@ jobs:
           echo "DO_PUSH_TO_S3=$DO_PUSH_TO_S3" | tee -a $GITHUB_ENV
 
       - name: Clone repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Qt for lrelease
         if: env.DO_PUSH_TO_S3 == 'true'
         uses: jurplel/install-qt-action@v4
         with:
-          version: 6.9.3
+          version: 6.10.2
           host: "linux"
           target: "desktop"
           arch: "linux_gcc_64"
+          cache: true
 
       - name: Setup environment for pushing to S3
         if: env.DO_PUSH_TO_S3 == 'true'
@@ -95,7 +96,7 @@ jobs:
 
       - name: Create Pull Request
         if: env.DO_CREATE_PR == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
@@ -114,7 +115,7 @@ jobs:
 
       - name: Upload artifacts on GitHub
         if: env.DO_PUSH_TO_S3 == 'true'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: MuseScore_Studio_locale_${{ env.BUILD_NUMBER }}
           path: ./share/locale

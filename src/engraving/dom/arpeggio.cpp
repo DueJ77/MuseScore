@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,8 +42,8 @@
 using namespace mu;
 using namespace mu::engraving;
 
-Arpeggio::Arpeggio(Chord* parent)
-    : EngravingItem(ElementType::ARPEGGIO, parent, ElementFlag::MOVABLE)
+Arpeggio::Arpeggio(Chord* parent, ElementType type)
+    : EngravingItem(type, parent, ElementFlag::MOVABLE)
 {
     m_arpeggioType = ArpeggioType::NORMAL;
     m_span     = 1;
@@ -52,7 +52,9 @@ Arpeggio::Arpeggio(Chord* parent)
     m_playArpeggio = true;
     m_stretch = 1.0;
 
-    parent->setSpanArpeggio(this);
+    if (type == ElementType::ARPEGGIO) {
+        parent->setSpanArpeggio(this);
+    }
 }
 
 Arpeggio::~Arpeggio()
@@ -202,7 +204,8 @@ std::vector<PointF> Arpeggio::gripsPositions(const EditData&) const
     const PointF pp(pagePos());
     PointF p1(ldata->bbox().width() / 2, ldata->bbox().top());
     PointF p2(ldata->bbox().width() / 2, ldata->bbox().bottom());
-    return { p1 + pp, p2 + pp };
+    PointF p3(ldata->bbox().center());
+    return { p1 + pp, p2 + pp, p3 + pp };
 }
 
 //---------------------------------------------------------
@@ -211,14 +214,18 @@ std::vector<PointF> Arpeggio::gripsPositions(const EditData&) const
 
 void Arpeggio::dragGrip(EditData& ed)
 {
-    Part* p = part();
-    double d = ed.delta.y();
+    if (ed.curGrip == Grip::MIDDLE) {
+        setOffset(offset() + ed.delta);
+        triggerLayout();
+        return;
+    }
+
     PointF pos = PointF(chord()->canvasPos().x(), ed.pos.y());
     EngravingItem* e = ed.view()->elementNear(pos);
 
     if (ed.curGrip == Grip::START) {
-        m_userLen1 -= d;
-        if (e && e->isNote() && e->part() == p) {
+        m_userLen1 -= ed.delta.y();
+        if (e && e->isNote() && e->part() == part()) {
             Chord* c = toNote(e)->chord();
             int newSpan = std::max(1, m_span + int(track()) - int(c->track()));
             if (track() != c->track()) {
@@ -232,9 +239,9 @@ void Arpeggio::dragGrip(EditData& ed)
             }
         }
     } else if (ed.curGrip == Grip::END) {
-        m_userLen2 += d;
+        m_userLen2 += ed.delta.y();
         // Increase span
-        if (e && e->isNote() && e->part() == p) {
+        if (e && e->isNote() && e->part() == part()) {
             int newSpan = std::max(1, int(e->track()) - int(track()) + 1);
             if (e->track() != endTrack()) {
                 // if new endTrack is less than old we have chords to unmark
@@ -276,6 +283,11 @@ std::vector<LineF> Arpeggio::gripAnchorLines(Grip grip) const
 {
     std::vector<LineF> result;
 
+    const int gripIndex = static_cast<int>(grip);
+    if (gripIndex >= gripsCount() || grip == Grip::MIDDLE) {
+        return result;
+    }
+
     Chord* _chord = chord();
     if (!_chord) {
         return result;
@@ -283,12 +295,6 @@ std::vector<LineF> Arpeggio::gripAnchorLines(Grip grip) const
 
     const Page* p = toPage(findAncestor(ElementType::PAGE));
     const PointF pageOffset = p ? p->pos() : PointF();
-    const int gripIndex = static_cast<int>(grip);
-
-    if (gripIndex >= gripsCount()) {
-        return result;
-    }
-
     const PointF gripCanvasPos = gripsPositions().at(gripIndex) + pageOffset;
 
     if (grip == Grip::START) {
@@ -391,7 +397,7 @@ void Arpeggio::spatiumChanged(double oldValue, double newValue)
 
 bool Arpeggio::acceptDrop(EditData& data) const
 {
-    return data.dropElement->type() == ElementType::ARPEGGIO;
+    return data.dropElement->type() == ElementType::ARPEGGIO || data.dropElement->type() == ElementType::CHORD_BRACKET;
 }
 
 //---------------------------------------------------------
@@ -403,6 +409,7 @@ EngravingItem* Arpeggio::drop(EditData& data)
     EngravingItem* e = data.dropElement;
     switch (e->type()) {
     case ElementType::ARPEGGIO:
+    case ElementType::CHORD_BRACKET:
     {
         Arpeggio* a = toArpeggio(e);
         if (explicitParent()) {

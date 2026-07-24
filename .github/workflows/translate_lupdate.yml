@@ -14,11 +14,11 @@ on:
 
 jobs:
   lupdate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     if: github.event_name != 'schedule' || github.repository == 'musescore/MuseScore'
     steps:
       - name: Clone repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Configure workflow
         run: |
@@ -32,17 +32,18 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: 6.9.3
+          version: 6.10.2
           host: "linux"
           target: "desktop"
           arch: "linux_gcc_64"
+          cache: true
 
       - name: Run lupdate
         run: |
           bash ./tools/translations/run_lupdate.sh
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>

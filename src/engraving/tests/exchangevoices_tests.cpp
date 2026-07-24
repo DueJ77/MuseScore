@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -121,9 +121,9 @@ TEST_F(Engraving_ExchangevoicesTests, undoChangeVoice)
     // do
     score->deselectAll();
     // select bottom note of all voice 1 chords
-    for (Segment* s = score->firstSegment(SegmentType::ChordRest); s; s = s->next1()) {
-        ChordRest* cr = static_cast<ChordRest*>(s->element(0));
-        if (cr && cr->type() == ElementType::CHORD) {
+    for (Segment* s = score->firstSegment(SegmentType::ChordRest); s; s = s->next1(SegmentType::ChordRest)) {
+        ChordRest* cr = toChordRest(s->element(0));
+        if (cr && cr->isChord()) {
             Chord* c = toChord(cr);
             score->select(c->downNote(), SelectType::ADD);
         }

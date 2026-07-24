@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -53,6 +53,7 @@ class Bracket;
 class BracketItem;
 class Breath;
 class Chord;
+class ChordBracket;
 class ChordLine;
 class ChordRest;
 class Clef;
@@ -146,8 +147,10 @@ class RehearsalMark;
 class Rest;
 class Score;
 class Segment;
+class SLine;
 class Slur;
 class SlurSegment;
+class SlurTie;
 class SlurTieSegment;
 class Spacer;
 class Spanner;
@@ -231,11 +234,8 @@ public:
 
     const EngravingObjectList& children() const { return m_children; }
 
-    // Score Tree functions for scan function
-    friend class EngravingElementsProvider;
-    virtual EngravingObject* scanParent() const { return m_parent; }
-    virtual EngravingObjectList scanChildren() const { return {}; }
-    virtual void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all=true);
+    std::vector<EngravingItem*> getChildren(bool includeInvisible = true) const;
+    virtual void scanElements(std::function<void(EngravingItem*)>) {}
 
     // context
     virtual void setScore(Score* s);
@@ -430,6 +430,7 @@ public:
     CONVERT(FiguredBassItem, FIGURED_BASS_ITEM)
     CONVERT(StaffState,    STAFF_STATE)
     CONVERT(Arpeggio,      ARPEGGIO)
+    CONVERT(ChordBracket,  CHORD_BRACKET)
     CONVERT(Image,         IMAGE)
     CONVERT(ChordLine,     CHORDLINE)
     CONVERT(FretDiagram,   FRET_DIAGRAM)
@@ -468,6 +469,7 @@ public:
     bool isRestFamily() const { return isRest() || isMMRest() || isMeasureRepeat(); }
     bool isChordRest() const { return isRestFamily() || isChord(); }
     bool isDurationElement() const { return isChordRest() || isTuplet(); }
+    bool isSlurTie() const { return isSlur() || isTie(); }
     bool isSlurTieSegment() const { return isSlurSegment() || isTieSegment(); }
     bool isSLineSegment() const;
     bool isBox() const { return isVBox() || isHBox() || isTBox() || isFBox(); }
@@ -615,6 +617,18 @@ static inline const Articulation* toArticulation(const EngravingObject* e)
     return (const Articulation*)e;
 }
 
+static inline Arpeggio* toArpeggio(EngravingObject* e)
+{
+    assert(!e || e->isArpeggio() || e->isChordBracket());
+    return (Arpeggio*)e;
+}
+
+static inline const Arpeggio* toArpeggio(const EngravingObject* e)
+{
+    assert(!e || e->isArpeggio() || e->isChordBracket());
+    return (const Arpeggio*)e;
+}
+
 #define CONVERT(a)  \
     static inline a* to##a(EngravingObject * e) { assert(!e || e->is##a()); return (a*)e; } \
     static inline const a* to##a(const EngravingObject * e) { assert(!e || e->is##a()); return (const a*)e; }
@@ -675,11 +689,13 @@ CONVERT(Stem)
 CONVERT(Beam)
 CONVERT(Hook)
 CONVERT(StemSlash)
+CONVERT(SLine)
 CONVERT(LineSegment)
 CONVERT(Slur)
 CONVERT(SlurSegment)
 CONVERT(Tie)
 CONVERT(TieSegment)
+CONVERT(SlurTie)
 CONVERT(SlurTieSegment)
 CONVERT(LaissezVibSegment)
 CONVERT(PartialTieSegment)
@@ -742,7 +758,7 @@ CONVERT(LyricsLineSegment)
 CONVERT(FiguredBass)
 CONVERT(FiguredBassItem)
 CONVERT(StaffState)
-CONVERT(Arpeggio)
+CONVERT(ChordBracket)
 CONVERT(Image)
 CONVERT(ChordLine)
 CONVERT(FretDiagram)

@@ -32,13 +32,13 @@
 
 namespace muse::extensions {
 class ScriptEngine;
-class JsModuleLoader : public QObject, public muse::Injectable
+class JsModuleLoader : public QObject, public muse::Contextable
 {
     Q_OBJECT
     Q_PROPERTY(QJSValue exports READ exports WRITE setExports)
 
-    Inject<IExtensionsConfiguration> configuration = { this };
-    Inject<io::IFileSystem> fileSystem = { this };
+    GlobalInject<IExtensionsConfiguration> configuration;
+    GlobalInject<io::IFileSystem> fileSystem;
 
 public:
     explicit JsModuleLoader(const modularity::ContextPtr& iocCtx, QObject* parent = 0);

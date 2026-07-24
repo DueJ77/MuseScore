@@ -19,8 +19,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MUSE_UI_IINTERACTIVEPROVIDER_H
-#define MUSE_UI_IINTERACTIVEPROVIDER_H
+
+#pragma once
 
 #include "global/modularity/imoduleinterface.h"
 
@@ -32,7 +32,7 @@
 class QWindow;
 
 namespace muse::ui {
-class IInteractiveProvider : MODULE_EXPORT_INTERFACE
+class IInteractiveProvider : MODULE_CONTEXT_INTERFACE
 {
     INTERFACE_ID(ILaunchProvider)
 
@@ -40,7 +40,8 @@ public:
     virtual ~IInteractiveProvider() = default;
 
     // color
-    virtual async::Promise<Color> selectColor(const Color& color = Color::WHITE, const std::string& title = "") = 0;
+    virtual async::Promise<Color> selectColor(const Color& color = Color::WHITE, const std::string& title = {},
+                                              bool allowAlpha = false) = 0;
     virtual bool isSelectColorOpened() const = 0;
 
     virtual RetVal<Val> openSync(const UriQuery& uri) = 0;
@@ -52,9 +53,10 @@ public:
 
     virtual void raise(const UriQuery& uri) = 0;
 
-    virtual void close(const Uri& uri) = 0;
-    virtual void close(const UriQuery& uri) = 0;
-    virtual void closeAllDialogs() = 0;
+    virtual async::Promise<Ret> close(const Uri& uri) = 0;
+    virtual async::Promise<Ret> close(const UriQuery& uri) = 0;
+    virtual Ret closeSync(const UriQuery& uri) = 0;
+    virtual Ret closeAllDialogsSync() = 0;
 
     virtual ValCh<Uri> currentUri() const = 0;
     virtual RetVal<bool> isCurrentUriDialog() const = 0;
@@ -65,5 +67,3 @@ public:
     virtual bool topWindowIsWidget() const = 0;
 };
 }
-
-#endif // MUSE_UI_IINTERACTIVEPROVIDER_H

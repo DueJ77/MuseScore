@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -59,6 +59,12 @@ static const ElementStyle voltaStyle {
     { Sid::voltaOffset,                        Pid::BEGIN_TEXT_OFFSET },
     { Sid::voltaOffset,                        Pid::CONTINUE_TEXT_OFFSET },
     { Sid::voltaOffset,                        Pid::END_TEXT_OFFSET },
+    { Sid::voltaMusicalSymbolSize,             Pid::BEGIN_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::voltaMusicalSymbolSize,             Pid::CONTINUE_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::voltaMusicalSymbolSize,             Pid::END_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::dummyMusicalSymbolsScale,           Pid::BEGIN_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::dummyMusicalSymbolsScale,           Pid::CONTINUE_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::dummyMusicalSymbolsScale,           Pid::END_TEXT_MUSICAL_SYMBOLS_SCALE },
     { Sid::voltaLineWidth,                     Pid::LINE_WIDTH },
     { Sid::voltaLineStyle,                     Pid::LINE_STYLE },
     { Sid::voltaDashLineLen,                   Pid::DASH_LINE_LEN },
@@ -266,6 +272,16 @@ PropertyValue Volta::propertyDefault(Pid propertyId) const
     case Pid::TEXT_STYLE:
         return TextStyleType::VOLTA;
 
+    case Pid::BEGIN_FILLED_ARROW_HEIGHT:   // No arrow endings for voltas
+    case Pid::BEGIN_FILLED_ARROW_WIDTH:
+    case Pid::END_FILLED_ARROW_HEIGHT:
+    case Pid::END_FILLED_ARROW_WIDTH:
+    case Pid::BEGIN_LINE_ARROW_HEIGHT:
+    case Pid::BEGIN_LINE_ARROW_WIDTH:
+    case Pid::END_LINE_ARROW_HEIGHT:
+    case Pid::END_LINE_ARROW_WIDTH:
+        return 0.0;
+
     default:
         return TextLineBase::propertyDefault(propertyId);
     }
@@ -394,7 +410,7 @@ PointF Volta::linePos(Grip grip, System** system) const
             x += segment->staffShape(si).right();
             x -= 0.5 * absoluteFromSpatium(lineWidth());
         } else if (segment->segmentType() & SegmentType::BarLineType) {
-            BarLine* barLine = toBarLine(segment->elementAt(track()));
+            BarLine* barLine = toBarLine(segment->element(track()));
             if (barLine->barLineType() == BarLineType::END_REPEAT || barLine->barLineType() == BarLineType::END_START_REPEAT) {
                 x += symWidth(SymId::repeatDot) + style().styleMM(Sid::repeatBarlineDotSeparation);
             }

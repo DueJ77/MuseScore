@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -63,6 +63,20 @@ static const ElementStyle palmMuteStyle {
     { Sid::palmMuteLineWidth,                     Pid::LINE_WIDTH },
     { Sid::palmMutePlacement,                     Pid::PLACEMENT },
     { Sid::palmMutePosBelow,                      Pid::OFFSET },
+    { Sid::palmMuteEndLineArrowHeight,            Pid::END_LINE_ARROW_HEIGHT },
+    { Sid::palmMuteEndLineArrowWidth,             Pid::END_LINE_ARROW_WIDTH },
+    { Sid::palmMuteBeginLineArrowHeight,          Pid::BEGIN_LINE_ARROW_HEIGHT },
+    { Sid::palmMuteBeginLineArrowWidth,           Pid::BEGIN_LINE_ARROW_WIDTH },
+    { Sid::palmMuteEndFilledArrowHeight,          Pid::END_FILLED_ARROW_HEIGHT },
+    { Sid::palmMuteEndFilledArrowWidth,           Pid::END_FILLED_ARROW_WIDTH },
+    { Sid::palmMuteBeginFilledArrowHeight,        Pid::BEGIN_FILLED_ARROW_HEIGHT },
+    { Sid::palmMuteBeginFilledArrowWidth,         Pid::BEGIN_FILLED_ARROW_WIDTH },
+    { Sid::palmMuteMusicalSymbolSize,             Pid::BEGIN_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::palmMuteMusicalSymbolSize,             Pid::CONTINUE_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::palmMuteMusicalSymbolSize,             Pid::END_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::dummyMusicalSymbolsScale,              Pid::BEGIN_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::dummyMusicalSymbolsScale,              Pid::CONTINUE_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::dummyMusicalSymbolsScale,              Pid::END_TEXT_MUSICAL_SYMBOLS_SCALE },
 };
 
 PalmMuteSegment::PalmMuteSegment(PalmMute* sp, System* parent)
@@ -190,7 +204,6 @@ void PalmMute::setChannel()
     ChordRest* endCR = toChordRest(endEl);
 
     Instrument* instrument = part()->instrument(startCR->tick());
-    part()->instrument(startCR->tick())->channelIdx(String::fromUtf8(InstrChannel::PALM_MUTE_NAME));
     int idx = instrument->channelIdx(String::fromUtf8(InstrChannel::PALM_MUTE_NAME));
     if (idx > 0) {
         staff()->insertIntoChannelList(voice(), startCR->tick(), idx);

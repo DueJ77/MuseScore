@@ -23,6 +23,8 @@
 
 #include <memory>
 
+#include "global/modularity/ioc.h"
+
 #include "../ienginecontroller.h"
 
 namespace muse::audio::rpc {
@@ -44,13 +46,16 @@ class AudioEngine;
 class WebAudioChannel;
 class EnginePlayback;
 class EngineRpcController;
+class TransportEventsDispatcher;
 
-class EngineController : public IEngineController
+class EngineController : public IEngineController, public muse::Contextable
 {
 public:
-    EngineController(std::shared_ptr<rpc::IRpcChannel> rpcChannel);
+    EngineController(std::shared_ptr<rpc::IRpcChannel> rpcChannel, const muse::modularity::ContextPtr& iocCtx);
 
     void registerExports() override;
+    void unregisterExports() override;
+
     void onStartRunning() override;
     void init(const OutputSpec& outputSpec, const AudioEngineConfig& conf) override;
     void deinit() override;
@@ -73,5 +78,6 @@ private:
     std::shared_ptr<synth::SynthResolver> m_synthResolver;
     std::shared_ptr<synth::SoundFontRepository> m_soundFontRepository;
     std::shared_ptr<WebAudioChannel> m_webAudioChannel;
+    std::shared_ptr<TransportEventsDispatcher> m_transportEventsDispatcher;
 };
 }

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -60,6 +60,7 @@
 #include "engraving/dom/tuplet.h"
 #include "engraving/dom/utils.h"
 #include "engraving/dom/volta.h"
+#include "engraving/editing/transpose.h"
 
 #include "engraving/engravingerrors.h"
 #include "engraving/infrastructure/messagebox.h"
@@ -244,7 +245,7 @@ static void processBasicDrawObj(QList<BasicDrawObj*> objects, Segment* s, int tr
                     default:
                         break;
                     }
-                    if (cr && cr->type() == ElementType::CHORD) {
+                    if (cr && cr->isChord()) {
                         switch (code) {
                         case 172:                           // arpeggio (short)
                         case 173:                           // arpeggio (long)
@@ -263,7 +264,7 @@ static void processBasicDrawObj(QList<BasicDrawObj*> objects, Segment* s, int tr
                         {
                             Arpeggio* a = Factory::createArpeggio(toChord(cr));
                             a->setArpeggioType(ArpeggioType::UP);
-                            if ((static_cast<Chord*>(cr))->arpeggio()) {                           // there can be only one
+                            if ((toChord(cr))->arpeggio()) {                           // there can be only one
                                 delete a;
                                 a = 0;
                             } else {
@@ -275,7 +276,7 @@ static void processBasicDrawObj(QList<BasicDrawObj*> objects, Segment* s, int tr
                         {
                             Arpeggio* a = Factory::createArpeggio(toChord(cr));
                             a->setArpeggioType(ArpeggioType::DOWN);
-                            if ((static_cast<Chord*>(cr))->arpeggio()) {                           // there can be only one
+                            if ((toChord(cr))->arpeggio()) {                           // there can be only one
                                 delete a;
                                 a = 0;
                             } else {
@@ -880,7 +881,7 @@ static Fraction readCapVoice(Score* score, CapVoice* cvoice, int staffIdx, const
             Key cKey = tKey;
             Interval v = score->staff(staffIdx)->part()->instrument(tick)->transpose();
             if (!v.isZero() && !score->style().styleB(mu::engraving::Sid::concertPitch)) {
-                cKey = transposeKey(tKey, v);
+                cKey = Transpose::transposeKey(tKey, v);
                 // if there are more than 6 accidentals in transposing key, it cannot be PreferSharpFlat::AUTO
                 Part* part = score->staff(staffIdx)->part();
                 if ((tKey > 6 || tKey < -6) && part->preferSharpFlat() == PreferSharpFlat::AUTO) {
@@ -919,7 +920,7 @@ static Fraction readCapVoice(Score* score, CapVoice* cvoice, int staffIdx, const
             Segment* s = m->findSegment(SegmentType::TimeSig, tick);
             if (s) {
                 EngravingItem* e = s->element(trackZeroVoice(track));
-                if (e && static_cast<TimeSig*>(e)->sig() == f) {
+                if (e && toTimeSig(e)->sig() == f) {
                     break;
                 }
             }
@@ -1038,7 +1039,7 @@ static Fraction readCapVoice(Score* score, CapVoice* cvoice, int staffIdx, const
                 //               to->relPos.x(), to->relPos.y(), to->width, to->yxRatio, qPrintable(ss));
                 s->setXmlText(ss);
 
-                if (measure->type() != ElementType::VBOX) {
+                if (!measure->isVBox()) {
                     MeasureBase* mb = Factory::createVBox(score->dummy()->system());
                     mb->setTick(Fraction(0, 1));
                     score->addMeasure(mb, measure);
@@ -1335,7 +1336,7 @@ void convertCapella(Score* score, Capella* cap, bool capxMode)
     if (cap->topDist) {
         VBox* mb = 0;
         MeasureBaseList* mbl = score->measures();
-        if (mbl->size() && mbl->first()->type() == ElementType::VBOX) {
+        if (mbl->size() && mbl->first()->isVBox()) {
             mb = static_cast<VBox*>(mbl->first());
         } else {
             VBox* vb = Factory::createTitleVBox(score->dummy()->system());

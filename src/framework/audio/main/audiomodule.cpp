@@ -21,7 +21,6 @@
  */
 #include "audiomodule.h"
 
-#include "ui/iuiengine.h"
 #include "ui/iuiactionsregister.h"
 #include "global/modularity/ioc.h"
 
@@ -37,29 +36,19 @@
 
 #include "internal/audioconfiguration.h"
 #include "internal/audioactionscontroller.h"
+#include "internal/transporteventscontroller.h"
 #include "internal/audiouiactions.h"
 #include "internal/startaudiocontroller.h"
 #include "internal/playback.h"
-#include "internal/audiooutputdevicecontroller.h"
 #include "internal/audiodrivercontroller.h"
 
 #include "diagnostics/idiagnosticspathsregister.h"
-
-#include "muse_framework_config.h"
-#ifdef MUSE_MODULE_AUDIO_ASIO
-#include "audio/driver/platform/win/asio/asiodiscovery.h"
-#endif
 
 #include "log.h"
 
 using namespace muse;
 using namespace muse::modularity;
 using namespace muse::audio;
-
-static void audio_init_qrc()
-{
-    Q_INIT_RESOURCE(audio);
-}
 
 AudioModule::AudioModule()
 {
@@ -74,8 +63,8 @@ std::string AudioModule::moduleName() const
 void AudioModule::registerExports()
 {
     m_configuration = std::make_shared<AudioConfiguration>(iocContext());
-    m_actionsController = std::make_shared<AudioActionsController>();
-    m_audioOutputController = std::make_shared<AudioOutputDeviceController>(iocContext());
+    m_actionsController = std::make_shared<AudioActionsController>(iocContext());
+    m_transportEventsController = std::make_shared<TransportEventsController>(iocContext());
     m_mainPlayback = std::make_shared<Playback>(iocContext());
     m_audioDriverController = std::make_shared<AudioDriverController>(iocContext());
 
@@ -84,10 +73,10 @@ void AudioModule::registerExports()
     m_soundFontController = std::make_shared<WebSoundFontController>();
 #else
     m_rpcChannel = std::make_shared<rpc::GeneralRpcChannel>();
-    m_soundFontController = std::make_shared<GeneralSoundFontController>();
+    m_soundFontController = std::make_shared<GeneralSoundFontController>(iocContext());
 #endif
 
-    m_startAudioController = std::make_shared<StartAudioController>(m_rpcChannel);
+    m_startAudioController = std::make_shared<StartAudioController>(m_rpcChannel, iocContext());
 
     ioc()->registerExport<IAudioConfiguration>(moduleName(), m_configuration);
     ioc()->registerExport<IStartAudioController>(moduleName(), m_startAudioController);
@@ -98,16 +87,6 @@ void AudioModule::registerExports()
     ioc()->registerExport<IPlayback>(moduleName(), m_mainPlayback);
 
     m_startAudioController->registerExports();
-}
-
-void AudioModule::registerResources()
-{
-    audio_init_qrc();
-}
-
-void AudioModule::registerUiTypes()
-{
-    ioc()->resolve<ui::IUiEngine>(moduleName())->addSourceImportPath(muse_audio_QML_IMPORT);
 }
 
 void AudioModule::resolveImports()
@@ -127,7 +106,6 @@ void AudioModule::onInit(const IApplication::RunMode& mode)
     }
 
     m_actionsController->init();
-    m_audioDriverController->init();
 
     // rpc
     m_rpcChannel->setupOnMain();
@@ -137,7 +115,7 @@ void AudioModule::onInit(const IApplication::RunMode& mode)
     }, Ticker::Mode::Repeat);
 #endif
 
-    m_audioOutputController->init();
+    m_transportEventsController->init(); //! NOTE: init AFTER RPC
 
     m_mainPlayback->init();
 
@@ -156,15 +134,17 @@ void AudioModule::onInit(const IApplication::RunMode& mode)
         }
     }
 
-#ifdef MUSE_MODULE_AUDIO_ASIO
-    AsioDiscovery d;
-    d.dump();
-#endif
+    m_audioInited = true;
 }
 
 void AudioModule::onDeinit()
 {
+    if (!m_audioInited) {
+        return;
+    }
+
     m_mainPlayback->deinit();
+    m_transportEventsController->deinit();
     m_rpcTicker.stop();
 
     m_startAudioController->stopAudioProcessing();

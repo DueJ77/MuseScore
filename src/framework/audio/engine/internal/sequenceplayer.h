@@ -34,12 +34,15 @@
 #include "igettracks.h"
 
 namespace muse::audio::engine {
-class SequencePlayer : public ISequencePlayer, public Injectable, public async::Asyncable
+class SequencePlayer : public ISequencePlayer, public Contextable, public async::Asyncable
 {
-    Inject<engine::IAudioEngine> audioEngine = { this };
+    ContextInject<engine::IAudioEngine> audioEngine = { this };
 
 public:
     explicit SequencePlayer(IGetTracks* getTracks, IClockPtr clock, const modularity::ContextPtr& iocCtx);
+    ~SequencePlayer() override;
+
+    async::Promise<Ret> prepareToPlay() override;
 
     void play(const secs_t delay = 0) override;
     void seek(const secs_t newPosition, const bool flushSound = true) override;
@@ -59,7 +62,7 @@ public:
     async::Channel<secs_t> playbackPositionChanged() const override;
 
 private:
-    void seekAllTracks(const msecs_t newPositionMsecs);
+    void seekAllTracks(const msecs_t newPositionMsecs, bool flushSound);
     void flushAllTracks();
 
     using AllTracksReadyCallback = std::function<void ()>;
@@ -69,8 +72,9 @@ private:
     IClockPtr m_clock = nullptr;
 
     bool m_countDownIsSet = false;
-    bool m_flushSoundOnSeek = true;
     std::set<TrackId> m_notYetReadyToPlayTrackIdSet;
+
+    bool m_tracksFollowClockSeek = true;
 };
 }
 

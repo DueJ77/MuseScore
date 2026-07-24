@@ -74,6 +74,7 @@ private:
     std::vector<T> m_buffer;
     std::queue<T> m_pending;
     std::function<void(const T&)> m_handler;
+    bool m_isProcessing = false;
 
 public:
 
@@ -94,6 +95,19 @@ public:
 
         assert(m_connPort);
 
+        assert(!m_isProcessing && "Recursive processing of messages is not allowed");
+
+        if (m_isProcessing) {
+            return;
+        }
+
+        struct Guard {
+            bool& flag;
+            Guard(bool& flag)
+                : flag(flag) { flag = true; }
+            ~Guard() { flag = false; }
+        } guard { m_isProcessing };
+
         // receive messages
         m_buffer.clear();
         bool ok = m_connPort->m_queue.tryPopAll(m_buffer);
@@ -102,6 +116,16 @@ public:
                 m_handler(item);
             }
         }
+    }
+
+    size_t countToSend() const
+    {
+        return m_queue.availableRead() + m_pending.size();
+    }
+
+    bool hasPending() const
+    {
+        return !m_pending.empty();
     }
 
     bool sendPending()

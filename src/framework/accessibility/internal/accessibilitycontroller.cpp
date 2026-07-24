@@ -33,11 +33,12 @@
 
 #include "accessibleobject.h"
 #include "accessiblestub.h"
-#include "accessibleiteminterface.h"
+#include "accessiblewindowinterface.h"
 #include "iqaccessibleinterfaceregister.h"
 
 #include "log.h"
 
+// #define MUSE_MODULE_ACCESSIBILITY_TRACE
 #ifdef MUSE_MODULE_ACCESSIBILITY_TRACE
 #define MYLOG() LOGI()
 #else
@@ -56,7 +57,7 @@ static void updateHandlerNoop(QAccessibleEvent*)
 }
 
 AccessibilityController::AccessibilityController(const muse::modularity::ContextPtr& iocCtx)
-    : muse::Injectable(iocCtx)
+    : muse::Contextable(iocCtx)
 {
     m_pretendFocusTimer.setInterval(80); // Value found experimentally.
     m_pretendFocusTimer.setSingleShot(true);
@@ -71,9 +72,9 @@ AccessibilityController::~AccessibilityController()
     unreg(this);
 }
 
-QAccessibleInterface* AccessibilityController::accessibleInterface(QObject*)
+QAccessibleInterface* AccessibilityController::accessibleInterface(QObject* window)
 {
-    return static_cast<QAccessibleInterface*>(new AccessibleItemInterface(s_rootObject));
+    return static_cast<QAccessibleInterface*>(new AccessibleWindowInterface(window, s_rootObject));
 }
 
 void AccessibilityController::setAccesibilityEnabled(bool enabled)
@@ -157,6 +158,18 @@ void AccessibilityController::reg(IAccessible* item)
         init();
     }
 
+    if (item != this) {
+        if (!item->accessibleParent()) {
+            MYLOG() << "Skipping item with no parent: " << item->accessibleName();
+            return;
+        }
+
+        if (!m_allItems.contains(item->accessibleParent())) {
+            MYLOG() << "Skipping item with unregistered parent: " << item->accessibleName();
+            return;
+        }
+    }
+
     if (findItem(item).isValid()) {
         LOGW() << "Already registered";
         return;
@@ -187,6 +200,16 @@ void AccessibilityController::reg(IAccessible* item)
     // VoiceOver: Use QObject not QAccessibleInterface in QAccessible…Event() constructors.
     QAccessibleEvent ev(it.object, QAccessible::ObjectCreated);
     sendEvent(&ev);
+
+    // Register children
+    size_t childCount = item->accessibleChildCount();
+    for (size_t i = 0; i < childCount; ++i) {
+        IAccessible* child = item->accessibleChild(i);
+        if (m_allItems.contains(child)) {
+            continue;
+        }
+        reg(child);
+    }
 }
 
 void AccessibilityController::unreg(IAccessible* aitem)
@@ -215,6 +238,11 @@ void AccessibilityController::unreg(IAccessible* aitem)
     sendEvent(&ev);
 
     delete item.object;
+}
+
+bool AccessibilityController::isReg(IAccessible* item) const
+{
+    return m_allItems.contains(item);
 }
 
 // Force the screen reader to speak an arbitrary message that isn't covered
@@ -823,7 +851,7 @@ QWindow* AccessibilityController::accessibleWindow() const
 
 muse::modularity::ContextPtr AccessibilityController::iocContext() const
 {
-    return Injectable::iocContext();
+    return Contextable::iocContext();
 }
 
 IAccessible::Role AccessibilityController::accessibleRole() const

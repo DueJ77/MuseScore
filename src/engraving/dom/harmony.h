@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -275,6 +275,8 @@ public:
     void localSpatiumChanged(double oldValue, double newValue) override;
     void setHarmony(const String& s);
 
+    int subtype() const override { return static_cast<int>(harmonyType()); }
+
     TranslatableString typeUserName() const override;
     String accessibleInfo() const override;
     String generateScreenReaderInfo() const;
@@ -288,6 +290,8 @@ public:
     PropertyValue getProperty(Pid propertyId) const override;
     bool setProperty(Pid propertyId, const PropertyValue& v) override;
     PropertyValue propertyDefault(Pid id) const override;
+
+    bool positionRelativeToNoteheadRest() const override;
 
     double mag() const override;
 

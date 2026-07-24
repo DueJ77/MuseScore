@@ -19,10 +19,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import QtQuick 2.15
+import QtQuick
 
-import Muse.UiComponents 1.0
-import Muse.Ui 1.0
+import Muse.UiComponents
+import Muse.Ui
 
 Item {
     id: root
@@ -33,6 +33,8 @@ Item {
     property real rightMargin: 0
     property bool isSorterEnabled: false
     property int sortOrder: Qt.AscendingOrder
+
+    property int headerCapitalization: Font.AllUppercase
 
     property alias navigation: navCtrl
 
@@ -79,7 +81,7 @@ Item {
 
             text: headerTitle
             horizontalAlignment: Text.AlignLeft
-            font.capitalization: Font.AllUppercase
+            font.capitalization: root.headerCapitalization
             opacity: ui.theme.buttonOpacityNormal
         }
 

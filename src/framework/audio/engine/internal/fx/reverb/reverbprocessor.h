@@ -47,7 +47,11 @@ public:
     bool active() const override;
     void setActive(bool active) override;
 
-    void process(float* buffer, unsigned int sampleCount) override;
+    void setPlaying(bool playing) override;
+
+    bool shouldProcessDuringSilence() const override;
+
+    void process(float* buffer, samples_t sampleCount, samples_t playbackPositionSamples = 0) override;
 
 private:
     enum Params

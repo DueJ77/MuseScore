@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -102,6 +102,7 @@
 #include "dom/utils.h"
 #include "dom/volta.h"
 #include "editing/undo.h"
+#include "editing/transpose.h"
 
 #include "../compat/readchordlisthook.h"
 #include "../compat/readstyle.h"
@@ -234,7 +235,7 @@ void Read206::readTextStyle206(MStyle* style, XmlReader& e, ReadContext& ctx, st
         } else if (tag == "paddingWidthS") {
             paddingWidth = Spatium(e.readDouble());
         } else if (tag == "frameRound") {
-            e.readInt();
+            e.readDouble();
         } else if (tag == "frameColor") {
             frameColor = e.readColor();
         } else if (tag == "foregroundColor") {
@@ -954,13 +955,13 @@ static void readNote206(Note* note, XmlReader& e, ReadContext& ctx)
             if (v.isZero()) {
                 note->setTpc2(note->tpc1());
             } else {
-                note->setTpc2(mu::engraving::transposeTpc(note->tpc1(), v, true));
+                note->setTpc2(Transpose::transposeTpc(note->tpc1(), v, true));
             }
         } else {
             if (v.isZero()) {
                 note->setTpc1(note->tpc2());
             } else {
-                note->setTpc1(mu::engraving::transposeTpc(note->tpc2(), v, true));
+                note->setTpc1(Transpose::transposeTpc(note->tpc2(), v, true));
             }
         }
     }
@@ -1133,10 +1134,10 @@ bool Read206::readNoteProperties206(Note* note, XmlReader& e, ReadContext& ctx)
         s->setTrack(note->track());
         read400::TRead::read(s, e, ctx);
         if (s->sym() == SymId::noteheadParenthesisLeft) {
-            note->setParenthesesMode(note->rightParen() ? ParenthesesMode::BOTH : ParenthesesMode::LEFT);
+            note->setParenthesesMode(ParenthesesMode::BOTH);
             ctx.score()->deleteLater(s);
         } else if (s->sym() == SymId::noteheadParenthesisRight) {
-            note->setParenthesesMode(note->leftParen() ? ParenthesesMode::BOTH : ParenthesesMode::RIGHT);
+            note->setParenthesesMode(ParenthesesMode::BOTH);
             ctx.score()->deleteLater(s);
         } else {
             note->add(s);
@@ -1693,7 +1694,7 @@ bool Read206::readChordRestProperties206(XmlReader& e, ReadContext& ctx, ChordRe
     if (tag == "durationType") {
         ch->setDurationType(TConv::fromXml(e.readAsciiText(), DurationType::V_QUARTER));
         if (ch->actualDurationType().type() != DurationType::V_MEASURE) {
-            if (ctx.mscVersion() < 112 && (ch->type() == ElementType::REST)
+            if (ctx.mscVersion() < 112 && (ch->isRest())
                 &&            // for backward compatibility, convert V_WHOLE rests to V_MEASURE
                               // if long enough to fill a measure.
                               // OTOH, freshly created (un-initialized) rests have numerator == 0 (< 4/4)
@@ -1748,7 +1749,7 @@ bool Read206::readChordRestProperties206(XmlReader& e, ReadContext& ctx, ChordRe
         if (i == 0) {
             i = mticks;
         }
-        if ((ch->type() == ElementType::REST) && (mticks == i)) {
+        if ((ch->isRest()) && (mticks == i)) {
             ch->setDurationType(DurationType::V_MEASURE);
             ch->setTicks(Fraction::fromTicks(i));
         } else {
@@ -1785,7 +1786,7 @@ bool Read206::readChordRestProperties206(XmlReader& e, ReadContext& ctx, ChordRe
                 }
                 spanner->setTick(ctx.tick());
                 spanner->setTrack(ch->track());
-                if (spanner->type() == ElementType::SLUR) {
+                if (spanner->isSlur()) {
                     spanner->setStartElement(ch);
                 }
                 if (ctx.pasteMode()) {
@@ -1793,13 +1794,13 @@ bool Read206::readChordRestProperties206(XmlReader& e, ReadContext& ctx, ChordRe
                         if (el == spanner) {
                             continue;
                         }
-                        Spanner* ls = static_cast<Spanner*>(el);
+                        Spanner* ls = toSpanner(el);
                         ls->setTick(spanner->tick());
                         for (EngravingObject* ee : ch->linkList()) {
                             ChordRest* cr = toChordRest(ee);
                             if (cr->staffIdx() == ls->staffIdx()) {
                                 ls->setTrack(cr->track());
-                                if (ls->type() == ElementType::SLUR) {
+                                if (ls->isSlur()) {
                                     ls->setStartElement(cr);
                                 }
                                 break;
@@ -1822,13 +1823,13 @@ bool Read206::readChordRestProperties206(XmlReader& e, ReadContext& ctx, ChordRe
                         if (el == spanner) {
                             continue;
                         }
-                        Spanner* ls = static_cast<Spanner*>(el);
+                        Spanner* ls = toSpanner(el);
                         ls->setTick2(spanner->tick2());
                         for (EngravingObject* ee : ch->linkList()) {
                             ChordRest* cr = toChordRest(ee);
                             if (cr->staffIdx() == ls->staffIdx()) {
                                 ls->setTrack2(cr->track());
-                                if (ls->type() == ElementType::SLUR) {
+                                if (ls->isSlur()) {
                                     ls->setEndElement(cr);
                                 }
                                 break;
@@ -2066,6 +2067,7 @@ static void readChord(Chord* chord, XmlReader& e, ReadContext& ctx)
             Note* note = Factory::createNote(chord);
             // the note needs to know the properties of the track it belongs to
             note->setTrack(chord->track());
+            note->setParent(chord);
             readNote206(note, e, ctx);
             chord->add(note);
         } else if (tag == "Stem") {
@@ -2143,6 +2145,7 @@ static bool readTextLineProperties(XmlReader& e, ReadContext& ctx, TextLineBase*
     } else if (!read400::TRead::readProperties(tl, e, ctx)) {
         return false;
     }
+
     return true;
 }
 
@@ -2173,6 +2176,7 @@ static void readVolta206(XmlReader& e, ReadContext& ctx, Volta* volta)
         LOGW("Correcting volta anchor type from %d to %d", int(volta->anchor()), int(Volta::VOLTA_ANCHOR));
         volta->setAnchor(Volta::VOLTA_ANCHOR);
     }
+    CompatUtils::resetHookHeightSign(volta);
     adjustPlacement(volta);
 }
 
@@ -2218,6 +2222,7 @@ static void readPedal(XmlReader& e, ReadContext& ctx, Pedal* pedal)
         pedal->setPropertyFlags(Pid::END_TEXT, PropertyFlags::STYLED);
     }
 
+    CompatUtils::resetHookHeightSign(pedal);
     adjustPlacement(pedal);
 }
 
@@ -2252,6 +2257,7 @@ static void readOttava(XmlReader& e, ReadContext& ctx, Ottava* ottava)
         }
     }
     ottava->styleChanged();
+    CompatUtils::resetHookHeightSign(ottava);
     adjustPlacement(ottava);
 }
 
@@ -2294,6 +2300,7 @@ void Read206::readHairpin206(XmlReader& e, ReadContext& ctx, Hairpin* h)
         h->setContinueText(u"");
         h->setEndText(u"");
     }
+    CompatUtils::resetHookHeightSign(h);
     adjustPlacement(h);
 }
 
@@ -2329,6 +2336,7 @@ void Read206::readTextLine206(XmlReader& e, ReadContext& ctx, TextLineBase* tlb)
             e.unknown();
         }
     }
+    CompatUtils::resetHookHeightSign(tlb);
     adjustPlacement(tlb);
 }
 
@@ -2375,7 +2383,7 @@ EngravingItem* Read206::readArticulation(EngravingItem* parent, XmlReader& e, Re
     auto readProperties = [](EngravingItem* el, XmlReader& e, ReadContext& ctx)
     {
         if (el->isFermata()) {
-            return read400::TRead::readProperties(dynamic_cast<Fermata*>(el), e, ctx);
+            return read400::TRead::readProperties(toFermata(el), e, ctx);
         } else if (el->isArticulationFamily()) {
             return read400::TRead::readProperties(dynamic_cast<Articulation*>(el), e, ctx);
         }
@@ -3480,6 +3488,7 @@ bool Read206::readScoreTag(Score* score, XmlReader& e, ReadContext& ctx)
             ctx.setLastMeasure(nullptr);
             ReadContext exCtx(s);
 
+            s->setIsOpen(true);
             readScoreTag(s, e, exCtx);
 
             ex->setTracksMapping(ctx.tracks());
@@ -3492,6 +3501,10 @@ bool Read206::readScoreTag(Score* score, XmlReader& e, ReadContext& ctx)
                 score->excerpt()->setName(n, /*saveAndNotify=*/ false);
             }
         } else if (tag == "layoutMode") {
+            if (ctx.forcePageMode()) {
+                e.skipCurrentElement();
+                continue;
+            }
             String s = e.readText();
             if (s == "line") {
                 score->setLayoutMode(LayoutMode::LINE);
@@ -3543,6 +3556,7 @@ Ret Read206::readScoreFile(Score* score, XmlReader& e, ReadInOutData* out)
         }
 
         ctx.setPropertiesToSkip(out->propertiesToSkip);
+        ctx.setForcePageMode(out->forcePageMode);
     }
     DEFER {
         if (out) {
@@ -3590,7 +3604,8 @@ Ret Read206::readScoreFile(Score* score, XmlReader& e, ReadInOutData* out)
         for (staff_idx_t staffIdx = 0; staffIdx < numStaves; ++staffIdx) {
             const size_t maxSpan = numStaves - staffIdx - 1;
             const track_idx_t trackIdx = staff2track(staffIdx);
-            BarLine* barLine = toBarLine(s->element(trackIdx));
+            EngravingItem* el = s->element(trackIdx);
+            BarLine* barLine = el && el->isBarLine() ? toBarLine(el) : nullptr;
             if (barLine) {
                 if (const std::optional<size_t> span = ctx.getBarLineSpan(barLine)) {
                     if (*span > maxSpan) {
@@ -3615,13 +3630,17 @@ Ret Read206::readScoreFile(Score* score, XmlReader& e, ReadInOutData* out)
                     // clone previous bar line. This is safe because we always have a previous barline when
                     // barLineSpan != std::nullopt because it's either the one that was read or the one cloned
                     // in the previous iteration
-                    barLine = toBarLine(s->element(staff2track(staffIdx - 1)))
-                              ->clone();
-                    barLine->setTrack(trackIdx);
-                    s->add(barLine);
+                    el = s->element(staff2track(staffIdx - 1));
+                    if (el && el->isBarLine()) {
+                        barLine = toBarLine(el)->clone();
+                        barLine->setTrack(trackIdx);
+                        s->add(barLine);
+                    }
                 }
 
-                barLine->setSpanStaff(shouldBarLineSpan);
+                if (barLine) {
+                    barLine->setSpanStaff(shouldBarLineSpan);
+                }
             }
             if (*barLineSpan == 0) {
                 // we're done applying the local override

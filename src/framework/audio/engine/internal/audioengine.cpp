@@ -90,11 +90,12 @@ void AudioEngine::deinit()
 {
     ONLY_AUDIO_ENGINE_THREAD;
     if (m_inited) {
+        m_inited = false;
         m_buffer->setSource(nullptr);
         m_buffer = nullptr;
         m_mixer = nullptr;
-        m_inited = false;
     }
+    LOGD() << "deinited";
 }
 
 void AudioEngine::setOutputSpec(const OutputSpec& outputSpec)
@@ -205,6 +206,11 @@ void AudioEngine::execOperation(OperationType type, const Operation& func)
         m_quickOperationWaitMutex.unlock();
     }
     m_operationType = OperationType::NoOperation;
+}
+
+OperationType AudioEngine::operation() const
+{
+    return m_operationType.load();
 }
 
 MixerPtr AudioEngine::mixer() const

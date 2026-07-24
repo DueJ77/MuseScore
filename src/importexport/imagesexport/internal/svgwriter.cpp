@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -68,7 +68,6 @@ Ret SvgWriter::write(INotationPtr notation, io::IODevice& destinationDevice, con
     mu::engraving::MScore::svgPrinting = true;
 
     const std::vector<mu::engraving::Page*>& pages = score->pages();
-    double pixelRationBackup = mu::engraving::MScore::pixelRatio;
 
     const size_t PAGE_NUMBER = muse::value(options, OptionKey::PAGE_NUMBER, Val(0)).toInt();
     if (PAGE_NUMBER >= pages.size()) {
@@ -105,8 +104,6 @@ Ret SvgWriter::write(INotationPtr notation, io::IODevice& destinationDevice, con
     if (TRIM_MARGIN_SIZE >= 0) {
         painter.translate(-pageRect.topLeft());
     }
-
-    mu::engraving::MScore::pixelRatio = mu::engraving::DPI / printer.logicalDpiX();
 
     const bool TRANSPARENT_BACKGROUND = muse::value(options, OptionKey::TRANSPARENT_BACKGROUND,
                                                     Val(configuration()->exportSvgWithTransparentBackground())).toBool();
@@ -239,7 +236,7 @@ Ret SvgWriter::write(INotationPtr notation, io::IODevice& destinationDevice, con
 
     for (const mu::engraving::EngravingItem* element : elements) {
         // Always exclude invisible elements
-        if (!element->visible()) {
+        if (!element->collectForDrawing()) {
             continue;
         }
 
@@ -271,7 +268,6 @@ Ret SvgWriter::write(INotationPtr notation, io::IODevice& destinationDevice, con
     destinationDevice.write(data);
 
     // Clean up and return
-    mu::engraving::MScore::pixelRatio = pixelRationBackup;
     score->setPrinting(false);
     mu::engraving::MScore::pdfPrinting = false;
     mu::engraving::MScore::svgPrinting = false;

@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <unordered_set>
+
 #include "global/async/asyncable.h"
 #include "modularity/ioc.h"
 #include "../iaudioengine.h"
@@ -36,9 +38,9 @@
 
 namespace muse::audio::engine {
 class Mixer;
-class TrackSequence : public ITrackSequence, public IGetTracks, public muse::Injectable, public async::Asyncable
+class TrackSequence : public ITrackSequence, public IGetTracks, public muse::Contextable, public async::Asyncable
 {
-    Inject<IAudioEngine> audioEngine = { this };
+    ContextInject<IAudioEngine> audioEngine = { this };
 
 public:
     TrackSequence(const TrackSequenceId id, const muse::modularity::ContextPtr& iocCtx);
@@ -75,6 +77,8 @@ public:
 private:
     TrackId newTrackId() const;
 
+    void onShouldProcessDuringSilenceChanged(const TrackId trackId, bool shouldProcess);
+
     std::shared_ptr<Mixer> mixer() const;
 
     TrackSequenceId m_id = -1;
@@ -93,5 +97,6 @@ private:
     async::Channel<TrackPtr> m_trackAboutToBeRemoved;
 
     TrackId m_prevActiveTrackId = INVALID_TRACK_ID;
+    std::unordered_set<TrackId> m_tracksToProcessWhenIdle;
 };
 }

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -58,6 +58,12 @@ static const ElementStyle letRingStyle {
     { Sid::letRingLineWidth,                     Pid::LINE_WIDTH },
     { Sid::letRingPlacement,                     Pid::PLACEMENT },
     //{ Sid::letRingPosBelow,                      Pid::OFFSET                 },
+    { Sid::letRingMusicalSymbolSize,             Pid::BEGIN_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::letRingMusicalSymbolSize,             Pid::CONTINUE_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::letRingMusicalSymbolSize,             Pid::END_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::dummyMusicalSymbolsScale,             Pid::BEGIN_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::dummyMusicalSymbolsScale,             Pid::CONTINUE_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::dummyMusicalSymbolsScale,             Pid::END_TEXT_MUSICAL_SYMBOLS_SCALE },
 };
 
 LetRingSegment::LetRingSegment(LetRing* sp, System* parent)
@@ -144,6 +150,16 @@ PropertyValue LetRing::propertyDefault(Pid propertyId) const
         return TextPlace::AUTO;
     case Pid::TEXT_STYLE:
         return TextStyleType::LET_RING;
+
+    case Pid::BEGIN_FILLED_ARROW_HEIGHT:   // No arrow endings for let ring
+    case Pid::BEGIN_FILLED_ARROW_WIDTH:
+    case Pid::END_FILLED_ARROW_HEIGHT:
+    case Pid::END_FILLED_ARROW_WIDTH:
+    case Pid::BEGIN_LINE_ARROW_HEIGHT:
+    case Pid::BEGIN_LINE_ARROW_WIDTH:
+    case Pid::END_LINE_ARROW_HEIGHT:
+    case Pid::END_LINE_ARROW_WIDTH:
+        return 0.0;
 
     default:
         return TextLineBase::propertyDefault(propertyId);

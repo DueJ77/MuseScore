@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -77,6 +77,9 @@ static void undoAddTuplet(DurationElement* cr)
 AddElement::AddElement(EngravingItem* e)
 {
     DO_ASSERT_X(!e->generated(), String(u"Generated item %1 passed to AddElement").arg(String::fromAscii(e->typeName())));
+    DO_ASSERT_X(e->parent()->score() == e->score(),
+                String(u"Item %1 is in a different score to its parent %2").arg(String::fromAscii(e->typeName()),
+                                                                                String::fromAscii(e->parent()->typeName())));
     element = e;
 }
 
@@ -535,4 +538,19 @@ Unlink::Unlink(EngravingObject* _e)
     e  = _e;
     le = e->links();
     assert(le);
+}
+
+void ChangeSegmentParent::flip(EditData*)
+{
+    Measure* p = segment->measure();
+    Fraction oldTick = segment->rtick();
+    p->remove(segment);
+    segment->setParent(parent);
+    segment->setRtick(tick);
+    parent->add(segment);
+
+    parent = p;
+    tick = oldTick;
+
+    segment->triggerLayout();
 }

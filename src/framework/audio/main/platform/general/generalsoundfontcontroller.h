@@ -33,15 +33,15 @@
 #include "audio/common/rpc/irpcchannel.h"
 
 namespace muse::audio {
-class GeneralSoundFontController : public ISoundFontController, public async::Asyncable
+class GeneralSoundFontController : public ISoundFontController, public async::Asyncable, public muse::Contextable
 {
-    Inject<IInteractive> interactive;
-    Inject<IAudioConfiguration> configuration;
-    Inject<io::IFileSystem> fileSystem;
-    Inject<rpc::IRpcChannel> channel;
+    GlobalInject<IAudioConfiguration> configuration;
+    GlobalInject<io::IFileSystem> fileSystem;
+    ContextInject<IInteractive> interactive = { this };
+    ContextInject<rpc::IRpcChannel> channel = { this };
 
 public:
-    GeneralSoundFontController() = default;
+    GeneralSoundFontController(const muse::modularity::ContextPtr& iocCtx);
 
     void loadSoundFonts() override;
 

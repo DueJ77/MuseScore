@@ -5,7 +5,7 @@
 # MuseScore Studio
 # Music Composition & Notation
 #
-# Copyright (C) 2021 MuseScore Limited
+# Copyright (C) 2021 MuseScore Limited and others
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -69,7 +69,7 @@ MUSESCORE_REVISION=$(git rev-parse --short=7 HEAD)
 MUSE_APP_BUILD_MODE=$MUSE_APP_BUILD_MODE \
 MUSESCORE_BUILD_NUMBER=$BUILD_NUMBER \
 MUSESCORE_REVISION=$MUSESCORE_REVISION \
-MUSESCORE_BUILD_VIDEOEXPORT_MODULE=$BUILD_VIDEOEXPORT \
+MUSESCORE_BUILD_IMPEXP_VIDEOEXPORT_MODULE=$BUILD_VIDEOEXPORT \
 bash ./ninja_build.sh -t appimage
 
 

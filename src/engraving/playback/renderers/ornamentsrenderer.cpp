@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -315,7 +315,7 @@ void OrnamentsRenderer::doRender(const EngravingItem* item, const ArticulationTy
 
     if (Ornament* ornament = chord->findOrnament(true)) {
         intervalsInfo = makeIntervalsInfo(ornament->intervalBelow(), ornament->intervalAbove());
-        isArticulation = muse::contains(chord->articulations(), static_cast<Articulation*>(ornament));
+        isArticulation = muse::contains(chord->articulations(), toArticulation(ornament));
     } else {
         intervalsInfo = makeIntervalsInfo(DEFAULT_ORNAMENT_INTERVAL, DEFAULT_ORNAMENT_INTERVAL);
     }

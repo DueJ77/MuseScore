@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -64,6 +64,7 @@ public:
     double addFillSpacing(double step, double maxFill);
 
     void setNormalisedSpacing(double newNormalisedSpacing);
+    void setNonStretchable();   // neu: markiert diese Lücke als fest (nicht verteilbar)
 
 private:
     void  updateFactor(double factor);

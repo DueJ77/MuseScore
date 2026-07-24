@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@
 
 #include "../editing/textedit.h"
 #include "../editing/undo.h"
+#include "../editing/transpose.h"
 
 #include "chordlist.h"
 #include "fret.h"
@@ -266,6 +267,9 @@ String Harmony::harmonyName() const
 
 bool Harmony::isRealizable() const
 {
+    if (m_chords.empty()) {
+        return false;
+    }
     for (const HarmonyInfo* info : m_chords) {
         if (!tpcIsValid(info->rootTpc())) {
             return false;
@@ -834,8 +838,8 @@ void Harmony::endEdit(EditData& ed)
                         interval.flip();
                     }
                     for (HarmonyInfo* info : h->m_chords) {
-                        int rootTpc = transposeTpc(info->rootTpc(), interval, true);
-                        int bassTpc = transposeTpc(info->bassTpc(), interval, true);
+                        int rootTpc = Transpose::transposeTpc(info->rootTpc(), interval, true);
+                        int bassTpc = Transpose::transposeTpc(info->bassTpc(), interval, true);
                         info->setRootTpc(rootTpc);
                         info->setBassTpc(bassTpc);
                         // score()->undoTransposeHarmony(h, rootTpc, bassTpc);
@@ -1100,7 +1104,7 @@ const RealizedHarmony& Harmony::getRealizedHarmony() const
     const CapoParams& capo = st->capo(tick);
 
     int offset = 0;
-    if (capo.active) {
+    if (capo.active && CapoParams::TransposeMode::TAB_ONLY != capo.transposeMode) {
         offset = capo.fretPosition;
     }
 
@@ -1200,12 +1204,12 @@ void TextSegment::setFont(const muse::draw::Font& f)
             const Char& c2 = m_text.at(i + 1);
             ++i;
             char32_t v = Char::surrogateToUcs4(c, c2);
-            if (!fm.inFontUcs4(v)) {
+            if (!fm.inFont(v)) {
                 fail = true;
                 break;
             }
         } else {
-            if (!fm.inFont(c)) {
+            if (!fm.inFont(c.unicode())) {
                 fail = true;
                 break;
             }
@@ -1612,6 +1616,11 @@ PropertyValue Harmony::propertyDefault(Pid id) const
         break;
     }
     return v;
+}
+
+bool Harmony::positionRelativeToNoteheadRest() const
+{
+    return !parent()->isFretDiagram();
 }
 
 //---------------------------------------------------------

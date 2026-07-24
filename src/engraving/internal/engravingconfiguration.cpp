@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,8 +42,6 @@ using namespace mu::engraving;
 
 static const Settings::Key DEFAULT_STYLE_FILE_PATH("engraving", "engraving/style/defaultStyleFile");
 static const Settings::Key PART_STYLE_FILE_PATH("engraving", "engraving/style/partStyleFile");
-
-static const Settings::Key INVERT_SCORE_COLOR("engraving", "engraving/scoreColorInversion");
 
 static const Settings::Key ALL_VOICES_COLOR("engraving", "engraving/colors/allVoicesColor");
 static const Settings::Key FORMATTING_COLOR("engraving", "engraving/colors/formattingColor");
@@ -84,11 +82,6 @@ void EngravingConfiguration::init()
     settings()->setDefaultValue(PART_STYLE_FILE_PATH, Val(muse::io::path_t()));
     settings()->valueChanged(PART_STYLE_FILE_PATH).onReceive(this, [this](const Val& val) {
         m_partStyleFilePathChanged.send(val.toPath());
-    });
-
-    settings()->setDefaultValue(INVERT_SCORE_COLOR, Val(false));
-    settings()->valueChanged(INVERT_SCORE_COLOR).onReceive(nullptr, [this](const Val&) {
-        m_scoreInversionChanged.notify();
     });
 
     for (voice_idx_t voice = 0; voice < VOICES; ++voice) {
@@ -347,16 +340,6 @@ Color EngravingConfiguration::highlightSelectionColor(voice_idx_t voice) const
     return Color::fromQColor(selectionColor(voice).toQColor().lighter(135));
 }
 
-bool EngravingConfiguration::scoreInversionEnabled() const
-{
-    return settings()->value(INVERT_SCORE_COLOR).toBool();
-}
-
-void EngravingConfiguration::setScoreInversionEnabled(bool value)
-{
-    settings()->setSharedValue(INVERT_SCORE_COLOR, Val(value));
-}
-
 bool EngravingConfiguration::dynamicsApplyToAllVoices() const
 {
     return settings()->value(DYNAMICS_APPLY_TO_ALL_VOICES).toBool();
@@ -385,11 +368,6 @@ void EngravingConfiguration::setAutoUpdateFretboardDiagrams(bool v)
 muse::async::Channel<bool> EngravingConfiguration::autoUpdateFretboardDiagramsChanged() const
 {
     return m_fretboardDiagramsAutoUpdateChanged;
-}
-
-muse::async::Notification EngravingConfiguration::scoreInversionChanged() const
-{
-    return m_scoreInversionChanged;
 }
 
 Color EngravingConfiguration::formattingColor() const
@@ -467,22 +445,17 @@ void EngravingConfiguration::setDoNotSaveEIDsForBackCompat(bool doNotSave)
     settings()->setSharedValue(DO_NOT_SAVE_EIDS_FOR_BACK_COMPAT, Val(doNotSave));
 }
 
+bool EngravingConfiguration::allowReadingImagesFromOutsideMscz() const
+{
+    return false;
+}
+
 bool EngravingConfiguration::guitarProImportExperimental() const
 {
     return guitarProConfiguration() ? guitarProConfiguration()->experimental() : false;
 }
 
-bool EngravingConfiguration::shouldAddParenthesisOnStandardStaff() const
-{
-    return guitarProImportExperimental();
-}
-
 bool EngravingConfiguration::negativeFretsAllowed() const
-{
-    return guitarProImportExperimental();
-}
-
-bool EngravingConfiguration::crossNoteHeadAlwaysBlack() const
 {
     return guitarProImportExperimental();
 }
@@ -514,4 +487,14 @@ bool EngravingConfiguration::preferSameStringForTranspose() const
 
 void EngravingConfiguration::setPreferSameStringForTranspose(bool /*preferSameString*/)
 {
+}
+
+int EngravingConfiguration::maxScaledImageDim() const
+{
+    return m_maxScaledImageDim;
+}
+
+void EngravingConfiguration::setMaxScaledImageDim(int maxDim)
+{
+    m_maxScaledImageDim = maxDim;
 }

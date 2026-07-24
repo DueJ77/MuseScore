@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -62,7 +62,7 @@ static mu::playback::IPlaybackController::PlayParams makeNoteOffParams()
 
 NotationMidiInput::NotationMidiInput(IGetScore* getScore, INotationInteractionPtr notationInteraction,
                                      INotationUndoStackPtr undoStack, const muse::modularity::ContextPtr& iocCtx)
-    : muse::Injectable(iocCtx), m_getScore(getScore),
+    : muse::Contextable(iocCtx), m_getScore(getScore),
     m_notationInteraction(notationInteraction), m_undoStack(undoStack)
 {
     QObject::connect(&m_processTimer, &QTimer::timeout, [this]() { doProcessEvents(); });
@@ -182,7 +182,7 @@ void NotationMidiInput::doProcessEvents()
         if (note) {
             if (useDurationAndVelocity) {
                 note->setUserVelocity(event.velocity7());
-                m_playingNotes[note->pitch()] = note;
+                m_playingNotes[note->pitch()] = { isSoundPreview, note };
             }
             notesOn.push_back(note);
         }
@@ -206,14 +206,17 @@ void NotationMidiInput::doProcessEvents()
     }
 
     if (!notesOn.empty()) {
+        if (isNoteInput) {
+            playbackController()->seekElement(notesOn.front(), !useDurationAndVelocity /*flushSound*/);
+        }
+
         const std::vector<const EngravingItem*> elements(notesOn.begin(), notesOn.end());
-        playbackController()->seekElement(notesOn.front(), !useDurationAndVelocity /*flushSound*/);
         playbackController()->playElements(elements, makeNoteOnParams(useDurationAndVelocity), true);
         m_notesReceivedChannel.send(notesOn);
     }
 
     if (!notesOff.empty()) {
-        releasePlayingNotes(notesOff, isSoundPreview);
+        releasePlayingNotes(notesOff);
     }
 }
 
@@ -421,9 +424,10 @@ void NotationMidiInput::triggerControllers(const ControllerEventMap& events)
     playbackController()->triggerControllers(controllers, is.staffIdx(), is.tick().ticks());
 }
 
-void NotationMidiInput::releasePlayingNotes(const std::vector<int>& pitches, bool deleteNotes)
+void NotationMidiInput::releasePlayingNotes(const std::vector<int>& pitches)
 {
-    std::vector<const EngravingItem*> notes;
+    std::vector<const EngravingItem*> notesOff;
+    std::vector<Note*> notesToDelete;
 
     const staff_idx_t staffIdx = score()->inputState().staffIdx();
     const bool useWrittenPitch = configuration()->midiUseWrittenPitch().val;
@@ -436,16 +440,20 @@ void NotationMidiInput::releasePlayingNotes(const std::vector<int>& pitches, boo
             continue;
         }
 
-        notes.push_back(it->second);
-        it->second->setUserVelocity(0);
+        Note* note = it->second.note;
+        note->setUserVelocity(0);
+
+        notesOff.push_back(note);
+
+        if (it->second.isPreview) {
+            notesToDelete.push_back(note);
+        }
+
         m_playingNotes.erase(it);
     }
 
-    playbackController()->playElements(notes, makeNoteOffParams(), true /*isMidi*/);
-
-    if (deleteNotes) {
-        muse::DeleteAll(notes);
-    }
+    playbackController()->playElements(notesOff, makeNoteOffParams(), true /*isMidi*/);
+    muse::DeleteAll(notesToDelete);
 }
 
 void NotationMidiInput::enableMetronome()

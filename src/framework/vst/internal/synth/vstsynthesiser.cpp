@@ -5,7 +5,7 @@
  * MuseScore
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited and others
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,7 +40,7 @@ static const std::set<Steinberg::Vst::CtrlNumber> SUPPORTED_CONTROLLERS = {
 VstSynthesiser::VstSynthesiser(const TrackId trackId, const muse::audio::AudioInputParams& params,
                                const modularity::ContextPtr& iocCtx)
     : AbstractSynthesizer(params, iocCtx),
-    m_vstAudioClient(std::make_unique<VstAudioClient>()),
+    m_vstAudioClient(std::make_unique<VstAudioClient>(iocCtx)),
     m_trackId(trackId)
 {
 }
@@ -60,14 +60,14 @@ void VstSynthesiser::init(const OutputSpec& spec)
 
     m_pluginPtr = instancesRegister()->makeAndRegisterInstrPlugin(m_params.resourceMeta.id, m_trackId);
 
-    m_vstAudioClient->init(AudioPluginType::Instrument, m_pluginPtr, m_outputSpec.audioChannelCount);
+    m_vstAudioClient->init(AudioPluginType::Instrument, m_pluginPtr);
 
     auto onPluginLoaded = [this]() {
         m_pluginPtr->updatePluginConfig(m_params.configuration);
-        m_vstAudioClient->setSampleRate(m_outputSpec.sampleRate);
-        m_vstAudioClient->setMaxSamplesPerBlock(m_outputSpec.samplesPerChannel);
+        m_vstAudioClient->setOutputSpec(m_outputSpec);
         m_vstAudioClient->loadSupportedParams();
         m_sequencer.init(m_vstAudioClient->paramsMapping(SUPPORTED_CONTROLLERS), m_useDynamicEvents);
+        m_inited = true;
     };
 
     if (m_pluginPtr->isLoaded()) {
@@ -88,6 +88,15 @@ void VstSynthesiser::init(const OutputSpec& spec)
     m_sequencer.setOnOffStreamFlushed([this]() {
         m_vstAudioClient->flushSound();
     });
+}
+
+void VstSynthesiser::updateRenderingMode(const RenderMode mode)
+{
+    if (mode == RenderMode::OfflineMode) {
+        m_vstAudioClient->setProcessMode(VstProcessMode::kOffline);
+    } else {
+        m_vstAudioClient->setProcessMode(VstProcessMode::kRealtime);
+    }
 }
 
 void VstSynthesiser::toggleVolumeGain(const bool isActive)
@@ -152,8 +161,13 @@ bool VstSynthesiser::isActive() const
 
 void VstSynthesiser::setIsActive(const bool isActive)
 {
+    if (m_sequencer.isActive() == isActive) {
+        return;
+    }
+
     m_sequencer.setActive(isActive);
     toggleVolumeGain(isActive);
+    m_vstAudioClient->setIsPlaying(isActive);
     m_vstAudioClient->setIsActive(isActive);
 }
 
@@ -165,6 +179,7 @@ muse::audio::msecs_t VstSynthesiser::playbackPosition() const
 void VstSynthesiser::setPlaybackPosition(const muse::audio::msecs_t newPosition)
 {
     m_sequencer.setPlaybackPosition(newPosition);
+    m_currentPositionSamples = microSecsToSamples(newPosition, m_outputSpec.sampleRate);
 
     if (isActive()) {
         m_vstAudioClient->setVolumeGain(m_sequencer.currentGain());
@@ -174,7 +189,11 @@ void VstSynthesiser::setPlaybackPosition(const muse::audio::msecs_t newPosition)
 void VstSynthesiser::setOutputSpec(const audio::OutputSpec& spec)
 {
     m_outputSpec = spec;
-    m_vstAudioClient->setSampleRate(spec.sampleRate);
+    m_currentPositionSamples = microSecsToSamples(m_sequencer.playbackPosition(), m_outputSpec.sampleRate);
+
+    if (m_inited) {
+        m_vstAudioClient->setOutputSpec(spec);
+    }
 }
 
 unsigned int VstSynthesiser::audioChannelsCount() const
@@ -193,12 +212,9 @@ samples_t VstSynthesiser::process(float* buffer, samples_t samplesPerChannel)
         return 0;
     }
 
-    if (samplesPerChannel > m_vstAudioClient->maxSamplesPerBlock()) {
-        m_vstAudioClient->setMaxSamplesPerBlock(samplesPerChannel);
-    }
-
     const msecs_t nextMsecs = samplesToMsecs(samplesPerChannel, m_outputSpec.sampleRate);
     const VstSequencer::EventSequenceMap sequences = m_sequencer.movePlaybackForward(nextMsecs);
+    const bool active = m_sequencer.isActive();
 
     samples_t sampleOffset = 0;
     samples_t processedSamples = 0;
@@ -218,6 +234,10 @@ samples_t VstSynthesiser::process(float* buffer, samples_t samplesPerChannel)
 
         processedSamples += processSequence(it->second, durationInSamples, buffer + sampleOffset * m_outputSpec.audioChannelCount);
         sampleOffset += durationInSamples;
+
+        if (active) {
+            m_currentPositionSamples += durationInSamples;
+        }
     }
 
     return processedSamples;
@@ -240,5 +260,5 @@ samples_t VstSynthesiser::processSequence(const VstSequencer::EventSequence& seq
         return 0;
     }
 
-    return m_vstAudioClient->process(buffer, samples, m_sequencer.playbackPosition());
+    return m_vstAudioClient->process(buffer, samples, m_currentPositionSamples);
 }

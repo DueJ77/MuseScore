@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,13 +31,16 @@
 #include "framework/musesampler/imusesamplerinfo.h"
 
 namespace mu::notation {
-class InstrumentsRepository : public IInstrumentsRepository, public muse::async::Asyncable
+class InstrumentsRepository : public IInstrumentsRepository, public muse::async::Asyncable, public muse::Contextable
 {
-    muse::Inject<muse::io::IFileSystem> fileSystem;
-    muse::Inject<INotationConfiguration> configuration;
-    muse::Inject<muse::musesampler::IMuseSamplerInfo> museSampler;
+    muse::GlobalInject<muse::io::IFileSystem> fileSystem;
+    muse::GlobalInject<INotationConfiguration> configuration;
+    muse::ContextInject<muse::musesampler::IMuseSamplerInfo> museSampler = { this };
 
 public:
+    InstrumentsRepository(const muse::modularity::ContextPtr& iocCtx)
+        : muse::Contextable(iocCtx) {}
+
     void init();
 
     const InstrumentTemplateList& instrumentTemplates() const override;

@@ -29,23 +29,23 @@
 #include "modularity/ioc.h"
 #include "imainwindow.h"
 #include "internal/iplatformtheme.h"
-#include "io/filewatcher.h"
+#include "io/filesystemwatcher.h"
 
 #include "types/val.h"
 #include "uiarrangement.h"
 #include "async/asyncable.h"
 
 namespace muse::ui {
-class UiConfiguration : public IUiConfiguration, public Injectable, public async::Asyncable
+class UiConfiguration : public IUiConfiguration, public Contextable, public async::Asyncable
 {
-    Inject<IMainWindow> mainWindow = { this };
-    Inject<IPlatformTheme> platformTheme = { this };
-    Inject<IGlobalConfiguration> globalConfiguration = { this };
+    ContextInject<IMainWindow> mainWindow = { this };
+    ContextInject<IPlatformTheme> platformTheme = { this };
+    GlobalInject<IGlobalConfiguration> globalConfiguration;
 
 public:
 
     UiConfiguration(const modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx), m_uiArrangement(iocCtx) {}
+        : Contextable(iocCtx), m_uiArrangement(iocCtx) {}
 
     void init();
     void load();
@@ -131,6 +131,9 @@ public:
 
     int tooltipDelay() const override;
 
+    std::vector<QColor> colorDialogCustomColors() const override;
+    void setColorDialogCustomColors(const std::vector<QColor>&) override;
+
 private:
     void initThemes();
     void correctUserFontIfNeeded();
@@ -173,6 +176,6 @@ private:
 
     Config m_config;
 
-    mutable io::FileWatcher m_themeWatcher;
+    mutable io::FileSystemWatcher m_themeWatcher;
 };
 }

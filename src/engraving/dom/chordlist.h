@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -123,7 +123,7 @@ private:
 struct RenderAction
 {
     enum class RenderActionType : char {
-        SET, MOVE, MOVEXHEIGHT, PUSH, POP, NOTE, ACCIDENTAL, STOPHALIGN, SCALE, PAREN
+        SET, MOVE, MOVEXHEIGHT, PUSH, POP, NOTE, ACCIDENTAL, STOPHALIGN, SCALE, PAREN, PUSH_ABS, POP_ABS, POP_MX
     };
 
     virtual RenderActionType actionType() const = 0;
@@ -251,6 +251,24 @@ struct RenderActionPopY : RenderActionPop
 {
     RenderActionPopY()
         : RenderActionPop(false, true) {}
+};
+
+struct RenderActionPushAbs : RenderAction
+{
+    RenderActionPushAbs() {}
+    RenderActionType actionType() const override { return RenderActionType::PUSH_ABS; }
+};
+
+struct RenderActionPopAbs : RenderAction
+{
+    RenderActionPopAbs() {}
+    RenderActionType actionType() const override { return RenderActionType::POP_ABS; }
+};
+
+struct RenderActionPopMx : RenderAction
+{
+    RenderActionPopMx() {}
+    RenderActionType actionType() const override { return RenderActionType::POP_MX; }
 };
 
 struct RenderActionNote : RenderAction

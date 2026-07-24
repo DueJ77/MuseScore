@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -121,7 +121,7 @@ public:
     static String toXml(AccidentalRole v);
     static AccidentalRole fromXml(const AsciiStringView& tag, AccidentalRole def);
 
-    static String toXml(BeatsPerSecond v);
+    static String toXml(BeatsPerSecond v, int precision);
     static BeatsPerSecond fromXml(const AsciiStringView& tag, BeatsPerSecond def);
 
     static String translatedUserName(DurationType v);
@@ -250,6 +250,9 @@ public:
 
     static AsciiStringView toXml(AutoOnOff autoOnOff);
     static AutoOnOff fromXml(const AsciiStringView& str, AutoOnOff def);
+
+    static AsciiStringView toXml(CapoParams::TransposeMode autoOnOff);
+    static CapoParams::TransposeMode fromXml(const AsciiStringView& str, CapoParams::TransposeMode def);
 
     static AsciiStringView toXml(PartialSpannerDirection v);
     static PartialSpannerDirection fromXml(const AsciiStringView& str, PartialSpannerDirection def);

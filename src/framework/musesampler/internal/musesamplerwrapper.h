@@ -20,8 +20,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef MUSE_MUSESAMPLER_MUSESAMPLERWRAPPER_H
-#define MUSE_MUSESAMPLER_MUSESAMPLERWRAPPER_H
+#pragma once
 
 #include <memory>
 
@@ -91,7 +90,9 @@ private:
 
     struct RenderingInfo {
         long long maxChunksDurationUs = 0;
-        std::string error;
+        int errorCode = 0;
+        std::string errorText;
+        std::string errorData;
         int64_t percentage = 0;
         audio::InputProcessingProgress::ChunkInfoList lastReceivedChunks;
 
@@ -135,5 +136,3 @@ private:
 
 using MuseSamplerWrapperPtr = std::shared_ptr<MuseSamplerWrapper>;
 }
-
-#endif // MUSE_MUSESAMPLER_MUSESAMPLERWRAPPER_H

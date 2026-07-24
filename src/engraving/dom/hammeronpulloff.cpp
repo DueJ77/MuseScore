@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -59,23 +59,13 @@ Color HammerOnPullOffSegment::curColor(const rendering::PaintOptions& opt) const
     return SlurSegment::curColor(opt);
 }
 
-void HammerOnPullOffSegment::scanElements(void* data, void (*func)(void*, EngravingItem*), bool all)
+void HammerOnPullOffSegment::scanElements(std::function<void(EngravingItem*)> func)
 {
-    for (EngravingObject* child : scanChildren()) {
-        child->scanElements(data, func, all);
-    }
-
-    func(data, this);
-}
-
-EngravingObjectList HammerOnPullOffSegment::scanChildren() const
-{
-    EngravingObjectList children;
     for (HammerOnPullOffText* hopo : m_hopoText) {
-        children.push_back(hopo);
+        hopo->scanElements(func);
     }
 
-    return children;
+    EngravingItem::scanElements(func);
 }
 
 void HammerOnPullOffSegment::setTrack(track_idx_t idx)
@@ -279,7 +269,7 @@ static ElementStyle hopoStyle;
 
 HammerOnPullOffText::HammerOnPullOffText(HammerOnPullOffSegment* parent)
     : TextBase(ElementType::HAMMER_ON_PULL_OFF_TEXT, parent, TextStyleType::HAMMER_ON_PULL_OFF,
-               ElementFlag::MOVABLE | ElementFlag::GENERATED)
+               ElementFlag::MOVABLE | ElementFlag::GENERATED | ElementFlag::ON_STAFF)
 {
     resetProperty(Pid::PLACEMENT);
     initElementStyle(&hopoStyle);

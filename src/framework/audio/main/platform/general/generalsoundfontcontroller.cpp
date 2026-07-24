@@ -32,6 +32,11 @@ using namespace muse::audio;
 using namespace muse::audio::rpc;
 using namespace muse::audio::synth;
 
+GeneralSoundFontController::GeneralSoundFontController(const muse::modularity::ContextPtr& iocCtx)
+    : muse::Contextable(iocCtx)
+{
+}
+
 void GeneralSoundFontController::loadSoundFonts()
 {
     configuration()->soundFontDirectoriesChanged().onReceive(this, [this](const io::paths_t&) {
@@ -44,7 +49,7 @@ void GeneralSoundFontController::loadSoundFonts()
 void GeneralSoundFontController::addSoundFont(const SoundFontUri& uri)
 {
     io::path_t path = uri.toLocalFile();
-    std::string title = muse::qtrc("audio", "Do you want to add the SoundFont: %1?")
+    std::string title = muse::qtrc("audio", "Do you want to add SoundFont %1?")
                         .arg(io::filename(path).toQString()).toStdString();
 
     interactive()->question(title, "", {

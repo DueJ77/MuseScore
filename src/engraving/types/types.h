@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@
 
 #include <functional>
 #include <map>
+#include <tuple>
 #include <unordered_set>
 
 #include "global/types/id.h"
@@ -78,12 +79,17 @@ enum class ElementType : unsigned char {
     BAR_LINE,
     STAFF_LINES,
     SYSTEM_DIVIDER,
+    SLUR,
     SLUR_SEGMENT,
+    TIE,
     TIE_SEGMENT,
+    LAISSEZ_VIB,
     LAISSEZ_VIB_SEGMENT,
+    PARTIAL_TIE,
     PARTIAL_TIE_SEGMENT,
     STEM_SLASH,
     ARPEGGIO,
+    CHORD_BRACKET,
     ACCIDENTAL,
     LEDGER_LINE,
     STEM,   // list STEM before NOTE: notes in TAB might 'break' stems
@@ -99,9 +105,6 @@ enum class ElementType : unsigned char {
     SYMBOL,
     BREATH,
     MEASURE_REPEAT,
-    TIE,
-    LAISSEZ_VIB,
-    PARTIAL_TIE,
     ARTICULATION,
     ORNAMENT,
     FERMATA,
@@ -134,23 +137,40 @@ enum class ElementType : unsigned char {
     BEND,
     TREMOLOBAR,
     VOLTA,
-    HAIRPIN_SEGMENT,
-    OTTAVA_SEGMENT,
-    TRILL_SEGMENT,
-    LET_RING_SEGMENT,
-    GRADUAL_TEMPO_CHANGE_SEGMENT,
-    VIBRATO_SEGMENT,
-    PALM_MUTE_SEGMENT,
-    WHAMMY_BAR_SEGMENT,
-    RASGUEADO_SEGMENT,
-    HARMONIC_MARK_SEGMENT,
-    PICK_SCRAPE_SEGMENT,
-    TEXTLINE_SEGMENT,
     VOLTA_SEGMENT,
+    HAIRPIN,
+    HAIRPIN_SEGMENT,
+    OTTAVA,
+    OTTAVA_SEGMENT,
+    TRILL,
+    TRILL_SEGMENT,
+    LET_RING,
+    LET_RING_SEGMENT,
+    GRADUAL_TEMPO_CHANGE,
+    GRADUAL_TEMPO_CHANGE_SEGMENT,
+    VIBRATO,
+    VIBRATO_SEGMENT,
+    PALM_MUTE,
+    PALM_MUTE_SEGMENT,
+    WHAMMY_BAR,
+    WHAMMY_BAR_SEGMENT,
+    RASGUEADO,
+    RASGUEADO_SEGMENT,
+    HARMONIC_MARK,
+    HARMONIC_MARK_SEGMENT,
+    PICK_SCRAPE,
+    PICK_SCRAPE_SEGMENT,
+    TEXTLINE,
+    TEXTLINE_SEGMENT,
+    PEDAL,
     PEDAL_SEGMENT,
+    LYRICSLINE,
     LYRICSLINE_SEGMENT,
+    PARTIAL_LYRICSLINE,
     PARTIAL_LYRICSLINE_SEGMENT,
+    GLISSANDO,
     GLISSANDO_SEGMENT,
+    NOTELINE,
     NOTELINE_SEGMENT,
     STAFF_VISIBILITY_INDICATOR,
     SYSTEM_LOCK_INDICATOR,
@@ -166,29 +186,11 @@ enum class ElementType : unsigned char {
     TAB_DURATION_SYMBOL,
     FSYMBOL,
     PAGE,
-    HAIRPIN,
-    OTTAVA,
-    PEDAL,
-    TRILL,
-    LET_RING,
-    GRADUAL_TEMPO_CHANGE,
-    VIBRATO,
-    PALM_MUTE,
-    WHAMMY_BAR,
-    RASGUEADO,
-    HARMONIC_MARK,
-    PICK_SCRAPE,
-    TEXTLINE,
     TEXTLINE_BASE,
-    NOTELINE,
-    LYRICSLINE,
-    PARTIAL_LYRICSLINE,
-    GLISSANDO,
     BRACKET,
     SEGMENT,
     SYSTEM,
     CHORD,
-    SLUR,
     HBOX,
     VBOX,
     TBOX,
@@ -412,6 +414,7 @@ enum class BarLineType {
     BROKEN           = 0x10,
     DASHED           = BarLineType::BROKEN,
     END              = 0x20,
+    BEGIN            = 0x30,
     FINAL            = BarLineType::END,
     END_START_REPEAT = 0x40,
     LEFT_RIGHT_REPEAT= BarLineType::END_START_REPEAT,
@@ -656,7 +659,7 @@ enum class LineType : unsigned char {
 
 // P_TYPE::HOOK_TYPE
 enum class HookType : unsigned char {
-    NONE, HOOK_90, HOOK_45, HOOK_90T
+    NONE, HOOK_90, HOOK_45, HOOK_90T, ARROW, ARROW_FILLED, ROSETTE
 };
 
 // P_TYPE::KEY_MODE
@@ -801,12 +804,10 @@ enum RepeatPlayCountPreset : unsigned char {
 };
 
 //-------------------------------------------------------------------
-//   Tid
-///   Enumerates the list of built-in text substyles
-///   \internal
-///   Must be in sync with textStyles (in textstyle.cpp)
-//-------------------------------------------------------------------
+// TextStyleType
+// Must be in sync with textStyles (in textstyle.cpp)
 // P_TYPE::TEXT_STYLE
+//-------------------------------------------------------------------
 enum class TextStyleType : unsigned char {
     DEFAULT,
 
@@ -879,6 +880,7 @@ enum class TextStyleType : unsigned char {
     PEDAL,
     BEND,
     LET_RING,
+    WHAMMY_BAR,
     PALM_MUTE,
 
     // User styles
@@ -931,13 +933,6 @@ constexpr bool operator&(FontStyle a1, FontStyle a2)
 {
     return static_cast<bool>(static_cast<char>(a1) & static_cast<char>(a2));
 }
-
-enum class AnnotationCategory : signed char {
-    Undefined = -1,
-    TempoAnnotation,
-    PlayingAnnotation,
-    Other,
-};
 
 enum class PlayingTechniqueType : signed char {
     Undefined = -1,
@@ -1091,11 +1086,7 @@ struct InstrumentTrackId {
 
     bool operator <(const InstrumentTrackId& other) const noexcept
     {
-        if (partId < other.partId) {
-            return true;
-        }
-
-        return instrumentId < other.instrumentId;
+        return std::tie(partId, instrumentId) < std::tie(other.partId, other.instrumentId);
     }
 
     bool isValid() const
@@ -1171,16 +1162,20 @@ enum class MarkerType : unsigned char {
 };
 
 enum class StaffGroup : unsigned char {
-    STANDARD, PERCUSSION, TAB
+    STANDARD, PERCUSSION, TAB, CIPHER,
 };
-constexpr int STAFF_GROUP_MAX = int(StaffGroup::TAB) + 1; // out of enum to avoid compiler complains about not handled switch cases
+constexpr int STAFF_GROUP_MAX = int(StaffGroup::CIPHER) + 1; // out of enum to avoid compiler complains about not handled switch cases
 
 enum class TrillType : unsigned char {
     TRILL_LINE, UPPRALL_LINE, DOWNPRALL_LINE, PRALLPRALL_LINE,
 };
 
-enum class VibratoType : unsigned char {
-    GUITAR_VIBRATO, GUITAR_VIBRATO_WIDE, VIBRATO_SAWTOOTH, VIBRATO_SAWTOOTH_WIDE
+enum class VibratoType : signed char {
+    NONE = -1,
+    GUITAR_VIBRATO,
+    GUITAR_VIBRATO_WIDE,
+    VIBRATO_SAWTOOTH,
+    VIBRATO_SAWTOOTH_WIDE
 };
 
 enum class ArticulationTextType : unsigned char {
@@ -1298,9 +1293,15 @@ struct SwingParameters {
 };
 
 struct CapoParams {
-    bool active = false;
-    int fretPosition = 0;
+    enum class TransposeMode {
+        PLAYBACK_ONLY = 0,
+        STANDARD_ONLY = 1,
+        TAB_ONLY      = 2,
+    };
     std::unordered_set<string_idx_t> ignoredStrings;
+    int fretPosition = 0;
+    TransposeMode transposeMode = TransposeMode::PLAYBACK_ONLY;
+    bool active = false;
 };
 
 struct PartAudioSettingsCompat {

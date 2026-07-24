@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,7 @@
 #include "../dom/navigate.h"
 #include "../dom/score.h"
 #include "../dom/symbol.h"
+#include "../dom/utils.h"
 
 #include "log.h"
 
@@ -200,6 +201,16 @@ void TextBase::endEdit(EditData& ed)
             ted->deleteText = true;
         } else {
             score()->undoRemoveElement(this);
+
+            if (isLyrics()) {
+                PartialLyricsLine* partialDash = findPrevPartialLyricsLineDash(toLyrics(this));
+                if (partialDash) {
+                    // TODO: Making this operation undoable only makes sense if the text is restored too which is currently isn't
+                    // Otherwise, we end up with a trailing partial dash with no ending syllable
+                    score()->removeElement(partialDash);
+                }
+            }
+
             commitText();
         }
         ed.element = 0;
@@ -547,8 +558,8 @@ bool TextBase::edit(EditData& ed)
         }
 
         case Key_Left:
-            if (!m_cursor->movePosition(ctrlPressed ? TextCursor::MoveOperation::WordLeft : TextCursor::MoveOperation::Left,
-                                        mm) && type() == ElementType::LYRICS) {
+            if (!m_cursor->movePosition(ctrlPressed ? TextCursor::MoveOperation::WordLeft : TextCursor::MoveOperation::Left, mm)
+                && isLyrics()) {
                 return false;
             }
             s.clear();
@@ -558,8 +569,8 @@ bool TextBase::edit(EditData& ed)
             break;
 
         case Key_Right:
-            if (!m_cursor->movePosition(ctrlPressed ? TextCursor::MoveOperation::NextWord : TextCursor::MoveOperation::Right,
-                                        mm) && type() == ElementType::LYRICS) {
+            if (!m_cursor->movePosition(ctrlPressed ? TextCursor::MoveOperation::NextWord : TextCursor::MoveOperation::Right, mm)
+                && isLyrics()) {
                 return false;
             }
             s.clear();

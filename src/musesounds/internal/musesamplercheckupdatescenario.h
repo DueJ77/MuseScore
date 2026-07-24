@@ -31,21 +31,21 @@
 #include "global/iprocess.h"
 #include "global/iglobalconfiguration.h"
 #include "actions/iactionsdispatcher.h"
-#include "multiinstances/imultiinstancesprovider.h"
+#include "multiwindows/imultiwindowsprovider.h"
 
 namespace mu::musesounds {
-class MuseSamplerCheckUpdateScenario : public IMuseSamplerCheckUpdateScenario, public muse::Injectable, public muse::async::Asyncable
+class MuseSamplerCheckUpdateScenario : public IMuseSamplerCheckUpdateScenario, public muse::Contextable, public muse::async::Asyncable
 {
-    muse::Inject<IMuseSamplerCheckUpdateService> service = { this };
-    muse::Inject<muse::IInteractive> interactive = { this };
-    muse::Inject<muse::IProcess> process = { this };
-    muse::Inject<muse::IGlobalConfiguration> globalConfiguration = { this };
-    muse::Inject<muse::actions::IActionsDispatcher> dispatcher = { this };
-    muse::Inject<muse::mi::IMultiInstancesProvider> multiInstancesProvider = { this };
+    muse::GlobalInject<muse::mi::IMultiWindowsProvider> multiwindowsProvider;
+    muse::GlobalInject<muse::IGlobalConfiguration> globalConfiguration;
+    muse::GlobalInject<muse::IProcess> process;
+    muse::ContextInject<IMuseSamplerCheckUpdateService> service = { this };
+    muse::ContextInject<muse::IInteractive> interactive = { this };
+    muse::ContextInject<muse::actions::IActionsDispatcher> dispatcher = { this };
 
 public:
     MuseSamplerCheckUpdateScenario(const muse::modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx) {}
+        : muse::Contextable(iocCtx) {}
 
     bool alreadyChecked() const override;
     void checkAndShowUpdateIfNeed() override;

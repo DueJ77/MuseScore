@@ -37,10 +37,10 @@
 #include "abstractaudioencoder.h"
 
 namespace muse::audio::soundtrack {
-class SoundTrackWriter : public muse::Injectable, public async::Asyncable
+class SoundTrackWriter : public muse::Contextable, public async::Asyncable
 {
-    muse::Inject<engine::IAudioEngine> audioEngine = { this };
-    muse::Inject<rpc::IRpcChannel> rpcChannel = { this };
+    muse::ContextInject<engine::IAudioEngine> audioEngine = { this };
+    muse::ContextInject<rpc::IRpcChannel> rpcChannel = { this };
 
 public:
     SoundTrackWriter(const io::path_t& destination, const SoundTrackFormat& format, const msecs_t totalDuration,
@@ -53,15 +53,18 @@ public:
     Progress progress();
 
 private:
-    Ret generateAudioData();
+    Ret writeStreaming();
 
-    void sendStepProgress(int step, int64_t current, int64_t total);
+    void sendStreamingProgress(uint64_t framesWritten, uint64_t totalFrames);
 
     engine::IAudioSourcePtr m_source = nullptr;
 
-    std::vector<float> m_inputBuffer;
     std::vector<float> m_intermBuffer;
+
     samples_t m_renderStep = 0;
+    samples_t m_leadingSilenceSamples = 0;
+    samples_t m_dataSamples = 0;
+    samples_t m_totalSamples = 0;
 
     encode::AbstractAudioEncoderPtr m_encoderPtr = nullptr;
 

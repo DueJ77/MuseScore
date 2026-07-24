@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -109,8 +109,7 @@ void CommandLineParser::init()
                                           "Transpose the given score and export the data to a single JSON file, print it to stdout",
                                           "options"));
     m_parser.addOption(QCommandLineOption("score-elements",
-                                          "Scan the given score and export elements to a single JSON file, print it to stdout",
-                                          "options"));
+                                          "Scan the given score and export elements to a single JSON file, print it to stdout"));
     m_parser.addOption(QCommandLineOption("source-update", "Update the source in the given score"));
 
     m_parser.addOption(QCommandLineOption({ "S", "style" }, "Load style file", "style"));
@@ -119,6 +118,11 @@ void CommandLineParser::init()
                                           "Use with '-o <file>.mp3' or with '-j <file>', override the sound profile in the given score(s). "
                                           "Possible values: \"MuseScore Basic\", \"MuseSounds\"", "sound-profile"));
 
+    m_parser.addOption(QCommandLineOption("tracks-diff",
+                                          "Use with -o <file>.mp3, write a diff of tracks before and after applying the sound profile. "
+                                          "The report contains two lists: oldTracks and newTracks",
+                                          "tracks-diff"));
+
     m_parser.addOption(QCommandLineOption("transpose",
                                           "Transpose the given score before executing the '-o' options",
                                           "options"));
@@ -126,6 +130,10 @@ void CommandLineParser::init()
     m_parser.addOption(QCommandLineOption("page",
                                           "Use with '-o <file>', export only the specified page. "
                                           "Supported output formats: SVG, PNG, PDF, MSCZ",
+                                          "options"));
+
+    m_parser.addOption(QCommandLineOption("region",
+                                          "Use with '-o <file>', export only the specified region to a separate mscz file. ",
                                           "options"));
 
     // MusicXML
@@ -148,6 +156,7 @@ void CommandLineParser::init()
     m_parser.addOption(QCommandLineOption("fps", "Frame per second [60, 30, 24]", "24"));
     m_parser.addOption(QCommandLineOption("ls", "Pause before playback in seconds (3.0)", "3.0"));
     m_parser.addOption(QCommandLineOption("ts", "Pause before end of video in seconds (3.0)", "3.0"));
+    m_parser.addOption(QCommandLineOption("no-audio", "Export video without audio"));
 #endif
 
     m_parser.addOption(QCommandLineOption("gp-linked", "create tabulature linked staves for guitar pro"));
@@ -317,6 +326,10 @@ void CommandLineParser::parse(int argc, char** argv)
             if (m_parser.isSet("page")) {
                 m_options.converterTask.params[CmdOptions::ParamKey::PageNumber] = m_parser.value("page");
             }
+
+            if (m_parser.isSet("region")) {
+                m_options.converterTask.params[CmdOptions::ParamKey::ScoreRegion] = m_parser.value("region");
+            }
         }
     }
 
@@ -373,7 +386,6 @@ void CommandLineParser::parse(int argc, char** argv)
         m_options.runMode = IApplication::RunMode::ConsoleApp;
         m_options.converterTask.type = ConvertType::ExportScoreElements;
         m_options.converterTask.inputFile = scorefiles[0];
-        m_options.converterTask.params[CmdOptions::ParamKey::ScoreElementsOptions] = m_parser.value("score-elements");
     }
 
     if (m_parser.isSet("source-update")) {
@@ -434,6 +446,10 @@ void CommandLineParser::parse(int argc, char** argv)
         if (m_parser.isSet("ts")) {
             m_options.exportVideo.trailingSec = doubleValue("ts");
         }
+
+        if (m_parser.isSet("no-audio")) {
+            m_options.converterTask.params[CmdOptions::ParamKey::NoAudio] = true;
+        }
     }
 #endif
 
@@ -455,6 +471,10 @@ void CommandLineParser::parse(int argc, char** argv)
 
     if (m_parser.isSet("sound-profile")) {
         m_options.converterTask.params[CmdOptions::ParamKey::SoundProfile] = m_parser.value("sound-profile");
+    }
+
+    if (m_parser.isSet("tracks-diff")) {
+        m_options.converterTask.params[CmdOptions::ParamKey::TracksDiffPath] = m_parser.value("tracks-diff");
     }
 
     if (m_parser.isSet("extension")) {

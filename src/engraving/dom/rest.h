@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,8 @@
 
 #include "chordrest.h"
 #include "notedot.h"
+
+#include "draw/types/font.h"
 
 namespace mu::engraving {
 class TDuration;
@@ -69,10 +71,6 @@ public:
 
     void hack_toRestType();
 
-    // Score Tree functions
-    EngravingObject* scanParent() const override;
-    EngravingObjectList scanChildren() const override;
-
     Rest& operator=(const Rest&) = delete;
 
     Rest* clone() const override { return new Rest(*this, false); }
@@ -81,7 +79,7 @@ public:
     double mag() const override;
     double intrinsicMag() const override;
 
-    void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all = true) override;
+    void scanElements(std::function<void(EngravingItem*)> func) override;
     void setTrack(track_idx_t val) override;
 
     bool acceptDrop(EditData&) const override;
@@ -127,6 +125,10 @@ public:
     String accessibleInfo() const override;
     String screenReaderInfo() const override;
 
+    String get_cipherDuration(int n) const;
+    String get_cipherDurationDot(int n) const;
+    muse::draw::Font get_cipherFont() const;
+
     bool shouldNotBeDrawn() const;
     bool debugDrawGap() const;
 
@@ -135,6 +137,14 @@ public:
     struct LayoutData : public ChordRest::LayoutData {
         std::vector<Rest*> mergedRests;     // Rests from other voices that may be merged with this
         ld_field<SymId> sym = { "[Rest] sym", SymId::restQuarter };
+
+        String fretString;
+        qreal cipherWidth;
+        qreal cipherLineWidth;
+        qreal cipherLineThick;
+        qreal cipherLineSpace;
+        qreal cipherHeigthLine;
+        qreal cipherHeigth = 0.0;
     };
     DECLARE_LAYOUTDATA_METHODS(Rest)
 
@@ -170,5 +180,7 @@ private:
     RestVerticalClearance m_verticalClearance;
 
     bool m_alignWithOtherRests = true;
+    
+    qreal m_trackthick = 1.0;
 };
 }

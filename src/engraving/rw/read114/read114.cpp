@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -88,6 +88,8 @@
 #include "dom/tuplet.h"
 #include "dom/utils.h"
 #include "dom/volta.h"
+
+#include "editing/transpose.h"
 
 #include "../compat/readchordlisthook.h"
 #include "../compat/readstyle.h"
@@ -738,13 +740,13 @@ static void readNote(Note* note, XmlReader& e, ReadContext& ctx)
             if (v.isZero()) {
                 note->setTpc2(note->tpc1());
             } else {
-                note->setTpc2(transposeTpc(note->tpc1(), v, true));
+                note->setTpc2(Transpose::transposeTpc(note->tpc1(), v, true));
             }
         } else {
             if (v.isZero()) {
                 note->setTpc1(note->tpc2());
             } else {
-                note->setTpc1(transposeTpc(note->tpc2(), v, true));
+                note->setTpc1(Transpose::transposeTpc(note->tpc2(), v, true));
             }
         }
     }
@@ -769,7 +771,7 @@ static void readNote(Note* note, XmlReader& e, ReadContext& ctx)
             LOGD("bad tpc2 - transposedPitch = %d, tpc2 = %d", transposedPitch, tpc2Pitch);
             // just in case the staff transposition info is not reliable here,
             v.flip();
-            note->setTpc2(mu::engraving::transposeTpc(note->tpc1(), v, true));
+            note->setTpc2(Transpose::transposeTpc(note->tpc1(), v, true));
         }
     }
 }
@@ -1173,6 +1175,7 @@ static void readVolta114(XmlReader& e, ReadContext& ctx, Volta* volta)
     }
     volta->setOffset(PointF());          // ignore offsets
     volta->setAutoplace(true);
+    CompatUtils::resetHookHeightSign(volta);
 }
 
 //---------------------------------------------------------
@@ -1215,6 +1218,8 @@ static void readOttava114(XmlReader& e, ReadContext& ctx, Ottava* ottava)
             e.unknown();
         }
     }
+
+    CompatUtils::resetHookHeightSign(ottava);
 }
 
 //---------------------------------------------------------
@@ -1294,6 +1299,8 @@ static void readTextLine114(XmlReader& e, ReadContext& ctx, TextLine* textLine)
             e.unknown();
         }
     }
+
+    CompatUtils::resetHookHeightSign(textLine);
 }
 
 //---------------------------------------------------------
@@ -1387,6 +1394,8 @@ static void readPedal114(XmlReader& e, ReadContext& ctx, Pedal* pedal)
     } else if (pedal->endText() == pedal->propertyDefault(Pid::END_TEXT).value<String>()) {
         pedal->setPropertyFlags(Pid::END_TEXT, PropertyFlags::STYLED);
     }
+
+    CompatUtils::resetHookHeightSign(pedal);
 }
 
 //---------------------------------------------------------
@@ -1620,7 +1629,7 @@ static void readMeasure(Measure* m, int staffIdx, XmlReader& e, ReadContext& ctx
                     Chord* pch = 0;                       // previous chord
                     if (ss) {
                         ChordRest* cr = toChordRest(ss->element(track));
-                        if (cr && cr->type() == ElementType::CHORD) {
+                        if (cr && cr->isChord()) {
                             pch = toChord(cr);
                         }
                     }
@@ -1966,7 +1975,7 @@ static void readMeasure(Measure* m, int staffIdx, XmlReader& e, ReadContext& ctx
             EngravingItem* el = Factory::createItemByName(tag, ctx.dummy());
             // hack - needed because tick tags are unreliable in 1.3 scores
             // for symbols attached to anything but a measure
-            if (el->type() == ElementType::SYMBOL) {
+            if (el->isSymbol()) {
                 el->setParent(m);            // this will get reset when adding to segment
             }
             el->setTrack(ctx.track());
@@ -2756,6 +2765,7 @@ muse::Ret Read114::readScoreFile(Score* score, XmlReader& e, ReadInOutData* out)
         }
 
         ctx.setPropertiesToSkip(out->propertiesToSkip);
+        ctx.setForcePageMode(out->forcePageMode);
     }
 
     DEFER {
@@ -2918,7 +2928,7 @@ muse::Ret Read114::readScoreFile(Score* score, XmlReader& e, ReadInOutData* out)
             }
         } else if (tag == "Excerpt") {
             Excerpt* ex = new Excerpt(masterScore);
-            read400::TRead::read(ex, e, ctx);
+            readExcerpt(ex, e, ctx);
             masterScore->m_excerpts.push_back(ex);
         } else if (tag == "Beam") {
             Beam* beam = Factory::createBeam(masterScore->dummy()->system());
@@ -3176,6 +3186,26 @@ muse::Ret Read114::readScoreFile(Score* score, XmlReader& e, ReadInOutData* out)
     }
 
     return muse::make_ok();
+}
+
+void Read114::readExcerpt(Excerpt* item, XmlReader& e, ReadContext&)
+{
+    const std::vector<Part*>& pl = item->masterScore()->parts();
+    std::vector<Part*> parts;
+    while (e.readNextStartElement()) {
+        const AsciiStringView tag = e.name();
+        if (tag == "name" || tag == "title") {
+            item->setName(e.readText().trimmed());
+        } else if (tag == "part") {
+            size_t partIdx = static_cast<size_t>(e.readInt());
+            if (partIdx >= pl.size()) {
+                LOGD("Excerpt::read: bad part index");
+            } else {
+                parts.push_back(pl.at(partIdx));
+            }
+        }
+    }
+    item->setParts(parts);
 }
 
 bool Read114::pasteStaff(XmlReader&, Segment*, staff_idx_t, Fraction)

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -96,7 +96,7 @@ private:
         Measure* measure = nullptr;
         double measureWidth = 0.0;
         double measurePos = 0.0;
-        std::vector < std::pair<Segment*, double> > segmentsPos;
+        std::map<EngravingItem*, PointF> elementPositions;
         bool curHeader = false;
         bool curTrailer = false;
 
@@ -105,17 +105,15 @@ private:
             measure = nullptr;
             measureWidth = 0.0;
             measurePos = 0.0;
-            segmentsPos.clear();
+            elementPositions.clear();
         }
 
         void restoreMeasure()
         {
             measure->mutldata()->setPosX(measurePos);
             measure->setWidth(measureWidth);
-            for (auto pair : segmentsPos) {
-                Segment* segment = pair.first;
-                double x = pair.second;
-                segment->mutldata()->setPosX(x);
+            for (auto pair : elementPositions) {
+                pair.first->setPos(pair.second);
             }
         }
     };
@@ -163,6 +161,8 @@ private:
         std::vector<Spanner*> partialLyricsLines;
         std::vector<Spanner*> allOtherSpanners;
 
+        std::vector<GuitarBend*> guitarBends;
+
         ElementsToLayout(System* s)
             : system(s) {}
     };
@@ -178,7 +178,6 @@ private:
                              LayoutContext& ctx);
     static void doLayoutNoteSpannersLinear(System* system, LayoutContext& ctx);
     static void layoutNoteAnchoredSpanners(System* system, Chord* chord);
-    static void layoutGuitarBends(Chord* chord, LayoutContext& ctx);
     static void updateCrossBeams(System* system, LayoutContext& ctx);
     static bool measureHasCrossStuffOrModifiedBeams(const Measure* measure);
     static void restoreOldSystemLayout(System* system, LayoutContext& ctx);
@@ -196,13 +195,16 @@ private:
 
     static bool elementShouldBeCenteredBetweenStaves(const EngravingItem* item, const System* system);
     static bool mmRestShouldBeCenteredBetweenStaves(const MMRest* mmRest, const System* system);
+    static bool whammyBarShouldBeCenteredBetweenStaves(const WhammyBarSegment* wbar, const System* system);
     static bool elementHasAnotherStackedOutside(const EngravingItem* element, const Shape& elementShape, const SkylineLine& skylineLine);
     static void centerElementBetweenStaves(EngravingItem* element, const System* system);
     static void centerMMRestBetweenStaves(MMRest* mmRest, const System* system);
+    static void LyricsLayout3(System* system, LayoutContext& lc);
 
     static bool shouldBeJustified(System* system, double curSysWidth, double targetSystemWidth, LayoutContext& ctx);
 
-    static void updateBigTimeSigIfNeeded(System* system, LayoutContext& ctx);
+    static void updateTimeSigAboveStavesXPos(System* system, LayoutContext& ctx);
+    static void clearBigTimeSigNotShown(System* system, LayoutContext& ctx);
 
     static void layoutSticking(const std::vector<Sticking*> stickings, System* system, LayoutContext& ctx);
 

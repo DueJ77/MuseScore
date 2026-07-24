@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -266,7 +266,7 @@ void Tie::updatePossibleJumpPoints()
         const Segment* endNoteSegment = endChord ? endChord->segment() : nullptr;
         const ChordRest* finalCROfMeasure = measure->lastChordRest(track());
         const bool finalCRHasFollowingJump = finalCROfMeasure ? finalCROfMeasure->hasFollowingJumpItem() : false;
-        const bool segsAreAdjacent = segmentsAreAdjacentInRepeatStructure(segment, endNoteSegment);
+        const bool segsAreAdjacent = segmentsAreAdjacent(segment, endNoteSegment);
         const bool segsAreInDifferentRepeatSegments = segmentsAreInDifferentRepeatSegments(segment, endNoteSegment);
 
         if (!(finalCRHasFollowingJump && segsAreAdjacent) || !segsAreInDifferentRepeatSegments) {
@@ -454,7 +454,7 @@ void Tie::setStartNote(Note* note)
 
 Note* Tie::startNote() const
 {
-    assert(!startElement() || startElement()->type() == ElementType::NOTE);
+    assert(!startElement() || startElement()->isNote());
     return toNote(startElement());
 }
 

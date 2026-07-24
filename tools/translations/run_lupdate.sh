@@ -5,7 +5,7 @@
 # MuseScore Studio
 # Music Composition & Notation
 #
-# Copyright (C) 2021 MuseScore Limited
+# Copyright (C) 2021 MuseScore Limited and others
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -44,7 +44,7 @@ DEFAULT_LUPDATE_ARGS=(
     -tr-function-alias translate+=TranslatableString
     -tr-function-alias qsTranslate+=qsTrc
     -tr-function-alias QT_TRANSLATE_NOOP+=QT_TRANSLATE_NOOP_U16
-    -extensions cpp,h,mm,ui,qml,js
+    -extensions cpp,h,mm,ui,qml,js,mjs
 )
 
 run_indented() {

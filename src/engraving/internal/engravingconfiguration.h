@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,8 +19,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MU_ENGRAVING_ENGRAVINGCONFIGURATION_H
-#define MU_ENGRAVING_ENGRAVINGCONFIGURATION_H
+
+#pragma once
 
 #include "async/asyncable.h"
 
@@ -33,16 +33,16 @@
 #include "../iengravingconfiguration.h"
 
 namespace mu::engraving {
-class EngravingConfiguration : public IEngravingConfiguration, public muse::Injectable, public muse::async::Asyncable
+class EngravingConfiguration : public IEngravingConfiguration, public muse::Contextable, public muse::async::Asyncable
 {
-    muse::Inject<muse::IGlobalConfiguration> globalConfiguration = { this };
-    muse::Inject<muse::ui::IUiConfiguration> uiConfiguration = { this };
-    muse::Inject<muse::accessibility::IAccessibilityConfiguration> accessibilityConfiguration = { this };
-    muse::Inject<iex::guitarpro::IGuitarProConfiguration> guitarProConfiguration = { this };
+    muse::GlobalInject<muse::IGlobalConfiguration> globalConfiguration;
+    muse::GlobalInject<muse::ui::IUiConfiguration> uiConfiguration;
+    muse::GlobalInject<muse::accessibility::IAccessibilityConfiguration> accessibilityConfiguration;
+    muse::GlobalInject<iex::guitarpro::IGuitarProConfiguration> guitarProConfiguration;
 
 public:
     EngravingConfiguration(const muse::modularity::ContextPtr& iocCtx)
-        : muse::Injectable(iocCtx) {}
+        : muse::Contextable(iocCtx) {}
 
     void init();
 
@@ -82,9 +82,6 @@ public:
 
     Color highlightSelectionColor(voice_idx_t voice = 0) const override;
 
-    bool scoreInversionEnabled() const override;
-    void setScoreInversionEnabled(bool value) override;
-
     bool dynamicsApplyToAllVoices() const override;
     void setDynamicsApplyToAllVoices(bool v) override;
     muse::async::Channel<bool> dynamicsApplyToAllVoicesChanged() const override;
@@ -92,8 +89,6 @@ public:
     bool autoUpdateFretboardDiagrams() const override;
     void setAutoUpdateFretboardDiagrams(bool v) override;
     muse::async::Channel<bool> autoUpdateFretboardDiagramsChanged() const override;
-
-    muse::async::Notification scoreInversionChanged() const override;
 
     Color formattingColor() const override;
     muse::async::Channel<Color> formattingColorChanged() const override;
@@ -118,10 +113,10 @@ public:
     bool doNotSaveEIDsForBackCompat() const override;
     void setDoNotSaveEIDsForBackCompat(bool doNotSave) override;
 
+    bool allowReadingImagesFromOutsideMscz() const override;
+
     bool guitarProImportExperimental() const override;
-    bool shouldAddParenthesisOnStandardStaff() const override;
     bool negativeFretsAllowed() const override;
-    bool crossNoteHeadAlwaysBlack() const override;
     void setGuitarProMultivoiceEnabled(bool multiVoice) override;
     bool guitarProMultivoiceEnabled() const override;
     bool minDistanceForPartialSkylineCalculated() const override;
@@ -129,9 +124,12 @@ public:
     bool preferSameStringForTranspose() const override;
     void setPreferSameStringForTranspose(bool preferSameString) override;
 
+    int maxScaledImageDim() const override;
+    void setMaxScaledImageDim(int maxDim) override;
+
 private:
+    int m_maxScaledImageDim = 4096;
     muse::async::Channel<voice_idx_t, Color> m_voiceColorChanged;
-    muse::async::Notification m_scoreInversionChanged;
     muse::async::Channel<bool> m_dynamicsApplyToAllVoicesChanged;
     muse::async::Channel<bool> m_fretboardDiagramsAutoUpdateChanged;
     muse::async::Channel<Color> m_formattingColorChanged;
@@ -146,5 +144,3 @@ private:
     bool m_multiVoice = false;
 };
 }
-
-#endif // MU_ENGRAVING_ENGRAVINGCONFIGURATION_H

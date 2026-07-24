@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -94,36 +94,35 @@ enum class ElementFlag {
     NOT_SELECTABLE         = 0x00000002,
     MOVABLE                = 0x00000004,
     COMPOSITION            = 0x00000008,         // true if element is part of another element
-    HAS_TAG                = 0x00000010,         // true if this is a layered element
-    ON_STAFF               = 0x00000020,
-    SELECTED               = 0x00000040,
-    GENERATED              = 0x00000080,
-    INVISIBLE              = 0x00000100,
-    NO_AUTOPLACE           = 0x00000200,
-    SYSTEM                 = 0x00000400,
-    PLACE_ABOVE            = 0x00000800,
-    SIZE_SPATIUM_DEPENDENT = 0x00001000,
+    ON_STAFF               = 0x00000010,
+    SELECTED               = 0x00000020,
+    GENERATED              = 0x00000040,
+    INVISIBLE              = 0x00000080,
+    NO_AUTOPLACE           = 0x00000100,
+    SYSTEM                 = 0x00000200,
+    PLACE_ABOVE            = 0x00000400,
+    SIZE_SPATIUM_DEPENDENT = 0x00000800,
 
     // measure flags
-    REPEAT_END             = 0x00002000,
-    REPEAT_START           = 0x00004000,
-    REPEAT_JUMP            = 0x00008000,
-    IRREGULAR              = 0x00010000,
-    LINE_BREAK             = 0x00020000,
-    PAGE_BREAK             = 0x00040000,
-    SECTION_BREAK          = 0x00080000,
-    NO_BREAK               = 0x00100000,
-    HEADER                 = 0x00200000,
-    TRAILER                = 0x00400000,      // also used in segment
-    COURTESY_KEYSIG        = 0x00800000,
-    COURTESY_TIMESIG       = 0x01000000,
-    COURTESY_CLEF          = 0x02000000,
+    REPEAT_END             = 0x00001000,
+    REPEAT_START           = 0x00002000,
+    REPEAT_JUMP            = 0x00004000,
+    IRREGULAR              = 0x00008000,
+    LINE_BREAK             = 0x00010000,
+    PAGE_BREAK             = 0x00020000,
+    SECTION_BREAK          = 0x00040000,
+    NO_BREAK               = 0x00080000,
+    HEADER                 = 0x00100000,
+    TRAILER                = 0x00200000,      // also used in segment
+    COURTESY_KEYSIG        = 0x00400000,
+    COURTESY_TIMESIG       = 0x00800000,
+    COURTESY_CLEF          = 0x01000000,
 
     // segment flags
-    ENABLED                = 0x04000000,      // used for segments
-    EMPTY                  = 0x08000000,
-    WRITTEN                = 0x10000000,
-    END_OF_MEASURE_CHANGE  = 0x20000000,
+    ENABLED                = 0x02000000,      // used for segments
+    EMPTY                  = 0x04000000,
+    WRITTEN                = 0x08000000,
+    END_OF_MEASURE_CHANGE  = 0x10000000,
 };
 
 typedef muse::Flags<ElementFlag> ElementFlags;
@@ -161,7 +160,7 @@ public:
     virtual ~EngravingItem();
 
     EngravingItem& operator=(const EngravingItem&) = delete;
-    //@ create a copy of the element
+
     virtual EngravingItem* clone() const = 0;
     virtual EngravingItem* linkedClone();
 
@@ -189,6 +188,7 @@ public:
     virtual bool isEngravingItem() const override { return true; }
 
     double spatium() const;
+    double defaultSpatium() const;
 
     inline void setFlag(ElementFlag f, bool v)
     {
@@ -322,7 +322,7 @@ public:
     virtual void setTrack(track_idx_t val);
 
     int z() const;
-    void setZ(int val);
+    virtual void setZ(int val);
 
     staff_idx_t staffIdx() const;
     void setStaffIdx(staff_idx_t val);
@@ -335,6 +335,7 @@ public:
     bool hasStaff() const;
     const StaffType* staffType() const;
     bool onTabStaff() const;
+    bool onCipherStaff() const;
     Part* part() const;
 
     virtual void add(EngravingItem*);
@@ -357,7 +358,6 @@ public:
     Color curColor(bool isVisible, const rendering::PaintOptions& opt) const;
     Color curColor(bool isVisible, Color normalColor, const rendering::PaintOptions& opt) const;
 
-    void undoSetColor(const Color& c);
     void undoSetVisible(bool v);
     void undoAddElement(EngravingItem* element, bool addToLinkedStaves = true);
 
@@ -387,7 +387,8 @@ public:
 
     mutable bool itemDiscovered = false;       // helper flag for bsp
 
-    void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all=true) override;
+    void scanElements(std::function<void(EngravingItem*)> func) override;
+    virtual bool collectForDrawing() const;
 
     virtual void reset() override;           // reset all properties & position to default
 
@@ -483,7 +484,6 @@ public:
 
     virtual void setParenthesesMode(const ParenthesesMode& v, bool addToLinked = true, bool generated = false);
     ParenthesesMode parenthesesMode() const;
-    inline bool bothParentheses() const { return m_leftParenthesis && m_rightParenthesis; }
     inline Parenthesis* paren(const DirectionH& dir) const { return dir == DirectionH::LEFT ? m_leftParenthesis : m_rightParenthesis; }
     Parenthesis* leftParen() const { return m_leftParenthesis; }
     Parenthesis* rightParen() const { return m_rightParenthesis; }
@@ -761,7 +761,6 @@ public:
 };
 
 extern bool elementLessThan(const EngravingItem* const, const EngravingItem* const);
-extern void collectElements(void* data, EngravingItem* e);
 } // mu::engraving
 
 #ifndef NO_QT_SUPPORT

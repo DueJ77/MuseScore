@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@
 #include "dom/barline.h"
 #include "dom/beam.h"
 #include "dom/chord.h"
+#include "dom/chordbracket.h"
 #include "dom/engravingitem.h"
 #include "dom/glissando.h"
 #include "dom/lyrics.h"
@@ -1436,7 +1437,7 @@ double HorizontalSpacing::minLeft(const Segment* seg, const Shape& ls)
 
 double HorizontalSpacing::computePadding(const EngravingItem* item1, const EngravingItem* item2)
 {
-    if (item1->isParenthesis() != item2->isParenthesis()) {
+    if (item1->isParenthesis() || item2->isParenthesis()) {
         return ParenthesisLayout::computeParenthesisPadding(item1, item2);
     }
     const PaddingTable& paddingTable = item1->score()->paddingTable();
@@ -1450,6 +1451,8 @@ double HorizontalSpacing::computePadding(const EngravingItem* item1, const Engra
         computeNotePadding(toNote(item1), item2, padding, scaling);
     } else if (type1 == ElementType::LYRICS && isSpecialLyricsPaddingType(type2)) {
         computeLyricsPadding(toLyrics(item1), item2, padding);
+    } else if (type2 == ElementType::CHORD_BRACKET) {
+        computeChordBracketPadding(item1, toChordBracket(item2), padding);
     } else {
         padding *= scaling;
     }
@@ -1596,6 +1599,15 @@ void HorizontalSpacing::computeLyricsPadding(const Lyrics* lyrics1, const Engrav
             double spaceForDash = style.styleMM(Sid::lyricsDashMinLength).val() + 2 * style.styleMM(Sid::lyricsDashPad).val();
             padding = std::max(padding, spaceForDash);
         }
+    }
+}
+
+void HorizontalSpacing::computeChordBracketPadding(const EngravingItem* item1, const ChordBracket* chordBracket, double& padding)
+{
+    const Chord* chord = chordBracket->chord();
+    if (chord && chord == item1->findAncestor(ElementType::CHORD)) {
+        // Padding a right-handed chord bracket to its own chord: use the same padding values as the left-handed case
+        padding = item1->score()->paddingTable().at(ElementType::CHORD_BRACKET).at(item1->type());
     }
 }
 

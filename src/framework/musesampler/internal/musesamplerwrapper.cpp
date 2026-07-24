@@ -26,13 +26,47 @@
 
 #include "audio/common/audioerrors.h"
 
-#include "realfn.h"
+#include "global/serialization/json.h"
+#include "global/realfn.h"
 
 using namespace muse;
 using namespace muse::audio;
 using namespace muse::musesampler;
 
 static constexpr int AUDIO_CHANNELS_COUNT = 2;
+
+static InputProcessingProgress::StatusInfo::StatusData parseStatusData(const std::string& json)
+{
+    if (json.empty()) {
+        return {};
+    }
+
+    std::string err;
+    ByteArray ba(json.c_str());
+    JsonDocument doc = JsonDocument::fromJson(ba, &err);
+
+    if (!err.empty() || !doc.isObject()) {
+        LOGE() << "JSON parse error: " << err << ", json: " << json;
+        return {};
+    }
+
+    JsonObject obj = doc.rootObject();
+    InputProcessingProgress::StatusInfo::StatusData data;
+
+    if (obj.contains("libraryName")) {
+        data["libraryName"] = obj.value("libraryName").toStdString();
+    }
+
+    if (obj.contains("date")) {
+        data["date"] = obj.value("date").toStdString();
+    }
+
+    if (obj.contains("url")) {
+        data["url"] = obj.value("url").toStdString();
+    }
+
+    return data;
+}
 
 MuseSamplerWrapper::MuseSamplerWrapper(MuseSamplerLibHandlerPtr samplerLib,
                                        const InstrumentInfo& instrument,
@@ -81,8 +115,8 @@ void MuseSamplerWrapper::setOutputSpec(const audio::OutputSpec& spec)
 
     m_outputSpec = spec;
 
-    if (isOffline) {
-        LOGD() << "Start offline mode, sampleRate: " << spec.sampleRate;
+    if (isOffline && !m_offlineModeStarted) {
+        LOGI() << "Start offline mode, sampleRate: " << spec.sampleRate;
         m_samplerLib->startOfflineMode(m_sampler, spec.sampleRate);
         m_offlineModeStarted = true;
     }
@@ -317,9 +351,10 @@ void MuseSamplerWrapper::setupOnlineSound()
 {
     constexpr double AUTO_PROCESS_INTERVAL = 3.0;
     constexpr double NO_AUTO_PROCESS = -1.0; // interval < 0 -> no auto process
-
     const bool autoProcess = config()->autoProcessOnlineSoundsInBackground();
+    const bool lazyProcess = config()->isLazyProcessingOfOnlineSoundsEnabled();
 
+    m_samplerLib->setLazyRender(m_sampler, lazyProcess);
     m_sequencer.setUpdateMainStreamWhenInactive(autoProcess);
     m_samplerLib->setAutoRenderInterval(m_sampler, autoProcess ? AUTO_PROCESS_INTERVAL : NO_AUTO_PROCESS);
 
@@ -339,48 +374,70 @@ void MuseSamplerWrapper::setupOnlineSound()
         m_sequencer.updateMainStream();
         m_samplerLib->setAutoRenderInterval(m_sampler, on ? AUTO_PROCESS_INTERVAL : NO_AUTO_PROCESS);
     });
+
+    config()->isLazyProcessingOfOnlineSoundsEnabledChanged().onReceive(this, [this](bool on) {
+        m_samplerLib->setLazyRender(m_sampler, on);
+    });
 }
 
 void MuseSamplerWrapper::updateRenderingProgress(ms_RenderingRangeList list, int size)
 {
     ONLY_AUDIO_ENGINE_THREAD;
 
-    IF_ASSERT_FAILED(m_samplerLib && m_sampler) {
+    IF_ASSERT_FAILED(m_samplerLib) {
         return;
     }
 
-    const bool progressStarted = m_renderingInfo.maxChunksDurationUs > 0;
-
-    audio::InputProcessingProgress::ChunkInfoList chunks;
+    InputProcessingProgress::ChunkInfoList chunks;
     chunks.reserve(size);
 
     long long chunksDurationUs = 0;
     bool isRendering = false;
+    m_hasPendingChunks = false;
 
-    for (int i = 0; i < size; ++i) {
-        const ms_RenderRangeInfo info = m_samplerLib->getNextRenderProgressInfo(list);
+    // Call it N + 1 times so that the sampler can delete the list to avoid memory leak
+    for (int i = 0; i <= size; ++i) {
+        const RenderRangeInfo info = m_samplerLib->getNextRenderProgressInfo(list);
+        if (i == size) {
+            break;
+        }
 
         switch (info._state) {
         case ms_RenderingState_Rendering:
             isRendering = true;
             break;
+        case ms_RenderingState_OutOfRange:
+            m_hasPendingChunks = true;
+            break;
         case ms_RenderingState_ErrorNetwork:
-            m_renderingInfo.error = "Network error";
+            m_renderingInfo.errorCode = (int)Err::OnlineSoundsProcessingError;
+            m_renderingInfo.errorText = "Network error";
             break;
         case ms_RenderingState_ErrorRendering:
-            m_renderingInfo.error = "Rendering error";
+            m_renderingInfo.errorCode = (int)Err::OnlineSoundsProcessingError;
+            m_renderingInfo.errorText = "Rendering error";
             break;
         case ms_RenderingState_ErrorFileIO:
-            m_renderingInfo.error = "File IO error";
+            m_renderingInfo.errorCode = (int)Err::OnlineSoundsProcessingError;
+            m_renderingInfo.errorText = "File IO error";
             break;
         case ms_RenderingState_ErrorTimeOut:
-            m_renderingInfo.error = "Timeout";
+            m_renderingInfo.errorCode = (int)Err::OnlineSoundsProcessingError;
+            m_renderingInfo.errorText = "Timeout";
             break;
+        case ms_RenderingState_ErrorLimitReached:
+            m_renderingInfo.errorCode = (int)Err::OnlineSoundsLimitReached;
+            m_renderingInfo.errorText = "Limit reached";
+            break;
+        }
+
+        if (info._error_message) {
+            m_renderingInfo.errorData = info._error_message;
         }
 
         // Failed regions remain in the list, but should be excluded when
         // calculating the total remaining rendering duration
-        if (progressStarted && !m_renderingInfo.error.empty()) {
+        if (info._state != ms_RenderingState_Rendering) {
             continue;
         }
 
@@ -389,15 +446,13 @@ void MuseSamplerWrapper::updateRenderingProgress(ms_RenderingRangeList list, int
     }
 
     // Start progress
-    if (!progressStarted) {
+    if (!m_inputProcessingProgress.isStarted) {
         // Rendering has started on the sampler side, but it is not yet ready to report progress
-        if (chunksDurationUs <= 0 && isRendering) {
+        if ((chunksDurationUs <= 0 && isRendering) || size == 0) {
             return;
         }
 
-        if (!m_inputProcessingProgress.isStarted) {
-            m_inputProcessingProgress.start();
-        }
+        m_inputProcessingProgress.start();
     }
 
     m_renderingInfo.maxChunksDurationUs = std::max(m_renderingInfo.maxChunksDurationUs, chunksDurationUs);
@@ -420,13 +475,18 @@ void MuseSamplerWrapper::updateRenderingProgress(ms_RenderingRangeList list, int
     }
 
     if (isChanged) {
-        m_inputProcessingProgress.process(chunks, std::lround(percentage), 100);
+        m_inputProcessingProgress.process(chunks, percentage, 100);
+    }
+
+    if (m_hasPendingChunks && !config()->isLazyProcessingOfOnlineSoundsEnabled()) {
+        return;
     }
 
     // Finish progress
     if (chunksDurationUs <= 0) {
-        const int errcode = !m_renderingInfo.error.empty() ? (int)muse::audio::Err::OnlineSoundsProcessingError : 0;
-        m_inputProcessingProgress.finish(errcode, m_renderingInfo.error);
+        m_inputProcessingProgress.finish(m_renderingInfo.errorCode,
+                                         m_renderingInfo.errorText,
+                                         parseStatusData(m_renderingInfo.errorData));
         m_renderingInfo.clear();
     }
 }
@@ -553,7 +613,7 @@ void MuseSamplerWrapper::setCurrentPosition(const samples_t samples)
     m_currentPosition = samples;
     m_pendingSetPosition = true;
 
-    if (isActive()) {
+    if (isActive() || m_instrument.isOnline) {
         doCurrentSetPosition();
     }
 }
@@ -587,15 +647,11 @@ void MuseSamplerWrapper::prepareToPlay()
     doCurrentSetPosition();
 
     if (readyToPlay()) {
+        m_checkReadyToPlayTimer.reset();
         return;
     }
 
-    if (!m_checkReadyToPlayTimer) {
-        m_checkReadyToPlayTimer = std::make_unique<Timer>(std::chrono::microseconds(10000)); // every 10ms
-    }
-
-    m_checkReadyToPlayTimer->stop();
-
+    m_checkReadyToPlayTimer.reset(new Timer(std::chrono::microseconds(10000)));
     m_checkReadyToPlayTimer->onTimeout(this, [this]() {
         if (readyToPlay()) {
             m_readyToPlayChanged.notify();

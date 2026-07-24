@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -50,7 +50,7 @@ public:
     int subtype() const override { return static_cast<int>(m_tremoloType); }
     TranslatableString subtypeUserName() const override;
 
-    void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all=true) override;
+    void scanElements(std::function<void(EngravingItem*)> func) override;
 
     void setTremoloType(TremoloType t);
     TremoloType tremoloType() const { return m_tremoloType; }
@@ -83,7 +83,6 @@ public:
 
     bool crossStaffBeamBetween() const;
 
-    PointF pagePos() const override;      ///< position in page coordinates
     String accessibleInfo() const override;
     void triggerLayout() const override;
 

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -159,6 +159,22 @@ void BoxLayout::layoutFBox(const FBox* item, FBox::LayoutData* ldata, const Layo
     Score* score = item->score();
 
     if (item->needsRebuild()) {
+        for (EngravingItem* element : item->el()) {
+            if (!element || !element->isFretDiagram()) {
+                continue;
+            }
+
+            FretDiagram* diagram = toFretDiagram(element);
+            //! NOTE: We need to layout the diagrams to get the harmony names to show in the UI
+            TLayout::layoutItem(diagram, const_cast<LayoutContext&>(ctx));
+            if (!diagram->visible()) {
+                //! but we don't need to draw them, so let's add a skip
+                diagram->mutldata()->setIsSkipDraw(true);
+                diagram->harmony()->mutldata()->setIsSkipDraw(true);
+                continue;
+            }
+        }
+
         /// FBox::init requires all chord symbols in the score have valid ldata
         /// Perform layout
         for (mu::engraving::Segment* segment = score->firstSegment(mu::engraving::SegmentType::ChordRest); segment;
@@ -195,18 +211,7 @@ void BoxLayout::layoutFBox(const FBox* item, FBox::LayoutData* ldata, const Layo
             continue;
         }
 
-        FretDiagram* diagram = toFretDiagram(element);
-        if (!diagram->visible()) {
-            //! NOTE: We need to layout the diagrams to get the harmony names to show in the UI
-            TLayout::layoutItem(diagram, const_cast<LayoutContext&>(ctx));
-
-            //! but we don't need to draw them, so let's add a skip
-            diagram->mutldata()->setIsSkipDraw(true);
-            diagram->harmony()->mutldata()->setIsSkipDraw(true);
-            continue;
-        }
-
-        fretDiagrams.emplace_back(diagram);
+        fretDiagrams.emplace_back(toFretDiagram(element));
     }
 
     //! NOTE: layout fret diagrams and calculate sizes

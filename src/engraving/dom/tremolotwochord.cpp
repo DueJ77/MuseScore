@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -184,24 +184,6 @@ void TremoloTwoChord::reset()
     }
     undoChangeProperty(Pid::STEM_DIRECTION, DirectionV::AUTO);
     resetProperty(Pid::BEAM_NO_SLOPE);
-}
-
-//---------------------------------------------------------
-//   pagePos
-//---------------------------------------------------------
-
-PointF TremoloTwoChord::pagePos() const
-{
-    EngravingObject* e = explicitParent();
-    while (e && (!e->isSystem() && e->explicitParent())) {
-        e = e->explicitParent();
-    }
-    if (!e || !e->isSystem()) {
-        return pos();
-    }
-    System* s = toSystem(e);
-    double yp = y() + s->staff(staffIdx())->y() + s->y();
-    return PointF(pageX(), yp);
 }
 
 //---------------------------------------------------------
@@ -484,12 +466,12 @@ PropertyValue TremoloTwoChord::propertyDefault(Pid propertyId) const
 //   scanElements
 //---------------------------------------------------------
 
-void TremoloTwoChord::scanElements(void* data, void (* func)(void*, EngravingItem*), bool all)
+void TremoloTwoChord::scanElements(std::function<void(EngravingItem*)> func)
 {
     if (chord() && chord()->tremoloChordType() == TremoloChordType::TremoloSecondChord) {
         return;
     }
-    EngravingItem::scanElements(data, func, all);
+    EngravingItem::scanElements(func);
 }
 
 void TremoloTwoChord::clearBeamSegments()

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -48,7 +48,11 @@ void Autoplace::autoplaceSegmentElement(const EngravingItem* item, EngravingItem
     const double minSkylineHorizontalClearance = item->isArticulationOrFermata() ? 0.0 : item->style().styleMM(
         Sid::skylineMinHorizontalClearance) * item->mag();
 
-    if (item->autoplace() && item->explicitParent()) {
+    // skip autoplace for KeySig on cipher staff
+    bool skipAutoplaceForCipher = (item->type() == ElementType::KEYSIG
+                                   && item->staff()
+                                   && item->staff()->isCipherStaff(item->tick()));
+    if (!skipAutoplaceForCipher && item->autoplace() && item->explicitParent()) {
         const Segment* s = toSegment(item->findAncestor(ElementType::SEGMENT));
         IF_ASSERT_FAILED(s) {
             return;
@@ -448,9 +452,13 @@ bool Autoplace::itemsShouldIgnoreEachOther(const EngravingItem* itemToAutoplace,
         return true;
     }
 
-    if (type1 == ElementType::FERMATA && itemInSkyline->isArticulationOrFermata()) {
-        // Fermata should ignore articulation on other segments
-        return itemToAutoplace->parent() != itemInSkyline->parent();
+    if (itemToAutoplace->isArticulationOrFermata() && itemInSkyline->isArticulationOrFermata()) {
+        // Ignore fermatas and articulations on other segments
+        return itemToAutoplace->findAncestor(ElementType::SEGMENT) != itemInSkyline->findAncestor(ElementType::SEGMENT);
+    }
+
+    if (type1 == ElementType::VIBRATO_SEGMENT && type2 == ElementType::GUITAR_BEND_SEGMENT) {
+        return true;
     }
 
     return itemToAutoplace->ldata()->itemSnappedBefore() == itemInSkyline || itemToAutoplace->ldata()->itemSnappedAfter() == itemInSkyline;

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,8 +20,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef MU_NOTATION_NOTATIONSTATUSBARMODEL_H
-#define MU_NOTATION_NOTATIONSTATUSBARMODEL_H
+#pragma once
 
 #include <QObject>
 #include <QQmlParserStatus>
@@ -29,8 +28,8 @@
 #include "async/asyncable.h"
 #include "actions/actionable.h"
 
-#include "uicomponents/view/menuitem.h"
-#include "uicomponents/view/abstractmenumodel.h"
+#include "uicomponents/qml/Muse/UiComponents/menuitem.h"
+#include "uicomponents/qml/Muse/UiComponents/abstractmenumodel.h"
 
 #include "modularity/ioc.h"
 #include "actions/iactionsdispatcher.h"
@@ -44,7 +43,7 @@
 #include "global/iglobalconfiguration.h"
 
 namespace mu::appshell {
-class NotationStatusBarModel : public QObject, public QQmlParserStatus, public muse::Injectable, public muse::async::Asyncable,
+class NotationStatusBarModel : public QObject, public QQmlParserStatus, public muse::Contextable, public muse::async::Asyncable,
     public muse::actions::Actionable
 {
     Q_OBJECT
@@ -59,12 +58,12 @@ class NotationStatusBarModel : public QObject, public QQmlParserStatus, public m
     Q_PROPERTY(QVariantList availableZoomList READ availableZoomList_property NOTIFY availableZoomListChanged)
     Q_PROPERTY(int currentZoomPercentage READ currentZoomPercentage WRITE setCurrentZoomPercentage NOTIFY currentZoomPercentageChanged)
 
-    muse::Inject<context::IGlobalContext> context = { this };
-    muse::Inject<muse::actions::IActionsDispatcher> dispatcher = { this };
-    muse::Inject<muse::ui::IUiActionsRegister> actionsRegister = { this };
-    muse::Inject<muse::workspace::IWorkspaceConfiguration> workspaceConfiguration = { this };
-    muse::Inject<notation::INotationConfiguration> notationConfiguration = { this };
-    muse::Inject<muse::IGlobalConfiguration> globalConfiguration = { this };
+    muse::GlobalInject<muse::workspace::IWorkspaceConfiguration> workspaceConfiguration;
+    muse::GlobalInject<notation::INotationConfiguration> notationConfiguration;
+    muse::GlobalInject<muse::IGlobalConfiguration> globalConfiguration;
+    muse::ContextInject<context::IGlobalContext> context = { this };
+    muse::ContextInject<muse::actions::IActionsDispatcher> dispatcher = { this };
+    muse::ContextInject<muse::ui::IUiActionsRegister> actionsRegister = { this };
 
 public:
     explicit NotationStatusBarModel(QObject* parent = nullptr);
@@ -104,6 +103,7 @@ signals:
 private:
     void classBegin() override;
     void componentComplete() override {}
+    void init();
 
     notation::INotationPtr notation() const;
     notation::INotationAccessibilityPtr accessibility() const;
@@ -139,5 +139,3 @@ private:
     std::shared_ptr<muse::uicomponents::AbstractMenuModel> m_workspacesMenuModel;
 };
 }
-
-#endif // MU_NOTATION_NOTATIONSTATUSBARMODEL_H

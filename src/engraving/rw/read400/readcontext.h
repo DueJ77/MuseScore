@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -71,10 +71,10 @@ struct TextStyleMap {
     TextStyleType ss;
 };
 
-class ReadContext : public muse::Injectable
+class ReadContext : public muse::Contextable
 {
 public:
-    muse::Inject<IEngravingFontsProvider> engravingFonts = { this };
+    muse::GlobalInject<IEngravingFontsProvider> engravingFonts;
 
 public:
     ReadContext(const muse::modularity::ContextPtr& iocCtx);
@@ -103,6 +103,9 @@ public:
     void setOriginalSpatium(double v) { m_originalSpatium = v; }
     bool overrideSpatium() const { return m_overrideSpatium; }
     void setOverrideSpatium(bool v) { m_overrideSpatium = v; }
+
+    bool forcePageMode() const { return m_forcePageMode; }
+    void setForcePageMode(bool v) { m_forcePageMode = v; }
 
     compat::DummyElement* dummy() const;
 
@@ -231,5 +234,6 @@ private:
     bool m_overrideSpatium = false;
     double m_originalSpatium = 0;
     PropertyIdSet m_propertiesToSkip;
+    bool m_forcePageMode = false;
 };
 }

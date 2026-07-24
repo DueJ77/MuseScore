@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,7 +54,7 @@ public:
     LyricsLayout() = default;
 
     static void layout(Lyrics* item, LayoutContext& ctx);
-    static void layout(LyricsLine* item, LayoutContext& ctx);
+    static void layout(LyricsLine* item);
     static void layout(LyricsLineSegment* item, LayoutContext& ctx);
 
     static void computeVerticalPositions(System* system, LayoutContext& ctx);
@@ -71,7 +71,7 @@ private:
     static void collectLyricsVerses(staff_idx_t staffIdx, System* system, LyricsVersesMap& lyricsVersesAbove,
                                     LyricsVersesMap& lyricsVersesBelow);
 
-    static void setDefaultPositions(staff_idx_t staffIdx, const LyricsVersesMap& lyricsVersesAbove,
+    static void setDefaultPositions(staff_idx_t staffIdx, System* system, const LyricsVersesMap& lyricsVersesAbove,
                                     const LyricsVersesMap& lyricsVersesBelow, LayoutContext& ctx);
 
     static void checkCollisionsWithStaffElements(System* system, staff_idx_t staffIdx,  LayoutContext& ctx,

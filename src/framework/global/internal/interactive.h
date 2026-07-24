@@ -19,8 +19,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MUSE_GLOBAL_INTERACTIVE_H
-#define MUSE_GLOBAL_INTERACTIVE_H
+
+#pragma once
 
 #include "async/asyncable.h"
 
@@ -31,15 +31,15 @@
 #include "../iinteractive.h"
 
 namespace muse {
-class Interactive : public IInteractive, public Injectable, public async::Asyncable
+class Interactive : public IInteractive, public Contextable, public async::Asyncable
 {
-    Inject<muse::ui::IInteractiveProvider> provider = { this };
-    Inject<muse::ui::IMainWindow> mainWindow = { this };
+    ContextInject<muse::ui::IInteractiveProvider> provider = { this };
+    ContextInject<muse::ui::IMainWindow> mainWindow = { this };
 
 public:
 
     Interactive(const muse::modularity::ContextPtr& ctx)
-        : Injectable(ctx) {}
+        : Contextable(ctx) {}
 
     ButtonData buttonData(Button b) const override;
 
@@ -91,7 +91,7 @@ public:
     io::paths_t selectMultipleDirectories(const std::string& title, const io::path_t& dir, const io::paths_t& selectedDirectories) override;
 
     // color
-    async::Promise<Color> selectColor(const Color& color = Color::WHITE, const std::string& title = "") override;
+    async::Promise<Color> selectColor(const Color& color = Color::WHITE, const std::string& title = {}, bool allowAlpha = false) override;
     bool isSelectColorOpened() const override;
 
     // custom
@@ -103,9 +103,10 @@ public:
 
     void raise(const UriQuery& uri) override;
 
-    void close(const UriQuery& uri) override;
-    void close(const Uri& uri) override;
-    void closeAllDialogs() override;
+    async::Promise<Ret> close(const UriQuery& uri) override;
+    async::Promise<Ret> close(const Uri& uri) override;
+    Ret closeSync(const UriQuery& uri) override;
+    Ret closeAllDialogsSync() override;
 
     ValCh<Uri> currentUri() const override;
     RetVal<bool> isCurrentUriDialog() const override;
@@ -134,5 +135,3 @@ private:
                                           const ButtonDatas& buttons, int defBtn, const Options& options, const std::string& dialogTitle);
 };
 }
-
-#endif // MUSE_GLOBAL_UIINTERACTIVE_H

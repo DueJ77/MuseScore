@@ -24,6 +24,8 @@
 
 #include <optional>
 
+#include <QColor>
+
 #include "modularity/imoduleinterface.h"
 
 #include "global/types/retval.h"
@@ -37,7 +39,7 @@ class QByteArray;
 class QWindow;
 
 namespace muse::ui {
-class IUiConfiguration : MODULE_EXPORT_INTERFACE
+class IUiConfiguration : MODULE_GLOBAL_INTERFACE
 {
     INTERFACE_ID(IUiConfiguration)
 
@@ -124,5 +126,8 @@ public:
     virtual int flickableMaxVelocity() const = 0;
 
     virtual int tooltipDelay() const = 0;
+
+    virtual std::vector<QColor> colorDialogCustomColors() const = 0;
+    virtual void setColorDialogCustomColors(const std::vector<QColor>&) = 0;
 };
 }

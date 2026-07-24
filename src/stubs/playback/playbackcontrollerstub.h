@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -70,10 +70,10 @@ public:
     bool actionChecked(const muse::actions::ActionCode& actionCode) const override;
     muse::async::Channel<muse::actions::ActionCode> actionCheckedChanged() const override;
 
-    QTime totalPlayTime() const override;
+    muse::secs_t totalPlayTime() const override;
     muse::async::Notification totalPlayTimeChanged() const override;
 
-    notation::Tempo currentTempo() const override;
+    const notation::Tempo& currentTempo() const override;
     muse::async::Notification currentTempoChanged() const override;
 
     notation::MeasureBeat currentBeat() const override;

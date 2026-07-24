@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -186,6 +186,20 @@ void EngravingObject::moveToDummy()
     }
 }
 
+EngravingItemList EngravingObject::getChildren(bool includeInvisible) const
+{
+    EngravingItemList childrenList;
+    auto collectChildren = [&](EngravingItem* item) {
+        if (item != this && (includeInvisible || item->visible())) {
+            childrenList.push_back(item);
+        }
+    };
+
+    const_cast<EngravingObject*>(this)->scanElements(collectChildren);
+
+    return childrenList;
+}
+
 void EngravingObject::setScore(Score* s)
 {
     doSetScore(s);
@@ -287,19 +301,6 @@ bool EngravingObject::onSameScore(const EngravingObject* other) const
 const MStyle& EngravingObject::style() const
 {
     return score()->style();
-}
-
-//---------------------------------------------------------
-//   scanElements
-/// Recursively apply scanElements to all children.
-/// See also EngravingItem::scanElements.
-//---------------------------------------------------------
-
-void EngravingObject::scanElements(void* data, void (* func)(void*, EngravingItem*), bool all)
-{
-    for (EngravingObject* child : scanChildren()) {
-        child->scanElements(data, func, all);
-    }
 }
 
 //---------------------------------------------------------
@@ -731,7 +732,7 @@ bool EngravingObject::isSLineSegment() const
     return isHairpinSegment() || isOttavaSegment() || isPedalSegment()
            || isTrillSegment() || isVoltaSegment() || isTextLineSegment()
            || isGlissandoSegment() || isLetRingSegment() || isVibratoSegment() || isPalmMuteSegment()
-           || isGradualTempoChangeSegment();
+           || isGradualTempoChangeSegment() || isWhammyBarSegment();
 }
 
 //---------------------------------------------------------

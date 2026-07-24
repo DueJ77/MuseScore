@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -53,10 +53,6 @@ public:
 
     Ambitus* clone() const override { return new Ambitus(*this); }
 
-    // Score Tree functions
-    EngravingObject* scanParent() const override;
-    EngravingObjectList scanChildren() const override;
-
     double mag() const override;
 
     void initFrom(Ambitus* a);
@@ -93,8 +89,7 @@ public:
     double headWidth() const;
 
     // re-implemented virtual functions
-    PointF pagePos() const override;        // position in page coordinates
-    void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all=true) override;
+    void scanElements(std::function<void(EngravingItem*)> func) override;
     void setTrack(track_idx_t val) override;
 
     String accessibleInfo() const override;

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,14 +31,14 @@
 #include "ui/iuiconfiguration.h"
 
 namespace mu::appshell {
-class AppShellConfiguration : public IAppShellConfiguration, public muse::Injectable, public muse::async::Asyncable
+class AppShellConfiguration : public IAppShellConfiguration, public muse::Contextable, public muse::async::Asyncable
 {
-    muse::Inject<muse::IApplication> application = { this };
-    muse::Inject<muse::ui::IUiConfiguration> uiConfiguration = { this };
+    muse::GlobalInject<muse::ui::IUiConfiguration> uiConfiguration;
+    muse::ContextInject<muse::IApplication> application = { this };
 
 public:
     AppShellConfiguration(const muse::modularity::ContextPtr& iocCtx)
-        : muse::Injectable(iocCtx) {}
+        : muse::Contextable(iocCtx) {}
 
     void init();
 

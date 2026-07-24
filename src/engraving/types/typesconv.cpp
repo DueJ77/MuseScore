@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -120,7 +120,7 @@ static T findTypeByXmlTag(const C& cont, const AsciiStringView& tag, T def, bool
     if (it == cont.cend()) {
         if (!silent) {
             LOGE() << "not found type for tag: " << tag;
-            assert(it != cont.cend());
+            //assert(it != cont.cend());
         }
         return def;
     }
@@ -235,6 +235,9 @@ static const std::array ELEMENT_TYPES {
     Item{ ElementType::ARPEGGIO, "Arpeggio",
           TranslatableString("engraving", "arpeggio(s)", nullptr, 1),
           TranslatableString("engraving", "Arpeggio(s)", nullptr, 1) },
+    Item{ ElementType::CHORD_BRACKET, "ChordBracket",
+          TranslatableString("engraving", "chord bracket(s)", nullptr, 1),
+          TranslatableString("engraving", "Chord bracket(s)", nullptr, 1) },
     Item{ ElementType::ACCIDENTAL, "Accidental",
           TranslatableString("engraving", "accidental(s)", nullptr, 1),
           TranslatableString("engraving", "Accidental(s)", nullptr, 1) },
@@ -1018,6 +1021,22 @@ AutoOnOff TConv::fromXml(const AsciiStringView& str, AutoOnOff def)
     return findTypeByXmlTag<AutoOnOff>(AUTO_ON_OFF, str, def);
 }
 
+static const std::vector<Item<CapoParams::TransposeMode> > CAPO_TRANSPOSE_MODE = {
+    { CapoParams::TransposeMode::PLAYBACK_ONLY, "playback" },
+    { CapoParams::TransposeMode::STANDARD_ONLY, "standard" },
+    { CapoParams::TransposeMode::TAB_ONLY,      "tab" },
+};
+
+AsciiStringView TConv::toXml(CapoParams::TransposeMode mode)
+{
+    return findXmlTagByType<CapoParams::TransposeMode>(CAPO_TRANSPOSE_MODE, mode);
+}
+
+CapoParams::TransposeMode TConv::fromXml(const AsciiStringView& str, CapoParams::TransposeMode def)
+{
+    return findTypeByXmlTag<CapoParams::TransposeMode>(CAPO_TRANSPOSE_MODE, str, def);
+}
+
 static const std::vector<Item<PartialSpannerDirection> > PARTIAL_SPANNER_DIRECTION = {
     { PartialSpannerDirection::NONE,     "none" },
     { PartialSpannerDirection::OUTGOING, "outgoing" },
@@ -1742,8 +1761,9 @@ static const std::vector<Item<TextStyleType> > TEXTSTYLE_TYPES = {
     { TextStyleType::OTTAVA,            "ottava",               muse::TranslatableString("engraving", "Ottava") },
     { TextStyleType::GLISSANDO,         "glissando",            muse::TranslatableString("engraving", "Glissando") },
     { TextStyleType::PEDAL,             "pedal",                muse::TranslatableString("engraving", "Pedal") },
-    { TextStyleType::BEND,              "bend",                 muse::TranslatableString("engraving", "Bend") },
+    { TextStyleType::BEND,              "bend",                 muse::TranslatableString("engraving", "Bends & Dives") },
     { TextStyleType::LET_RING,          "let_ring",             muse::TranslatableString("engraving", "Let ring") },
+    { TextStyleType::WHAMMY_BAR,        "whammy_bar",           muse::TranslatableString("engraving", "Whammy bar") },
     { TextStyleType::PALM_MUTE,         "palm_mute",            muse::TranslatableString("engraving", "Palm mute") },
 
     { TextStyleType::USER1,             "user_1",               muse::TranslatableString("engraving", "User-1") },
@@ -2020,9 +2040,9 @@ AccidentalRole TConv::fromXml(const AsciiStringView& tag, AccidentalRole def)
     return ok ? static_cast<AccidentalRole>(r) : def;
 }
 
-String TConv::toXml(BeatsPerSecond v)
+String TConv::toXml(BeatsPerSecond v, int precision)
 {
-    return String::number(v.val);
+    return String::number(v.val, precision);
 }
 
 BeatsPerSecond TConv::fromXml(const AsciiStringView& tag, BeatsPerSecond def)
@@ -3122,10 +3142,11 @@ MarkerType TConv::fromXml(const AsciiStringView& tag, MarkerType def)
     return def;
 }
 
-static const std::array<Item<StaffGroup>, 3> STAFFGROUP_TYPES = { {
+static const std::array<Item<StaffGroup>, 4> STAFFGROUP_TYPES = { {
     { StaffGroup::STANDARD,     "pitched",    muse::TranslatableString("engraving/staffgroup", "Standard") },
     { StaffGroup::PERCUSSION,   "percussion", muse::TranslatableString("engraving/staffgroup", "Percussion") },
     { StaffGroup::TAB,          "tablature",  muse::TranslatableString("engraving/staffgroup", "Tablature") },
+    { StaffGroup::CIPHER,       "cipher",     muse::TranslatableString("engraving/staffgroup", "Cipher") },
 } };
 
 String TConv::translatedUserName(StaffGroup v)
@@ -3186,7 +3207,8 @@ TrillType TConv::fromXml(const AsciiStringView& tag, TrillType def)
     return def;
 }
 
-const std::array<Item<VibratoType>, 4> VIBRATO_TYPES = { {
+const std::array<Item<VibratoType>, 5> VIBRATO_TYPES = { {
+    { VibratoType::NONE,                  "none",                muse::TranslatableString("engraving/vibratotype", "None") },
     { VibratoType::GUITAR_VIBRATO,        "guitarVibrato",       muse::TranslatableString("engraving/vibratotype", "Guitar vibrato") },
     { VibratoType::GUITAR_VIBRATO_WIDE,   "guitarVibratoWide",   muse::TranslatableString("engraving/vibratotype", "Guitar vibrato wide") },
     { VibratoType::VIBRATO_SAWTOOTH,      "vibratoSawtooth",     muse::TranslatableString("engraving/vibratotype", "Vibrato sawtooth") },

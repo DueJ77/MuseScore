@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -772,7 +772,7 @@ void GuitarPro5::readMeasures(int /*startingTempo*/)
                 ChordRest* cr = beg->cr(gpLyrics.lyricTrack);
                 assert(cr);
                 ++counter;
-                if (cr->type() != ElementType::CHORD) {
+                if (!cr->isChord()) {
                     continue;
                 }
 
@@ -835,7 +835,7 @@ void GuitarPro5::readMeasures(int /*startingTempo*/)
                 }
             }
         } while ((beg = beg->next())
-                 || (mes->next() && mes->next()->type() == ElementType::MEASURE && (mes = toMeasure(mes->next())) && (beg = mes->first())));
+                 || (mes->next() && mes->next()->isMeasure() && (mes = toMeasure(mes->next())) && (beg = mes->first())));
     }
 }
 

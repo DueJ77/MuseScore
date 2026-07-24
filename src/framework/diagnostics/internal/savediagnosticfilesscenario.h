@@ -29,14 +29,14 @@
 #include "iinteractive.h"
 
 namespace muse::diagnostics {
-class SaveDiagnosticFilesScenario : public ISaveDiagnosticFilesScenario, public Injectable
+class SaveDiagnosticFilesScenario : public ISaveDiagnosticFilesScenario, public Contextable
 {
-    Inject<diagnostics::IDiagnosticsConfiguration> configuration = { this };
-    Inject<muse::IInteractive> interactive = { this };
+    GlobalInject<diagnostics::IDiagnosticsConfiguration> configuration;
+    ContextInject<muse::IInteractive> interactive = { this };
 
 public:
     SaveDiagnosticFilesScenario(const modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx) {}
+        : Contextable(iocCtx) {}
 
     muse::Ret saveDiagnosticFiles() override;
 };

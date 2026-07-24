@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -121,21 +121,32 @@ void TrillSegment::symbolLine(SymId start, SymId fill, SymId end)
     setbbox(r);
 }
 
+void TrillSegment::rebaseAnchors(EditData& ed, Grip grip)
+{
+    EngravingItem* startElement = spanner()->startElement();
+    if (startElement && startElement->isChord() && toChord(startElement)->staffMove() != 0) {
+        // This trill is on a cross-staff chord. Don't try to rebase its anchors when dragging.
+        return;
+    }
+
+    LineSegment::rebaseAnchors(ed, grip);
+}
+
 //---------------------------------------------------------
 //   scanElements
 //---------------------------------------------------------
 
-void TrillSegment::scanElements(void* data, void (* func)(void*, EngravingItem*), bool)
+void TrillSegment::scanElements(std::function<void(EngravingItem*)> func)
 {
-    func(data, this);
+    func(this);
     if (isSingleType() || isBeginType()) {
         Accidental* a = trill()->accidental();
         if (a) {
-            func(data, a);
+            func(a);
         }
         Chord* cueNoteChord = trill()->cueNoteChord();
         if (cueNoteChord) {
-            cueNoteChord->scanElements(data, func);
+            cueNoteChord->scanElements(func);
         }
     }
 }

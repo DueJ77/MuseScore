@@ -29,27 +29,29 @@
 #include "../iaudiopluginsconfiguration.h"
 
 namespace muse::audioplugins {
-class KnownAudioPluginsRegister : public IKnownAudioPluginsRegister, public Injectable
+class KnownAudioPluginsRegister : public IKnownAudioPluginsRegister, public Contextable
 {
 public:
-    Inject<IAudioPluginsConfiguration> configuration = { this };
-    Inject<io::IFileSystem> fileSystem = { this };
+    GlobalInject<IAudioPluginsConfiguration> configuration;
+    GlobalInject<io::IFileSystem> fileSystem;
 
 public:
     KnownAudioPluginsRegister(const modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx) {}
+        : Contextable(iocCtx) {}
 
     Ret load() override;
+    Ret clear() override;
 
-    std::vector<AudioPluginInfo> pluginInfoList(PluginInfoAccepted accepted = PluginInfoAccepted()) const override;
+    AudioPluginInfoList pluginInfoList(PluginInfoAccepted accepted = PluginInfoAccepted()) const override;
     muse::async::Notification pluginInfoListChanged() const override;
+
     const io::path_t& pluginPath(const audio::AudioResourceId& resourceId) const override;
 
     bool exists(const io::path_t& pluginPath) const override;
     bool exists(const audio::AudioResourceId& resourceId) const override;
 
-    Ret registerPlugin(const AudioPluginInfo& info) override;
-    Ret unregisterPlugin(const audio::AudioResourceId& resourceId) override;
+    Ret registerPlugins(const AudioPluginInfoList& list) override;
+    Ret unregisterPlugins(const audio::AudioResourceIdList& resourceIds) override;
 
 private:
     Ret writePluginsInfo();

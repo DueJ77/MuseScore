@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,6 +34,8 @@
 #include "../dom/audio.h"
 #include "../dom/excerpt.h"
 #include "../dom/imageStore.h"
+
+#include "engraving/automation/iautomation.h"
 
 #include "compat/compatutils.h"
 #include "compat/readstyle.h"
@@ -69,8 +71,8 @@ static RetVal<IReaderPtr> makeReader(int version, bool ignoreVersionError)
     return RetVal<IReaderPtr>::make_ok(RWRegister::reader(version));
 }
 
-Ret MscLoader::loadMscz(MasterScore* masterScore, const MscReader& mscReader, SettingsCompat& settingsCompat,
-                        bool ignoreVersionError, rw::ReadInOutData* inOut)
+Ret MscLoader::loadMscz(MasterScore* masterScore, const MscReader& mscReader, rw::ReadInOutData* inOut,
+                        bool ignoreVersionError)
 {
     TRACEFUNC;
 
@@ -127,7 +129,7 @@ Ret MscLoader::loadMscz(MasterScore* masterScore, const MscReader& mscReader, Se
             if (!MScore::noImages) {
                 std::vector<String> images = mscReader.imageFileNames();
                 for (const String& name : images) {
-                    imageStore.add(name, mscReader.readImageFile(name));
+                    imageStore.add(name.toStdString(), mscReader.readImageFile(name));
                 }
             }
         }
@@ -219,7 +221,13 @@ Ret MscLoader::loadMscz(MasterScore* masterScore, const MscReader& mscReader, Se
         }
     }
 
-    settingsCompat = std::move(inOut->settingsCompat);
+    // Read automation
+    {
+        if (masterScore->automation()) {
+            ByteArray ba = mscReader.readAutomationJsonFile();
+            masterScore->automation()->read(ba);
+        }
+    }
 
     return ret;
 }

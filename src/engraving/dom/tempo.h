@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,6 +30,8 @@
 #include "../types/bps.h"
 
 namespace mu::engraving {
+static constexpr int TEMPO_PRECISION = 6;
+
 enum class TempoType : char {
     INVALID = 0x0, PAUSE = 0x1, FIX = 0x2, RAMP = 0x4
 };

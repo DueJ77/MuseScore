@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -154,7 +154,7 @@ public:
     void checkFretBox(MasterScore* score, const StringList& chords)
     {
         ASSERT_TRUE(!score->measures()->empty());
-        ASSERT_TRUE(score->measure(0)->type() == ElementType::FBOX);
+        ASSERT_TRUE(score->measure(0)->isFBox());
 
         FBox* fretBox = toFBox(score->measure(0));
         ASSERT_TRUE(fretBox);
@@ -171,9 +171,10 @@ public:
             FretDiagram* diagram = toFretDiagram(elements[i]);
             ASSERT_TRUE(diagram);
             LOGD() << "Checking chord: " << chords[i].toStdString()
-                   << ", diagram: " << diagram->harmonyPlainText().toStdString();
+                   << ", diagram: " << diagram->harmonyDisplayText().toStdString();
 
             EXPECT_EQ(diagram->harmonyPlainText(), chords[i]);
+            EXPECT_EQ(diagram->harmonyDisplayText(), chords[i]);
         }
     }
 
@@ -205,6 +206,7 @@ TEST_F(Engraving_FretBoxTests, Init)
 
     // [WHEN] Insert fret box
     score->insertBox(mu::engraving::ElementType::FBOX, score->firstMeasure());
+    score->doLayout();
 
     // [THEN] Check fret box and chords
     checkFretBox(score, { u"A", u"B", u"C", u"D" });
@@ -220,6 +222,7 @@ TEST_F(Engraving_FretBoxTests, ReorderChords)
     // [GIVEN] Add chords to the score
     addChords(score, { u"A", u"B", u"C", u"D" });
     score->insertBox(mu::engraving::ElementType::FBOX, score->firstMeasure());
+    score->doLayout();
 
     // [WHEN] Reorder chords in the fret box
     StringList newOrder = { u"A", u"C", u"B", u"D" };
@@ -614,6 +617,7 @@ TEST_F(Engraving_FretBoxTests, TestChordCase)
 
     // [WHEN] Insert fret box
     score->insertBox(mu::engraving::ElementType::FBOX, score->firstMeasure());
+    score->doLayout();
 
     // [THEN] Check fret box and chords
     checkFretBox(score, { u"AM", u"Am" });

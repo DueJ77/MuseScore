@@ -37,9 +37,10 @@ using CallId = uint64_t;
 enum class Method {
     Undefined = 0,
 
-    // Init
+    // Init / Deinit
     EngineRunning,
     EngineInit,
+    EngineDeinit,
 
     // Config
     EngineConfigChanged,
@@ -79,6 +80,7 @@ enum class Method {
     ClearSources,
 
     // Play
+    PrepareToPlay,
     Play,
     Seek,
     Stop,
@@ -115,6 +117,9 @@ enum class Method {
     LoadSoundFonts,
     AddSoundFont,
     AddSoundFontData,
+
+    // Transport
+    TransportEventReceived,
 };
 
 inline std::string to_string(Method m)
@@ -122,9 +127,10 @@ inline std::string to_string(Method m)
     switch (m) {
     case Method::Undefined: return "Undefined";
 
-    // Init
+    // Init / Deinit
     case Method::EngineRunning: return "EngineRunning";
     case Method::EngineInit: return "EngineInit";
+    case Method::EngineDeinit: return "EngineDeinit";
 
     // Config
     case Method::EngineConfigChanged: return "EngineConfigChanged";
@@ -162,6 +168,7 @@ inline std::string to_string(Method m)
     case Method::ClearSources: return "ClearSources";
 
     // Play
+    case Method::PrepareToPlay: return "PrepareToPlay";
     case Method::Play: return "Play";
     case Method::Seek: return "Seek";
     case Method::Stop: return "Stop";
@@ -197,6 +204,9 @@ inline std::string to_string(Method m)
     case Method::LoadSoundFonts: return "LoadSoundFonts";
     case Method::AddSoundFont: return "AddSoundFont";
     case Method::AddSoundFontData: return "AddSoundFontData";
+
+    // Transport
+    case Method::TransportEventReceived: return "TransportEventReceived";
     }
 
     assert(false && "unknown enum value");
@@ -207,7 +217,8 @@ enum class MsgType {
     Undefined = 0,
     Notification,
     Request,
-    Response
+    Response,
+    Stream
 };
 
 inline std::string to_string(MsgType t)
@@ -217,6 +228,7 @@ inline std::string to_string(MsgType t)
     case MsgType::Notification: return "Notification";
     case MsgType::Request: return "Request";
     case MsgType::Response: return "Response";
+    case MsgType::Stream: return "Stream";
     }
 
     assert(false && "unknown enum value");
@@ -234,7 +246,7 @@ using Handler = std::function<void (const Msg& msg)>;
 
 // stream
 enum class StreamName {
-    Undefined = -1,
+    Undefined = 100,
 
     PlaybackDataMainStream,
     PlaybackDataOffStream,
@@ -344,7 +356,7 @@ private:
     bool m_inited = false;
 };
 
-class IRpcChannel : MODULE_EXPORT_INTERFACE
+class IRpcChannel : MODULE_CONTEXT_INTERFACE
 {
     INTERFACE_ID(IRpcChannel)
 public:

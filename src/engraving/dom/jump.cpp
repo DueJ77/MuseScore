@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -108,33 +108,6 @@ JumpType Jump::jumpType() const
 String Jump::jumpTypeUserName() const
 {
     return TConv::translatedUserName(jumpType());
-}
-
-//---------------------------------------------------------
-//   undoSetJumpTo
-//---------------------------------------------------------
-
-void Jump::undoSetJumpTo(const String& s)
-{
-    undoChangeProperty(Pid::JUMP_TO, s);
-}
-
-//---------------------------------------------------------
-//   undoSetPlayUntil
-//---------------------------------------------------------
-
-void Jump::undoSetPlayUntil(const String& s)
-{
-    undoChangeProperty(Pid::PLAY_UNTIL, s);
-}
-
-//---------------------------------------------------------
-//   undoSetContinueAt
-//---------------------------------------------------------
-
-void Jump::undoSetContinueAt(const String& s)
-{
-    undoChangeProperty(Pid::CONTINUE_AT, s);
 }
 
 //---------------------------------------------------------

@@ -19,8 +19,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MUSE_AUDIO_MIXER_H
-#define MUSE_AUDIO_MIXER_H
+
+#pragma once
 
 #include <memory>
 #include <map>
@@ -34,21 +34,23 @@
 #include "../iclock.h"
 #include "../ifxresolver.h"
 
-#include "dsp/limiter.h"
 #include "mixerchannel.h"
+#include "igetplaybackposition.h"
+#include "audiosignalnotifier.h"
 
 namespace muse {
 class TaskScheduler;
 }
 
 namespace muse::audio::engine {
-class Mixer : public AbstractAudioSource, public Injectable, public async::Asyncable, public std::enable_shared_from_this<Mixer>
+class Mixer : public AbstractAudioSource, public IGetPlaybackPosition, public Contextable, public async::Asyncable,
+    public std::enable_shared_from_this<Mixer>
 {
-    Inject<fx::IFxResolver> fxResolver = { this };
+    ContextInject<fx::IFxResolver> fxResolver = { this };
 
 public:
     Mixer(const modularity::ContextPtr& iocCtx);
-    ~Mixer();
+    ~Mixer() override;
 
     void init(size_t desiredAudioThreadNumber, size_t minTrackCountForMultithreading);
 
@@ -69,29 +71,36 @@ public:
     AudioSignalChanges masterAudioSignalChanges() const;
 
     void setIsIdle(bool idle);
-    void setTracksToProcessWhenIdle(std::unordered_set<TrackId>&& trackIds);
+    void setTracksToProcessWhenIdle(const std::unordered_set<TrackId>& trackIds);
 
     // IAudioSource
     void setOutputSpec(const OutputSpec& spec) override;
     unsigned int audioChannelsCount() const override;
-    samples_t process(float* outBuffer, samples_t samplesPerChannel) override;
+
     void setIsActive(bool arg) override;
+
+    samples_t process(float* outBuffer, samples_t samplesPerChannel) override;
 
 private:
     using TracksData = std::map<TrackId, std::vector<float> >;
+
+    msecs_t playbackPosition() const override;
+    samples_t playbackPositionSamples() const override;
 
     void processTrackChannels(size_t outBufferSize, size_t samplesPerChannel, TracksData& outTracksData);
     void mixOutputFromChannel(float* outBuffer, const float* inBuffer, unsigned int samplesCount) const;
     void prepareAuxBuffers(size_t outBufferSize);
     void writeTrackToAuxBuffers(const float* trackBuffer, const AuxSendsParams& auxSends, samples_t samplesPerChannel);
     void processAuxChannels(float* buffer, samples_t samplesPerChannel);
+    void processMasterFx(float* buffer, samples_t samplesPerChannel);
     void completeOutput(float* buffer, samples_t samplesPerChannel);
 
     bool useMultithreading() const;
 
-    void notifyNoAudioSignal();
+    void updateShouldProcessMasterFxDuringSilence();
 
-    msecs_t currentTime() const;
+    void notifyAboutAudioSignalChanges();
+    void notifyNoAudioSignal();
 
     TaskScheduler* m_taskScheduler = nullptr;
 
@@ -113,17 +122,14 @@ private:
 
     std::vector<AuxChannelInfo> m_auxChannelInfoList;
 
-    dsp::LimiterPtr m_limiter = nullptr;
-
     std::set<IClockPtr> m_clocks;
 
     mutable AudioSignalsNotifier m_audioSignalNotifier;
 
     bool m_isSilence = false;
+    bool m_shouldProcessMasterFxDuringSilence = false;
     bool m_isIdle = false;
 };
 
 using MixerPtr = std::shared_ptr<Mixer>;
 }
-
-#endif // MUSE_AUDIO_MIXER_H

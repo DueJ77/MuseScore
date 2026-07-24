@@ -5,7 +5,7 @@
  * MuseScore
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited and others
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,8 +19,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MUSE_VST_VSTFXPROCESSOR_H
-#define MUSE_VST_VSTFXPROCESSOR_H
+
+#pragma once
 
 #include <memory>
 
@@ -35,17 +35,25 @@ namespace muse::vst {
 class VstFxProcessor : public muse::audio::IFxProcessor, public async::Asyncable
 {
 public:
-    explicit VstFxProcessor(IVstPluginInstancePtr&& instance, const muse::audio::AudioFxParams& params);
+    explicit VstFxProcessor(IVstPluginInstancePtr instance, const muse::audio::AudioFxParams& params, const modularity::ContextPtr& iocCtx);
 
     void init(const audio::OutputSpec& spec);
 
     muse::audio::AudioFxType type() const override;
+
     const muse::audio::AudioFxParams& params() const override;
     async::Channel<muse::audio::AudioFxParams> paramsChanged() const override;
+
     void setOutputSpec(const audio::OutputSpec& spec) override;
+
     bool active() const override;
     void setActive(bool active) override;
-    void process(float* buffer, unsigned int sampleCount) override;
+
+    void setPlaying(bool playing) override;
+
+    bool shouldProcessDuringSilence() const override;
+
+    void process(float* buffer, audio::samples_t sampleCount, audio::samples_t playbackPositionSamples = 0) override;
 
 private:
     bool m_inited = false;
@@ -61,5 +69,3 @@ private:
 
 using VstFxPtr = std::shared_ptr<VstFxProcessor>;
 }
-
-#endif // MUSE_VST_VSTFXPROCESSOR_H

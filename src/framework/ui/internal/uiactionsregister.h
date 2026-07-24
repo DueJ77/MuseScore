@@ -31,13 +31,13 @@
 #include "async/asyncable.h"
 
 namespace muse::ui {
-class UiActionsRegister : public IUiActionsRegister, public Injectable, public async::Asyncable
+class UiActionsRegister : public IUiActionsRegister, public Contextable, public async::Asyncable
 {
-    Inject<IUiContextResolver> uicontextResolver = { this };
+    ContextInject<IUiContextResolver> uicontextResolver = { this };
 
 public:
     UiActionsRegister(const modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx) {}
+        : Contextable(iocCtx) {}
 
     void init();
 
@@ -47,6 +47,8 @@ public:
     std::vector<UiAction> actionList() const override;
 
     const UiAction& action(const actions::ActionCode& code) const override;
+    const actions::ActionCode& parentActionCode(const actions::ActionCode& code) const override;
+
     async::Channel<UiActionList> actionsChanged() const override;
 
     UiActionState actionState(const actions::ActionCode& code) const override;

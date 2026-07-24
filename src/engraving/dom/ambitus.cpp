@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -224,16 +224,15 @@ void Ambitus::setBottomTpc(int val, bool applyLogic)
 //   scanElements
 //---------------------------------------------------------
 
-void Ambitus::scanElements(void* data, void (* func)(void*, EngravingItem*), bool all)
+void Ambitus::scanElements(std::function<void(EngravingItem*)> func)
 {
-    UNUSED(all);
-    func(data, this);
+    func(this);
     if (m_topAccidental->accidentalType() != AccidentalType::NONE) {
-        func(data, m_topAccidental);
+        func(m_topAccidental);
     }
 
     if (m_bottomAccidental->accidentalType() != AccidentalType::NONE) {
-        func(data, m_bottomAccidental);
+        func(m_bottomAccidental);
     }
 }
 
@@ -267,23 +266,6 @@ SymId Ambitus::noteHead() const
 double Ambitus::headWidth() const
 {
     return symWidth(noteHead());
-}
-
-//---------------------------------------------------------
-//   pagePos
-//---------------------------------------------------------
-
-PointF Ambitus::pagePos() const
-{
-    if (!explicitParent()) {
-        return pos();
-    }
-
-    double yp = y();
-    if (System* system = segment()->measure()->system()) {
-        yp += system->staff(staffIdx())->y() + system->y();
-    }
-    return PointF(pageX(), yp);
 }
 
 //---------------------------------------------------------
@@ -421,6 +403,12 @@ bool Ambitus::setProperty(Pid propertyId, const PropertyValue& v)
         break;
     case Pid::FBPARENTHESIS4:                // recycled property = octave of _bottomPitch
         setBottomPitch(bottomPitch() % PITCH_DELTA_OCTAVE + (v.toInt() + 1) * PITCH_DELTA_OCTAVE);
+        break;
+    case Pid::COLOR:
+    case Pid::VISIBLE:
+        m_topAccidental->setProperty(propertyId, v);
+        m_bottomAccidental->setProperty(propertyId, v);
+        EngravingItem::setProperty(propertyId, v);
         break;
     default:
         return EngravingItem::setProperty(propertyId, v);

@@ -256,6 +256,11 @@ void BufferedPaintProvider::restore()
 {
 }
 
+double BufferedPaintProvider::deviceLogicalDpi() const
+{
+    return 360;
+}
+
 void BufferedPaintProvider::setTransform(const Transform& transform)
 {
     DrawData::State& st = editableState();
@@ -303,7 +308,7 @@ void BufferedPaintProvider::drawText(const RectF& rect, int flags, const String&
 void BufferedPaintProvider::drawTextWorkaround(const Font& f, const PointF& pos, const String& text)
 {
     setFont(f);
-    drawText(pos, text);
+    editableData().texts.push_back(DrawText { DrawText::Point, RectF(pos, SizeF()), 0, text });
 }
 
 void BufferedPaintProvider::drawSymbol(const PointF& point, char32_t ucs4Code)

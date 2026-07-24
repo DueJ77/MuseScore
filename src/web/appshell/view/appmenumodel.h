@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,7 +21,7 @@
  */
 #pragma once
 
-#include "uicomponents/view/abstractmenumodel.h"
+#include "uicomponents/qml/Muse/UiComponents/abstractmenumodel.h"
 
 #include "muse_framework_config.h"
 
@@ -43,15 +43,15 @@ class AppMenuModel : public muse::uicomponents::AbstractMenuModel
     Q_OBJECT
 
 public:
-    muse::Inject<IAppShellConfiguration> configuration = { this };
-    muse::Inject<mu::context::IGlobalContext> globalContext = { this };
-    muse::Inject<muse::IGlobalConfiguration> globalConfiguration = { this };
-    muse::Inject<muse::actions::IActionsDispatcher> actionsDispatcher = { this };
-    muse::Inject<muse::ui::IMainWindow> mainWindow = { this };
-    muse::Inject<muse::ui::INavigationController> navigationController = { this };
-    muse::Inject<muse::ui::IUiActionsRegister> uiActionsRegister = { this };
-    muse::Inject<muse::ui::IUiConfiguration> uiConfiguration = { this };
-    muse::Inject<project::IProjectConfiguration> projectConfiguration = { this };
+    muse::GlobalInject<muse::ui::IUiConfiguration> uiConfiguration;
+    muse::GlobalInject<project::IProjectConfiguration> projectConfiguration;
+    muse::GlobalInject<IAppShellConfiguration> configuration;
+    muse::GlobalInject<muse::IGlobalConfiguration> globalConfiguration;
+    muse::ContextInject<mu::context::IGlobalContext> globalContext = { this };
+    muse::ContextInject<muse::actions::IActionsDispatcher> actionsDispatcher = { this };
+    muse::ContextInject<muse::ui::IMainWindow> mainWindow = { this };
+    muse::ContextInject<muse::ui::INavigationController> navigationController = { this };
+    muse::ContextInject<muse::ui::IUiActionsRegister> uiActionsRegister = { this };
 
 public:
     explicit AppMenuModel(QObject* parent = nullptr);

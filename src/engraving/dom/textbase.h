@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -235,10 +235,12 @@ public:
     bool operator ==(const TextFragment& f) const;
 
     TextFragment split(int column);
-    void draw(muse::draw::Painter*, const TextBase*) const;
     muse::draw::Font font(const TextBase*) const;
     int columns() const;
     void changeFormat(FormatId id, const FormatValue& data);
+
+private:
+    void resolveFallback(muse::draw::Font::Type fontType, const muse::draw::FontMetrics& fm, String& family) const;
 };
 
 //---------------------------------------------------------
@@ -253,7 +255,7 @@ public:
 
     bool operator ==(const TextBlock& x) const { return m_fragments == x.m_fragments; }
     bool operator !=(const TextBlock& x) const { return m_fragments != x.m_fragments; }
-    void draw(muse::draw::Painter*, const TextBase*) const;
+
     const std::list<TextFragment>& fragments() const { return m_fragments; }
     std::list<TextFragment>& fragments() { return m_fragments; }
     std::list<TextFragment> fragmentsWithoutEmpty();
@@ -312,8 +314,6 @@ public:
     void setAlign(Align a) { m_align = a; }
     AlignH position() const { return m_position; }
     void setPosition(AlignH val) { m_position = val; }
-
-    static void drawTextWorkaround(muse::draw::Painter* p, muse::draw::Font& f, const PointF& pos, const String& text);
 
     static String plainToXmlText(const String& s) { return s.toXmlEscaped(); }
     void setPlainText(const String& t) { setXmlText(plainToXmlText(t)); }
@@ -465,8 +465,8 @@ public:
     void setFrameWidth(Spatium val) { m_frameWidth = val; }
     Spatium paddingWidth() const { return m_paddingWidth; }
     void setPaddingWidth(Spatium val) { m_paddingWidth = val; }
-    int frameRound() const { return m_frameRound; }
-    void setFrameRound(int val) { m_frameRound = val; }
+    Spatium frameRound() const { return m_frameRound; }
+    void setFrameRound(Spatium val) { m_frameRound = val; }
 
     struct LayoutData : public EngravingItem::LayoutData {
         std::vector<TextBlock> blocks;
@@ -491,6 +491,8 @@ public:
     //! At the moment it's: Text, Jump, Marker
     bool layoutToParentWidth() const { return m_layoutToParentWidth; }
 
+    virtual bool positionRelativeToNoteheadRest() const = 0;
+
     void setVoiceAssignment(VoiceAssignment v) { m_voiceAssignment = v; }
     VoiceAssignment voiceAssignment() const { return m_voiceAssignment; }
     void setDirection(DirectionV v) { m_direction = v; }
@@ -501,7 +503,12 @@ public:
 
     double symbolSize() const { return m_symbolSize; }
     void setSymbolSize(double v) { m_symbolSize = v; }
-    inline bool hasSymbolSize() const { return isMarker() || isTempoText() || isSystemText() || isStaffText(); }
+
+    double symbolScale() const { return m_symbolScale; }
+    void setSymbolScale(double v) { m_symbolScale = v; }
+
+    bool hasSymbolScale() const;
+    bool hasSymbolSize() const { return !hasSymbolScale(); }
 
 protected:
     TextBase(const ElementType& type, EngravingItem* parent = 0, TextStyleType tid = TextStyleType::DEFAULT,
@@ -550,7 +557,7 @@ private:
     Color m_frameColor;
     Spatium m_frameWidth;
     Spatium m_paddingWidth;
-    int m_frameRound = 0;
+    Spatium m_frameRound;
 
     // there are two representations of text; only one
     // might be valid and the other can be constructed from it
@@ -564,6 +571,7 @@ private:
     bool m_primed = 0;
 
     double m_symbolSize = 18.0;
+    double m_symbolScale = 1.0;
 
     TextCursor* m_cursor = nullptr;
 

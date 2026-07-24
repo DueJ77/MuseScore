@@ -40,18 +40,18 @@ on:
         required: false
 
 env:
-  DEVELOPER_DIR: /Applications/Xcode_26.0.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
 
 jobs:
   macos_universal:
     runs-on: macos-26
     steps:
     - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.12.1
+      uses: styfle/cancel-workflow-action@0.13.0
       with:
         access_token: ${{ github.token }}
     - name: Clone repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Configure workflow
       env:
@@ -147,13 +147,12 @@ jobs:
         echo "DO_PUBLISH=$DO_PUBLISH" | tee -a $GITHUB_ENV
         echo "UPLOAD_ARTIFACT_NAME=$UPLOAD_ARTIFACT_NAME" | tee -a $GITHUB_ENV
 
-        echo "CCACHE_TIMESTAMP=$(date -u +"%F-%T")" | tee -a $GITHUB_ENV
-
     - name: Restore ccache files
-      uses: actions/cache@v4
+      id: restore-ccache
+      uses: actions/cache/restore@v5
       with:
         path: ${{ github.workspace }}/.ccache
-        key: ${{runner.os}}-${{runner.arch}}-ccache-${{ env.CCACHE_TIMESTAMP }}
+        key: ${{runner.os}}-${{runner.arch}}-ccache-
         restore-keys: ${{runner.os}}-${{runner.arch}}-ccache-
     - name: Setup ccache
       run: |
@@ -163,11 +162,12 @@ jobs:
     - name: Install Qt
       # uses: jurplel/install-qt-action@v4
       # with:
-      #   version: 6.9.3
+      #   version: 6.10.2
       #   host: 'mac'
       #   target: 'desktop'
       #   arch: 'clang_64'
-      #   modules: 'qt5compat qtnetworkauth qtscxml qtshadertools qtwebsockets'
+      #   modules: 'qt5compat qtnetworkauth qtshadertools qtwebsockets'
+      #   cache: true
       run: |
         bash ./buildscripts/ci/macos/install_qt.sh
 
@@ -191,7 +191,8 @@ jobs:
       run: |
         C_URL=${SENTRY_URL}; if [ -z "$C_URL" ]; then C_URL="''"; fi
         bash ./buildscripts/ci/macos/build.sh -n ${{ env.BUILD_NUMBER }} --crash_log_url $C_URL
-        echo "============== ccache ==============="
+    - name: Show ccache stats
+      run: |
         ccache -sv
     - name: Package
       run: |
@@ -220,13 +221,27 @@ jobs:
               -DSENTRY_ORG=sentry \
               -DSENTRY_AUTH_TOKEN=${{ secrets.SENTRY_MUSE_AUTH_TOKEN }} \
               -DSENTRY_PROJECT=${SENTRY_PROJECT} \
+              -DSTAGE=${BUILD_MODE} \
               -P buildscripts/ci/crashdumps/ci_generate_and_upload.cmake
     - name: Publish to OSUOSL
       if: env.DO_PUBLISH == 'true'
       run: |
         bash ./buildscripts/ci/tools/osuosl/publish.sh -s ${{ secrets.OSUOSL_SSH_ENCRYPT_SECRET }} --os macos -v 4
     - name: Upload artifacts on GitHub
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ env.UPLOAD_ARTIFACT_NAME }}
         path: ./build.artifacts/
+
+    - name: Prepare ccache files for saving
+      id: prepare-save-ccache
+      if: always()
+      run: |
+        ccache --recompress 10
+        echo "CCACHE_TIMESTAMP=$(date -u +"%F-%T")" | tee -a $GITHUB_OUTPUT
+    - name: Save ccache files
+      if: always()
+      uses: actions/cache/save@v5
+      with:
+        key: ${{ steps.restore-ccache.outputs.cache-primary-key }}${{ steps.prepare-save-ccache.outputs.CCACHE_TIMESTAMP }}
+        path: ${{ github.workspace }}/.ccache

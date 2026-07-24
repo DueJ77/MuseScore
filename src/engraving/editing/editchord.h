@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,8 +23,27 @@
 #pragma once
 
 #include "undo.h"
+#include "../dom/parenthesis.h"
 
 namespace mu::engraving {
+class EditChord
+{
+public:
+    static void addChordParentheses(Chord* chord, std::vector<Note*> notes, bool addToLinked = true, bool generated = false);
+    static void removeChordParentheses(Chord* chord, std::vector<Note*> notes, bool addToLinked = true, bool generated = false);
+
+private:
+
+    static void undoAddParenthesesToNotes(Chord* chord, std::vector<Note*> notes, bool addToLinked = true, bool generated = false);
+    static void undoRemoveParenthesesFromNote(Chord* chord, Note* note, Parenthesis* leftParen, bool removeFromLinked = true);
+    static void undoClearParenthesisGroup(Chord* chord, std::vector<Note*> notes, Parenthesis* leftParen, Parenthesis* rightParen,
+                                          bool removeFromLinked = true);
+
+    static void doAddNoteParentheses(Chord* chord, std::vector<Note*> notes, Parenthesis* leftParen, Parenthesis* rightParen);
+    static void doRemoveSingleNoteParenthesis(Chord* chord, Note* note, Parenthesis* leftParen);
+    static void doRemoveAllNoteParentheses(Chord* chord, Parenthesis* leftParen);
+};
+
 class ChangeChordStaffMove : public UndoCommand
 {
     OBJECT_ALLOCATOR(engraving, ChangeChordStaffMove)
@@ -35,7 +54,8 @@ class ChangeChordStaffMove : public UndoCommand
     void flip(EditData*) override;
 
 public:
-    ChangeChordStaffMove(ChordRest* cr, int);
+    ChangeChordStaffMove(ChordRest* cr, int v)
+        : chordRest(cr), staffMove(v) {}
 
     UNDO_TYPE(CommandType::ChangeChordStaffMove)
     UNDO_NAME("ChangeChordStaffMove")
@@ -74,5 +94,65 @@ public:
 
     UNDO_NAME("ChangeSpanArpeggio")
     UNDO_CHANGED_OBJECTS({ m_chord })
+};
+
+class AddNoteParenthesisInfo : public UndoCommand
+{
+    OBJECT_ALLOCATOR(engraving, AddNoteParenthesisInfo)
+
+    void redo(EditData*) override;
+    void undo(EditData*) override;
+
+    void cleanup(bool undo) override;
+
+    Chord* m_chord = nullptr;
+    NoteParenthesisInfo* m_noteParenInfo = nullptr;
+
+public:
+    AddNoteParenthesisInfo(Chord* chord, NoteParenthesisInfo* noteParenInfo)
+        : m_chord(chord), m_noteParenInfo(noteParenInfo) {}
+
+    UNDO_NAME("AddNoteParenthesesInfo")
+    UNDO_TYPE(CommandType::AddNoteParenthesesInfo)
+};
+
+class RemoveNoteParenthesisInfo : public UndoCommand
+{
+    OBJECT_ALLOCATOR(engraving, RemoveNoteParenthesisInfo)
+
+    void redo(EditData*) override;
+    void undo(EditData*) override;
+
+    void cleanup(bool undo) override;
+
+    Chord* m_chord = nullptr;
+    NoteParenthesisInfo* m_noteParenInfo = nullptr;
+
+public:
+    RemoveNoteParenthesisInfo(Chord* chord, NoteParenthesisInfo* noteParenInfo)
+        : m_chord(chord), m_noteParenInfo(noteParenInfo) {}
+
+    UNDO_NAME("RemoveNoteParenthesesInfo")
+    UNDO_TYPE(CommandType::RemoveNoteParenthesesInfo)
+};
+
+class RemoveSingleNoteParentheses : public UndoCommand
+{
+    OBJECT_ALLOCATOR(engraving, RemoveSingleNoteParentheses)
+
+    Chord* m_chord = nullptr;
+    Note* m_note = nullptr;
+    Parenthesis* m_paren = nullptr;
+
+    void redo(EditData*) override;
+    void undo(EditData*) override;
+
+public:
+    RemoveSingleNoteParentheses(Chord* chord, Note* note, Parenthesis* paren)
+        : m_chord(chord), m_note(note), m_paren(paren) {}
+
+    UNDO_NAME("RemoveSingleNoteParentheses")
+    UNDO_TYPE(CommandType::RemoveSingleNoteParentheses)
+    UNDO_CHANGED_OBJECTS({ m_chord, m_paren })
 };
 }

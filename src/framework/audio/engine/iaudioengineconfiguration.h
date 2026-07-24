@@ -27,7 +27,7 @@
 #include "audio/common/audiotypes.h"
 
 namespace muse::audio::engine {
-class IAudioEngineConfiguration : MODULE_EXPORT_INTERFACE
+class IAudioEngineConfiguration : MODULE_GLOBAL_INTERFACE
 {
     INTERFACE_ID(IAudioEngineConfiguration)
 public:
@@ -37,6 +37,13 @@ public:
 
     virtual bool autoProcessOnlineSoundsInBackground() const = 0;
     virtual async::Channel<bool> autoProcessOnlineSoundsInBackgroundChanged() const = 0;
+
+    virtual bool isLazyProcessingOfOnlineSoundsEnabled() const = 0;
+    virtual void setIsLazyProcessingOfOnlineSoundsEnabled(bool enabled) = 0;
+    virtual async::Channel<bool> isLazyProcessingOfOnlineSoundsEnabledChanged() const = 0;
+
+    virtual bool useSoundFontLowPassFilter() const = 0;
+    virtual async::Channel<bool> useSoundFontLowPassFilterChanged() const = 0;
 
     virtual AudioInputParams defaultAudioInputParams() const = 0;
 

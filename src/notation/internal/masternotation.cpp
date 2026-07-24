@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -64,7 +64,7 @@ static ExcerptNotation* get_impl(const IExcerptNotationPtr& excerpt)
     return static_cast<ExcerptNotation*>(excerpt.get());
 }
 
-static IExcerptNotationPtr createAndInitExcerptNotation(IMasterNotation* master, mu::engraving::Excerpt* excerpt,
+static IExcerptNotationPtr createAndInitExcerptNotation(MasterNotation* master, mu::engraving::Excerpt* excerpt,
                                                         const muse::modularity::ContextPtr& iocCtx)
 {
     auto excerptNotation = std::make_shared<ExcerptNotation>(master, excerpt, iocCtx);
@@ -158,7 +158,6 @@ void MasterNotation::setMasterScore(mu::engraving::MasterScore* score)
     setScore(score);
 
     score->updateSwing();
-    score->updateCapo();
 
     initAfterSettingScore(score);
 }
@@ -207,6 +206,12 @@ static void createMeasures(MasterScore* masterScore, const ScoreCreateOptions& s
         keySigEvent.setMode(KeyMode::NONE);
     } else {
         keySigEvent.setConcertKey(scoreOptions.key);
+    }
+
+    // Ensure all key sigs that may have been in the template file are cleared
+    for (Staff* staff : masterScore->staves()) {
+        KeyList* keys = staff->keyList();
+        keys->clear();
     }
 
     const int totalMeasures = scoreOptions.withPickupMeasure ? scoreOptions.totalMeasures + 1 : scoreOptions.totalMeasures;
@@ -289,6 +294,7 @@ void MasterNotation::applyOptions(mu::engraving::MasterScore* score, const Score
             nvb->setAutoSizeEnabled(tvb->isAutoSizeEnabled());
         }
 
+        score->clearSystemLocks();
         clearMeasures(score);
 
         // for templates using built-in base page style, set score page style to default (may be user-defined)
@@ -313,7 +319,7 @@ void MasterNotation::applyOptions(mu::engraving::MasterScore* score, const Score
 
         if (!title.isEmpty() || !subtitle.isEmpty() || !composer.isEmpty() || !lyricist.isEmpty()) {
             mu::engraving::MeasureBase* measure = score->measures()->first();
-            if (measure->type() != ElementType::VBOX) {
+            if (!measure->isVBox()) {
                 if (!nvb) {
                     nvb = Factory::createTitleVBox(score->dummy()->system());
                 }
@@ -464,6 +470,8 @@ void MasterNotation::initExcerpts(const ExcerptNotationList& excerpts)
 
         masterScore()->initExcerpt(impl->excerpt());
         impl->init();
+
+        initNotationSoloMuteState(impl->notation());
     }
 }
 
@@ -506,6 +514,8 @@ void MasterNotation::setExcerpts(const ExcerptNotationList& excerpts)
 
         score->initAndAddExcerpt(excerptNotationImpl->excerpt(), false);
         excerptNotationImpl->init();
+
+        initNotationSoloMuteState(excerptNotationImpl->notation());
     }
 
     score->setExcerptsChanged(false);

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -108,7 +108,7 @@ Clef::Clef(Segment* parent)
 
 double Clef::mag() const
 {
-    double mag = staff() ? staff()->staffMag(tick()) : 1.0;
+    double mag = staff() ? staff()->staffMag(this) : 1.0;
     if (m_isSmall) {
         mag *= style().styleD(Sid::smallClefMag);
     }
@@ -121,8 +121,7 @@ double Clef::mag() const
 
 bool Clef::acceptDrop(EditData& data) const
 {
-    return data.dropElement->type() == ElementType::CLEF
-           || (/*!generated() &&*/ data.dropElement->type() == ElementType::AMBITUS);
+    return data.dropElement->isClef() || (/*!generated() &&*/ data.dropElement->isAmbitus());
 }
 
 //---------------------------------------------------------
@@ -351,7 +350,7 @@ void Clef::changeClefToBarlinePos(ClefToBarlinePosition newPos)
 
     staff_idx_t nStaves = score()->nstaves();
     for (staff_idx_t staffIndex = 0; staffIndex < nStaves; ++staffIndex) {
-        Clef* clef = static_cast<Clef*>(seg->elementAt(staffIndex * VOICES));
+        Clef* clef = toClef(seg->element(staffIndex * VOICES));
         if (clef) {
             clef->m_clefToBarlinePosition = newPos;
         }

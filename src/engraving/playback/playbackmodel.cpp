@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,6 +36,7 @@
 #include "dom/segment.h"
 #include "dom/tie.h"
 #include "dom/tremolotwochord.h"
+#include "editing/undo.h"
 
 #include "defer.h"
 #include "log.h"
@@ -147,6 +148,14 @@ void PlaybackModel::reload()
 void PlaybackModel::setSendEventsOnScoreChange(const InstrumentTrackId& trackId, bool send)
 {
     m_sendEventsOnScoreChangeMap[trackId] = send;
+
+    if (send) {
+        auto it = m_changedTrackIdSet.find(trackId);
+        if (it != m_changedTrackIdSet.end()) {
+            sendEvents(trackId);
+            m_changedTrackIdSet.erase(it);
+        }
+    }
 }
 
 void PlaybackModel::sendEventsForChangedTracks()
@@ -158,8 +167,7 @@ void PlaybackModel::sendEventsForChangedTracks()
     TRACEFUNC;
 
     for (const InstrumentTrackId& trackId : m_changedTrackIdSet) {
-        PlaybackData& data = m_playbackDataMap[trackId];
-        data.mainStream.send(data.originEvents, data.dynamics);
+        sendEvents(trackId);
     }
 
     m_changedTrackIdSet.clear();
@@ -283,7 +291,8 @@ void PlaybackModel::triggerEventsForItems(const std::vector<const EngravingItem*
     }
 
     PlaybackData& trackPlaybackData = trackPlaybackDataIt->second;
-    ArticulationsProfilePtr profile = profilesRepository()->defaultProfile(trackPlaybackData.setupData.category);
+    ArticulationsProfilePtr profile
+        = profilesRepository() ? profilesRepository()->defaultProfile(trackPlaybackData.setupData.category) : nullptr;
     if (!profile) {
         LOGE() << "unsupported instrument family: " << trackId.partId.toUint64();
         return;
@@ -318,10 +327,9 @@ void PlaybackModel::triggerEventsForItems(const std::vector<const EngravingItem*
     dynamic_level_t dynamicLevel = dynamicLevelFromType(muse::mpe::DynamicType::Natural);
 
     for (const EngravingItem* item : items) {
-        const int utick = repeats.tick2utick(item->tick().ticks());
-
         if (m_useScoreDynamicsForOffstreamPlayback) {
             if (!item->isNote() || toNote(item)->userVelocity() == 0) {
+                const int utick = repeats.tick2utick(item->tick().ticks());
                 dynamicLevel = ctx->appliableDynamicLevel(item->track(), utick);
             }
             dynamics[static_cast<muse::mpe::layer_idx_t>(item->track())][timestamp] = dynamicLevel;
@@ -691,6 +699,7 @@ void PlaybackModel::reloadMetronomeEvents()
 bool PlaybackModel::hasToReloadTracks(const ScoreChanges& changes) const
 {
     static const std::unordered_set<ElementType> REQUIRED_TYPES {
+        ElementType::PART,
         ElementType::PLAYTECH_ANNOTATION,
         ElementType::CAPO,
         ElementType::DYNAMIC,
@@ -844,10 +853,6 @@ void mu::engraving::PlaybackModel::removeEventsFromRange(const track_idx_t track
 
         removeTrackEvents(chordSymbolsTrackId(part->id()), timestampFrom, timestampTo, trackChanges);
     }
-
-    if (m_metronomeEnabled) {
-        removeTrackEvents(METRONOME_TRACK_ID, timestampFrom, timestampTo, trackChanges);
-    }
 }
 
 void PlaybackModel::clearExpiredEvents(const int tickFrom, const int tickTo, const track_idx_t trackFrom, const track_idx_t trackTo,
@@ -865,14 +870,15 @@ void PlaybackModel::clearExpiredEvents(const int tickFrom, const int tickTo, con
     }
 
     if (tickFrom == 0 && lastMeasure->endTick().ticks() == tickTo) {
-        removeEventsFromRange(trackFrom, trackTo);
+        removeEventsFromRange(trackFrom, trackTo, -1 /*timestampFrom*/, -1 /*timestampTo*/, trackChanges);
+        removeTrackEvents(METRONOME_TRACK_ID, -1 /*timestampFrom*/, -1 /*timestampTo*/, trackChanges);
         return;
     }
 
     for (const RepeatSegment* repeatSegment : repeatList()) {
-        int tickPositionOffset = repeatSegment->utick - repeatSegment->tick;
-        int repeatStartTick = repeatSegment->tick;
-        int repeatEndTick = repeatSegment->endTick();
+        const int tickPositionOffset = repeatSegment->utick - repeatSegment->tick;
+        const int repeatStartTick = repeatSegment->tick;
+        const int repeatEndTick = repeatSegment->endTick();
 
         if (repeatStartTick > tickTo || repeatEndTick <= tickFrom) {
             continue;
@@ -887,6 +893,24 @@ void PlaybackModel::clearExpiredEvents(const int tickFrom, const int tickTo, con
         timestamp_t removeEventsTo = timestampFromTicks(m_score, removeEventsToTick + tickPositionOffset);
 
         removeEventsFromRange(trackFrom, trackTo, removeEventsFrom, removeEventsTo, trackChanges);
+
+        if (!m_metronomeEnabled) {
+            continue;
+        }
+
+        for (const Measure* measure : repeatSegment->measureList()) {
+            const int measureStartTick = measure->tick().ticks();
+            const int measureEndTick = measure->endTick().ticks();
+
+            if (measureStartTick > tickTo || measureEndTick <= tickFrom) {
+                continue;
+            }
+
+            removeEventsFrom = timestampFromTicks(m_score, measureStartTick + tickPositionOffset);
+            removeEventsTo = timestampFromTicks(m_score, measureEndTick + tickPositionOffset - 1);
+
+            removeTrackEvents(METRONOME_TRACK_ID, removeEventsFrom, removeEventsTo, trackChanges);
+        }
     }
 }
 
@@ -902,13 +926,8 @@ void PlaybackModel::collectChangesTracks(const InstrumentTrackId& trackId, Chang
 void PlaybackModel::notifyAboutChanges(const InstrumentTrackIdSet& oldTracks, const InstrumentTrackIdSet& changedTracks)
 {
     for (const InstrumentTrackId& trackId : changedTracks) {
-        auto search = m_playbackDataMap.find(trackId);
-        if (search == m_playbackDataMap.cend()) {
-            continue;
-        }
-
         if (muse::value(m_sendEventsOnScoreChangeMap, trackId, false)) {
-            search->second.mainStream.send(search->second.originEvents, search->second.dynamics);
+            sendEvents(trackId);
         } else {
             m_changedTrackIdSet.insert(trackId);
         }
@@ -923,6 +942,17 @@ void PlaybackModel::notifyAboutChanges(const InstrumentTrackIdSet& oldTracks, co
     if (!changedTracks.empty()) {
         m_tracksDataChanged.send(changedTracks);
     }
+}
+
+void PlaybackModel::sendEvents(const InstrumentTrackId& trackId)
+{
+    auto it = m_playbackDataMap.find(trackId);
+    if (it == m_playbackDataMap.cend()) {
+        return;
+    }
+
+    PlaybackData& data = it->second;
+    data.mainStream.send(data.originEvents, data.dynamics);
 }
 
 void PlaybackModel::removeTrackEvents(const InstrumentTrackId& trackId, const muse::mpe::timestamp_t timestampFrom,
@@ -979,22 +1009,30 @@ bool PlaybackModel::shouldSkipChanges(const ScoreChanges& changes) const
         return false;
     }
 
-    const EngravingObject* obj = changes.changedObjects.begin()->first;
-    if (!obj->isTextBase()) {
+    const auto it = changes.changedObjects.begin();
+    if (!it->first->isTextBase()) {
         return false;
     }
 
-    const TextBase* text = toTextBase(obj);
-    const bool empty = toTextBase(obj)->empty();
+    const TextBase* text = toTextBase(it->first);
+    const bool empty = text->empty();
+    if (!empty) {
+        return false;
+    }
 
-    if (empty && text->isHarmony() && m_playChordSymbols) {
+    if (text->isHarmony() && m_playChordSymbols) {
         const InstrumentTrackId trackId = chordSymbolsTrackId(text->part()->id());
         if (!muse::contains(m_playbackDataMap, trackId)) {
             return false;
         }
     }
 
-    return empty;
+    const std::unordered_set<CommandType>& commands = it->second;
+    if (muse::contains(commands, CommandType::RemoveElement)) {
+        return false;
+    }
+
+    return true;
 }
 
 PlaybackModel::TrackBoundaries PlaybackModel::trackBoundaries(const ScoreChanges& changes) const
@@ -1125,6 +1163,10 @@ muse::mpe::ArticulationsProfilePtr PlaybackModel::defaultActiculationProfile(con
 {
     auto it = m_playbackDataMap.find(trackId);
     if (it == m_playbackDataMap.cend()) {
+        return nullptr;
+    }
+
+    if (!profilesRepository()) {
         return nullptr;
     }
 

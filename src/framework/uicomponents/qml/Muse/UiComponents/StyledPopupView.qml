@@ -20,12 +20,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import QtQuick 2.15
+import QtQuick
 
-import Muse.Ui 1.0
-import Muse.UiComponents 1.0
-
-import "internal"
+import Muse.Ui
 
 PopupView {
     id: root
@@ -62,6 +59,15 @@ PopupView {
         if (!(openPolicies & PopupView.NoActivateFocus) && content.navigationSection) {
             content.navigationSection.requestActive()
         }
+        Qt.callLater(root.repositionWindowIfNeed)
+    }
+
+    onWidthChanged: {
+        Qt.callLater(root.repositionWindowIfNeed)
+    }
+
+    onHeightChanged: {
+        Qt.callLater(root.repositionWindowIfNeed)
     }
 
     onClosed: {

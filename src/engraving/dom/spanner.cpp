@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -138,6 +138,7 @@ EngravingObject* SpannerSegment::propertyDelegate(Pid pid) const
     switch (pid) {
     case Pid::PLAY:
     case Pid::COLOR:
+    case Pid::Z:
     case Pid::VISIBLE:
     case Pid::PLACEMENT:
     case Pid::EXCLUDE_FROM_OTHER_PARTS:
@@ -285,13 +286,9 @@ void SpannerSegment::setSelected(bool f)
 void SpannerSegment::setVisible(bool f)
 {
     if (m_spanner) {
-        for (SpannerSegment* ss : m_spanner->spannerSegments()) {
-            ss->EngravingItem::setVisible(f);
-        }
         m_spanner->setVisible(f);
-    } else {
-        EngravingItem::setVisible(f);
     }
+    EngravingItem::setVisible(f);
 }
 
 //---------------------------------------------------------
@@ -301,13 +298,21 @@ void SpannerSegment::setVisible(bool f)
 void SpannerSegment::setColor(const Color& col)
 {
     if (m_spanner) {
-        for (SpannerSegment* ss : m_spanner->spannerSegments()) {
-            ss->m_color = col;
-        }
-        m_spanner->m_color = col;
-    } else {
-        m_color = col;
+        m_spanner->setColor(col);
     }
+    EngravingItem::setColor(col);
+}
+
+//---------------------------------------------------------
+//   setZ
+//---------------------------------------------------------
+
+void SpannerSegment::setZ(int val)
+{
+    if (m_spanner) {
+        m_spanner->setZ(val);
+    }
+    EngravingItem::setZ(val);
 }
 
 //---------------------------------------------------------
@@ -345,17 +350,6 @@ void SpannerSegment::triggerLayout() const
 {
     if (m_spanner) {
         m_spanner->triggerLayout();
-    }
-}
-
-//---------------------------------------------------------
-//   scanElements
-//---------------------------------------------------------
-
-void SpannerSegment::scanElements(void* data, void (* func)(void*, EngravingItem*), bool all)
-{
-    if (all || spanner()->eitherEndVisible() || systemFlag()) {
-        func(data, this);
     }
 }
 
@@ -472,6 +466,7 @@ void Spanner::add(EngravingItem* e)
     ls->setSelected(selected());
     ls->setTrack(track());
 //      ls->setAutoplace(autoplace());
+    ls->EngravingItem::setZ(z());
     m_segments.push_back(ls);
     e->added();
 }
@@ -564,26 +559,6 @@ void Spanner::insertTimeUnmanaged(const Fraction& fromTick, const Fraction& len)
         if (newTick1 != tick()) {
             setProperty(Pid::SPANNER_TICK, newTick1);
         }
-    }
-}
-
-//---------------------------------------------------------
-//   scanElements
-//---------------------------------------------------------
-
-void Spanner::scanElements(void* data, void (* func)(void*, EngravingItem*), bool all)
-{
-    if (score()->isPaletteScore()) {
-        EngravingObject::scanElements(data, func, all);
-        return;
-    }
-
-    for (EngravingObject* child : scanChildren()) {
-        if (child->isSpannerSegment()) {
-            // spanner segments are scanned by the system
-            continue;
-        }
-        child->scanElements(data, func, all);
     }
 }
 
@@ -766,7 +741,7 @@ void Spanner::doComputeStartElement()
         if (systemFlag()) {
             m_startElement = startSegment();
         } else {
-            EngravingItem* startEl = startSeg->elementAt(track());
+            EngravingItem* startEl = startSeg->element(track());
             if (startEl) {
                 m_startElement = startEl;
             } else {
@@ -825,7 +800,7 @@ void Spanner::doComputeEndElement()
             m_endElement = endSeg;
         } else {
             track_idx_t trackIdx = effectiveTrack2();
-            EngravingItem* endEl = endSeg->elementAt(trackIdx);
+            EngravingItem* endEl = endSeg->element(trackIdx);
             if (endEl) {
                 m_endElement = endEl;
             } else {
@@ -853,6 +828,7 @@ bool Spanner::canBeCrossStaff() const
     case ElementType::SLUR:
     case ElementType::TIE:
     case ElementType::ARPEGGIO:
+    case ElementType::CHORD_BRACKET:
     case ElementType::GLISSANDO:
     case ElementType::NOTELINE:
         return true;
@@ -1096,7 +1072,7 @@ Segment* Spanner::startSegment() const
 
     Segment* startSeg = score()->tick2segment(startTick, true, SegmentType::ChordRest, mmRest);
 
-    if (!startSeg || !startSeg->hasElements(staffIdx) || (isVoiceSpecific() && !startSeg->elementAt(trackIdx))) {
+    if (!startSeg || !startSeg->hasElements(staffIdx) || (isVoiceSpecific() && !startSeg->element(trackIdx))) {
         startSeg = score()->tick2segment(startTick, true, SegmentType::TimeTick, mmRest);
     }
 
@@ -1104,6 +1080,9 @@ Segment* Spanner::startSegment() const
         Measure* measure = mmRest ? score()->tick2measureMM(startTick) : score()->tick2measure(startTick);
         if (measure) {
             TimeTickAnchor* anchor = EditTimeTickAnchors::createTimeTickAnchor(measure, startTick - measure->tick(), track2staff(trackIdx));
+            IF_ASSERT_FAILED(anchor) {
+                return nullptr;
+            }
             EditTimeTickAnchors::updateLayout(measure);
             return anchor->segment();
         }
@@ -1131,7 +1110,7 @@ Segment* Spanner::endSegment() const
 
     Segment* endSeg = score()->tick2segment(endTick, true, SegmentType::ChordRest, mmRest);
 
-    if (!endSeg || !endSeg->hasElements(staffIdx) || (isVoiceSpecific() && !endSeg->elementAt(trackIdx))) {
+    if (!endSeg || !endSeg->hasElements(staffIdx) || (isVoiceSpecific() && !endSeg->element(trackIdx))) {
         endSeg = score()->tick2segment(endTick, true, SegmentType::TimeTick, mmRest);
     }
 
@@ -1246,9 +1225,21 @@ void Spanner::setAutoplace(bool f)
 void Spanner::setColor(const Color& col)
 {
     for (SpannerSegment* ss : spannerSegments()) {
-        ss->setColor(col);
+        ss->EngravingItem::setColor(col);
     }
-    m_color = col;
+    EngravingItem::setColor(col);
+}
+
+//---------------------------------------------------------
+//   setZ
+//---------------------------------------------------------
+
+void Spanner::setZ(int val)
+{
+    for (SpannerSegment* ss : spannerSegments()) {
+        ss->EngravingItem::setZ(val);
+    }
+    EngravingItem::setZ(val);
 }
 
 //---------------------------------------------------------
@@ -1259,7 +1250,7 @@ void Spanner::setStartElement(EngravingItem* e)
 {
 #ifndef NDEBUG
     if (m_anchor == Anchor::NOTE) {
-        assert(!e || e->type() == ElementType::NOTE);
+        assert(!e || e->isNote());
     }
 #endif
     m_startElement = e;
@@ -1273,7 +1264,7 @@ void Spanner::setEndElement(EngravingItem* e)
 {
 #ifndef NDEBUG
     if (m_anchor == Anchor::NOTE) {
-        assert(!e || e->type() == ElementType::NOTE);
+        assert(!e || e->isNote());
     }
 #endif
     m_endElement = e;
@@ -1399,7 +1390,12 @@ void Spanner::setTick(const Fraction& v)
 
 void Spanner::setTick2(const Fraction& f)
 {
-    setTicks(f - m_tick);
+    Fraction ticks = f - m_tick;
+    IF_ASSERT_FAILED(f >= m_tick) {
+        ticks = m_tick - f;
+        m_tick = f;
+    }
+    setTicks(ticks);
 }
 
 //---------------------------------------------------------
@@ -1412,7 +1408,11 @@ void Spanner::setTicks(const Fraction& f)
         return;
     }
 
-    m_ticks = f;
+    IF_ASSERT_FAILED(f.positive()) {
+        m_ticks = -f;
+    } else {
+        m_ticks = f;
+    }
 
     Score* score = this->score();
 
@@ -1669,5 +1669,10 @@ void Spanner::undoChangeProperty(Pid id, const PropertyValue& v, PropertyFlags p
         return;
     }
     EngravingItem::undoChangeProperty(id, v, ps);
+}
+
+bool SpannerSegment::collectForDrawing() const
+{
+    return EngravingItem::collectForDrawing() && (spanner()->eitherEndVisible() || systemFlag());
 }
 }

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,7 +33,6 @@
 #include "io/buffer.h"
 #include "translation.h"
 
-#include "draw/types/pen.h"
 #include "iengravingfont.h"
 
 #include "rw/rwregister.h"
@@ -167,7 +166,7 @@ EngravingItem* EngravingItem::parentItem(bool explicitParent) const
 {
     EngravingObject* p = explicitParent ? this->explicitParent() : parent();
     if (p && p->isEngravingItem()) {
-        return static_cast<EngravingItem*>(p);
+        return toEngravingItem(p);
     }
 
     return nullptr;
@@ -177,7 +176,7 @@ static void collectChildrenItems(const EngravingObject* item, EngravingItemList&
 {
     for (EngravingObject* ch : item->children()) {
         if (ch->isEngravingItem()) {
-            list.push_back(static_cast<EngravingItem*>(ch));
+            list.push_back(toEngravingItem(ch));
 
             if (all) {
                 collectChildrenItems(ch, list, all);
@@ -264,6 +263,11 @@ double EngravingItem::spatium() const
     return s ? s->spatium(this) : style().spatium();
 }
 
+double EngravingItem::defaultSpatium() const
+{
+    return style().defaultSpatium();
+}
+
 bool EngravingItem::isInteractionAvailable() const
 {
     if (!getProperty(Pid::VISIBLE).toBool() && (score()->printing() || !score()->isShowInvisible())) {
@@ -293,7 +297,7 @@ PlacementV EngravingItem::placement() const
 
 double EngravingItem::magS() const
 {
-    return mag() * (style().spatium() / SPATIUM20);
+    return mag() * (style().spatium() / defaultSpatium());
 }
 
 //---------------------------------------------------------
@@ -341,23 +345,26 @@ void EngravingItem::deleteLater()
 /// or to apply `func` even to non-leaf nodes.
 //---------------------------------------------------------
 
-void EngravingItem::scanElements(void* data, void (* func)(void*, EngravingItem*), bool all)
+void EngravingItem::scanElements(std::function<void(EngravingItem*)> func)
 {
     if (m_leftParenthesis) {
-        func(data, m_leftParenthesis);
+        m_leftParenthesis->scanElements(func);
     }
 
     if (m_rightParenthesis) {
-        func(data, m_rightParenthesis);
+        m_rightParenthesis->scanElements(func);
     }
 
-    if (scanChildren().size() == 0) {
-        if (all || visible() || score()->isShowInvisible()) {
-            func(data, this);
-        }
-    } else {
-        EngravingObject::scanElements(data, func, all);
+    func(this);
+}
+
+bool EngravingItem::collectForDrawing() const
+{
+    if (!visible() && !score()->isShowInvisible()) {
+        return false;
     }
+
+    return true;
 }
 
 //---------------------------------------------------------
@@ -423,6 +430,12 @@ bool EngravingItem::onTabStaff() const
     return stt ? stt->isTabStaff() : false;
 }
 
+bool EngravingItem::onCipherStaff() const
+{
+    const StaffType* stt = staffType();
+    return stt ? stt->group() == StaffGroup::CIPHER : false;
+}
+
 bool EngravingItem::hasGrips() const
 {
     return gripsCount() > 0;
@@ -435,7 +448,20 @@ track_idx_t EngravingItem::track() const
 
 void EngravingItem::setTrack(track_idx_t val)
 {
+    IF_ASSERT_FAILED(val < m_score->ntracks() || val == 0 || val == muse::nidx || m_score->isPaletteScore()) {
+        // Zero and muse::nidx have special use cases.
+        // In all other cases the track can't be larger than the total track count.
+        return;
+    }
+
     m_track = val;
+
+    if (m_leftParenthesis) {
+        m_leftParenthesis->setTrack(val);
+    }
+    if (m_rightParenthesis) {
+        m_rightParenthesis->setTrack(val);
+    }
 }
 
 //---------------------------------------------------------
@@ -463,7 +489,7 @@ staff_idx_t EngravingItem::staffIdx() const
 void EngravingItem::setStaffIdx(staff_idx_t val)
 {
     voice_idx_t voiceIdx = voice();
-    m_track = staff2track(val, voiceIdx == muse::nidx ? 0 : voiceIdx);
+    setTrack(staff2track(val, voiceIdx == muse::nidx ? 0 : voiceIdx));
 }
 
 staff_idx_t EngravingItem::effectiveStaffIdx() const
@@ -548,7 +574,7 @@ voice_idx_t EngravingItem::voice() const
 
 void EngravingItem::setVoice(voice_idx_t v)
 {
-    m_track = (m_track / VOICES) * VOICES + v;
+    setTrack((m_track / VOICES) * VOICES + v);
 }
 
 //---------------------------------------------------------
@@ -672,6 +698,9 @@ Color EngravingItem::curColor(bool isVisible, Color normalColor, const rendering
     }
 
     if (opt.invertColors) {
+        if (normalColor == configuration()->defaultColor()) {
+            return configuration()->scoreInversionColor();
+        }
         return normalColor.inverted();
     }
 
@@ -715,31 +744,46 @@ PointF EngravingItem::pagePos() const
         idx = vStaffIdx();
     }
 
+    auto measureStaffY = [this](const Measure* measure, staff_idx_t idx) -> double {
+        if (!measure) {
+            return 0.0;
+        }
+        if (measure->mstaves().size() <= idx) {
+            LOGD("staffIdx out of bounds: %s", typeName());
+            return 0.0;
+        }
+        return measure->staffLines(idx)->y();
+    };
+
+    auto systemStaffY = [this](const System* system, staff_idx_t idx) -> double {
+        if (!system) {
+            return 0.0;
+        }
+        if (system->staves().size() <= idx) {
+            LOGD("staffIdx out of bounds: %s", typeName());
+            return 0.0;
+        }
+        return system->staffYpage(idx);
+    };
+
     if (m_flags & ElementFlag::ON_STAFF) {
-        System* system = nullptr;
-        Measure* measure = nullptr;
-        if (explicitParent()->isSegment()) {
-            measure = toSegment(explicitParent())->measure();
-        } else if (explicitParent()->isMeasure()) {           // used in measure number
-            measure = toMeasure(explicitParent());
-        } else if (explicitParent()->isSystem()) {
-            system = toSystem(explicitParent());
-        } else if (explicitParent()->isFretDiagram()) {
-            return p + parentItem()->pagePos();
-        } else if (explicitParent()->isFBox()) {
-            return p + parentItem()->pagePos();
+        // Segments, measures and systems all contain multiple staves
+        // Find the position of the stave that this item is on
+        EngravingItem* parent = parentItem();
+        if (parent->isSegment()) {
+            Segment* segment = toSegment(parent);
+            Measure* measure = segment ? segment->measure() : nullptr;
+            System* system = measure ? measure->system() : nullptr;
+            p.ry() += measureStaffY(measure, idx) + systemStaffY(system, idx);
+        } else if (parent->isMeasure()) {
+            Measure* measure = toMeasure(parent);
+            System* system = measure->system();
+            p.ry() += measureStaffY(measure, idx) + systemStaffY(system, idx);
+        } else if (parent->isSystem()) {
+            System* system = toSystem(parent);
+            p.ry() += systemStaffY(system, idx);
         } else {
-            ASSERT_X(String(u"this %1 parent %2\n").arg(String::fromAscii(typeName()), String::fromAscii(explicitParent()->typeName())));
-        }
-        if (measure) {
-            system = measure->system();
-            p.ry() += measure->staffLines(idx)->y();
-        }
-        if (system) {
-            if (system->staves().size() <= idx) {
-                LOGD("staffIdx out of bounds: %s", typeName());
-            }
-            p.ry() += system->staffYpage(idx);
+            return p + parent->pagePos();
         }
         p.rx() = pageX();
     } else {
@@ -767,39 +811,55 @@ PointF EngravingItem::canvasPos() const
         idx = vStaffIdx();
     }
 
+    auto measureStaffY = [this](const Measure* measure, staff_idx_t idx) -> double {
+        if (!measure) {
+            return 0.0;
+        }
+        if (measure->mstaves().size() <= idx) {
+            LOGD("staffIdx out of bounds: %s", typeName());
+            return 0.0;
+        }
+        return measure->staffLines(idx)->y();
+    };
+
+    auto systemStaffY = [this](const System* system, staff_idx_t idx) -> double {
+        if (!system) {
+            return 0.0;
+        }
+        if (system->staves().size() <= idx) {
+            LOGD("staffIdx out of bounds: %s", typeName());
+            return 0.0;
+        }
+        return system->staffYpage(idx);
+    };
+
+    auto pageY = [](const Page* page) -> double {
+        if (!page) {
+            return 0.0;
+        }
+        return page->y();
+    };
+
     if (m_flags & ElementFlag::ON_STAFF) {
-        System* system = nullptr;
-        Measure* measure = nullptr;
-        if (explicitParent()->isSegment()) {
-            measure = toSegment(explicitParent())->measure();
-        } else if (explicitParent()->isMeasure()) {     // used in measure number
-            measure = toMeasure(explicitParent());
-        }
-        // system = toMeasure(parent())->system();
-        else if (explicitParent()->isSystem()) {
-            system = toSystem(explicitParent());
-        } else if (explicitParent()->isChord()) {       // grace chord
-            measure = toSegment(explicitParent()->explicitParent())->measure();
-        } else if (explicitParent()->isFretDiagram()) {
-            return p + parentItem()->canvasPos();
+        // Segments, measures and systems all contain multiple staves
+        // Find the position of the stave that this item is on
+        EngravingItem* parent = parentItem();
+        if (parent->isSegment()) {
+            Segment* segment = toSegment(parent);
+            Measure* measure = segment ? segment->measure() : nullptr;
+            System* system = measure ? measure->system() : nullptr;
+            Page* page = system ? system->page() : nullptr;
+            p.ry() += measureStaffY(measure, idx) + systemStaffY(system, idx) + pageY(page);
+        } else if (parent->isMeasure()) {
+            Measure* measure = toMeasure(parent);
+            System* system = measure->system();
+            Page* page = system->page();
+            p.ry() += measureStaffY(measure, idx) + systemStaffY(system, idx) + pageY(page);
+        } else if (parent->isSystem()) {
+            System* system = toSystem(parent);
+            p.ry() += systemStaffY(system, idx);
         } else {
-            ASSERT_X(String(u"this %1 parent %2\n").arg(String::fromAscii(typeName()), String::fromAscii(explicitParent()->typeName())));
-        }
-        if (measure) {
-            const StaffLines* lines = measure->staffLines(idx);
-            p.ry() += lines ? lines->y() : 0;
-
-            system = measure->system();
-
-            if (system) {
-                Page* page = system->page();
-                if (page) {
-                    p.ry() += page->y();
-                }
-            }
-        }
-        if (system) {
-            p.ry() += system->staffYpage(idx);
+            return p + parent->canvasPos();
         }
         p.rx() = canvasX();
     } else {
@@ -933,6 +993,7 @@ muse::ByteArray EngravingItem::mimeData(const PointF& dragOffset) const
     rw::RWRegister::writer(iocContext())->writeItem(this, xml);
 
     xml.endElement();
+    xml.flush();
     buffer.close();
     return buffer.data();
 }
@@ -1056,16 +1117,6 @@ bool elementLessThan(const EngravingItem* const e1, const EngravingItem* const e
     }
 
     return e1->z() < e2->z();
-}
-
-//---------------------------------------------------------
-//   collectElements
-//---------------------------------------------------------
-
-void collectElements(void* data, EngravingItem* e)
-{
-    std::vector<EngravingItem*>* el = static_cast<std::vector<EngravingItem*>*>(data);
-    el->push_back(e);
 }
 
 //---------------------------------------------------------
@@ -1442,8 +1493,10 @@ PropertyPropagation EngravingItem::propertyPropagation(const EngravingItem* dest
         const bool diffStaff = sourceStaff != destinationStaff;
         const bool visiblePositionOrColor = propertyId == Pid::VISIBLE || propertyId == Pid::COLOR
                                             || propertyGroup(propertyId) == PropertyGroup::POSITION;
+        const bool hasParens = propertyId == Pid::HAS_PARENTHESES && isNote() && toNote(this)->ghost()
+                               && !toNote(this)->hideGeneratedParens();
         const bool linkSameScore = propertyLinkSameScore(propertyId);
-        if ((diffStaff && visiblePositionOrColor) || !linkSameScore) {
+        if ((diffStaff && (visiblePositionOrColor || hasParens)) || !linkSameScore) {
             // Allow visibility and position to stay independent
             return PropertyPropagation::NONE;
         }
@@ -1685,15 +1738,6 @@ const MeasureBase* EngravingItem::findMeasureBase() const
 {
     EngravingItem* e = const_cast<EngravingItem*>(this);
     return e->findMeasureBase();
-}
-
-//---------------------------------------------------------
-//   undoSetColor
-//---------------------------------------------------------
-
-void EngravingItem::undoSetColor(const Color& c)
-{
-    undoChangeProperty(Pid::COLOR, PropertyValue::fromValue(c));
 }
 
 //---------------------------------------------------------
@@ -2447,7 +2491,7 @@ EngravingItem::BarBeat EngravingItem::barbeat() const
 {
     EngravingItem::BarBeat barBeat = { 0, 0, 0.0F };
     const EngravingItem* parent = this;
-    while (parent && parent->type() != ElementType::SEGMENT && parent->type() != ElementType::MEASURE) {
+    while (parent && !parent->isSegment() && !parent->isMeasure()) {
         parent = parent->parentItem();
     }
 
@@ -2464,16 +2508,16 @@ EngravingItem::BarBeat EngravingItem::barbeat() const
     const TimeSigMap* timeSigMap = score()->sigmap();
     int ticksB = ticks_beat(timeSigMap->timesig(0).timesig().denominator());
 
-    if (parent->type() == ElementType::SEGMENT) {
-        const Segment* segment = static_cast<const Segment*>(parent);
+    if (parent->isSegment()) {
+        const Segment* segment = toSegment(parent);
         timeSigMap->tickValues(segment->tick().ticks(), &bar, &beat, &ticks);
         ticksB = ticks_beat(timeSigMap->timesig(segment->tick().ticks()).timesig().denominator());
         measure = segment->findMeasure();
         if (measure) {
             displayedBar = measure->no();
         }
-    } else if (parent->type() == ElementType::MEASURE) {
-        measure = static_cast<const Measure*>(parent);
+    } else if (parent->isMeasure()) {
+        measure = toMeasure(parent);
         bar = measure->no();
         displayedBar = bar;
         beat = -1;
@@ -2785,6 +2829,7 @@ Shape EngravingItem::LayoutData::shape(LD_ACCESS mode) const
         case ElementType::TIE_SEGMENT:
         case ElementType::LAISSEZ_VIB_SEGMENT:
         case ElementType::PARTIAL_TIE_SEGMENT:
+        case ElementType::NOTE:
             return sh;
         case ElementType::CHORD:
         case ElementType::REST:
@@ -2799,12 +2844,6 @@ Shape EngravingItem::LayoutData::shape(LD_ACCESS mode) const
             }
             return m_shape.value(LD_ACCESS::CHECK);
         } break;
-        case ElementType::NOTE: {
-            //! NOTE Temporary fix
-            //! We can remove it the moment we figure out the layout order of the elements
-            TLayout::fillNoteShape(toNote(m_item), static_cast<Note::LayoutData*>(const_cast<LayoutData*>(this)));
-            return m_shape.value(LD_ACCESS::CHECK);
-        } break;
         case ElementType::GUITAR_BEND_SEGMENT: {
             //! NOTE Temporary fix
             //! We can remove it the moment we figure out the layout order of the elements
@@ -2813,10 +2852,10 @@ Shape EngravingItem::LayoutData::shape(LD_ACCESS mode) const
             return m_shape.value(LD_ACCESS::CHECK);
         } break;
         case ElementType::HAIRPIN_SEGMENT: {
-            //! NOTE Temporary fix
-            //! We can remove it the moment we figure out the layout order of the elements
-            TLayout::fillHairpinSegmentShape(toHairpinSegment(m_item),
-                                             static_cast<HairpinSegment::LayoutData*>(const_cast<LayoutData*>(this)));
+            //! To be removed when we're confident enough...
+            IF_ASSERT_FAILED(m_shape.has_value()) {
+                const_cast<LayoutData*>(this)->setShape(TLayout::recalculateTextLineBaseSegmentShape(toHairpinSegment(m_item)));
+            }
             return m_shape.value(LD_ACCESS::CHECK);
         } break;
         case ElementType::TRILL_SEGMENT: {

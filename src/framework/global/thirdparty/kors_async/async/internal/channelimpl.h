@@ -23,12 +23,15 @@ SOFTWARE.
 */
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <thread>
 #include <vector>
 #include <cassert>
 #include <algorithm>
 #include <atomic>
+#include <iostream>
+#include <sstream>
 
 #include "../conf.h"
 #include "../asyncable.h"
@@ -37,8 +40,22 @@ SOFTWARE.
 
 namespace kors::async {
 enum class SendMode {
-    Auto = 0,
+    Auto,
     Queue
+};
+
+struct ChannelOpt {
+    std::string chname;
+    size_t maxThreads = conf::MAX_THREADS_PER_CHANNEL;
+    size_t queueCapacity = conf::QUEUE_CAPACITY;
+    bool isWaitPendingsOnSend = conf::DO_WAIT_PENDINGS_ON_SEND;
+    bool isWarnOnPendingsSendTimeout = conf::DO_WARN_ON_PENDINGSSEND_TIMEOUT;
+
+    ChannelOpt& name(const std::string& name) { chname = name; return *this; }
+    ChannelOpt& threads(size_t v) { maxThreads = v; return *this; }
+    ChannelOpt& capacity(size_t v) { queueCapacity = v; return *this; }
+    ChannelOpt& disableWaitPendingsOnSend() { isWaitPendingsOnSend = false; return *this; }
+    ChannelOpt& disableWarnOnPendingsSendTimeout() { isWarnOnPendingsSendTimeout = false; return *this; }
 };
 
 template<typename ... T>
@@ -58,38 +75,16 @@ private:
     struct QueueData {
         std::thread::id receiveTh;
         Queue queue;
-        QueueData()
-            : queue(conf::QUEUE_CAPACITY) {}
+        QueueData(size_t queue_capacity)
+            : queue(queue_capacity) {}
     };
 
     struct ThreadData {
-        const std::thread::id threadId;
+        std::thread::id threadId;
         std::vector<QueueData*> queues;
 
         ThreadData(const std::thread::id& thId)
             : threadId(thId) {}
-
-        inline void deleteAll(std::vector<Receiver*>& recs, Asyncable::IConnectable* conn) const
-        {
-            for (Receiver* r : recs) {
-                if (r->receiver) {
-                    r->receiver->async_disconnect(conn);
-                }
-                delete r;
-            }
-            recs.clear();
-        }
-
-        inline void clearAll(Asyncable::IConnectable* conn)
-        {
-            deleteAll(receivers, conn);
-            deleteAll(pendingToAdd, conn);
-
-            for (QueueData* qdata : queues) {
-                delete qdata;
-            }
-            queues.clear();
-        }
 
         inline bool addReceiver(const Asyncable* receiver, const Callback& f, Asyncable::Mode mode, Asyncable::IConnectable* conn)
         {
@@ -112,7 +107,10 @@ private:
                 }
 
                 if (r) {
-                    assert(mode != Asyncable::Mode::SetOnce && "callback is already set");
+                    if (conf::DO_ASSERT_ON_IMPLICIT_REPLACE) {
+                        assert(mode != Asyncable::Mode::SetOnce && "callback is already set");
+                    }
+
                     if (mode == Asyncable::Mode::SetOnce) {
                         return needIncrement;
                     }
@@ -131,6 +129,7 @@ private:
                 }
                 r->callback = f;
                 pendingToAdd.push_back(r);
+                rcount += 1;
                 needIncrement = true;
             }
             return needIncrement;
@@ -163,9 +162,15 @@ private:
                 r->enabled = false;
                 r->receiver = nullptr; // already disconnected
                 needDecrement = true;
+                rcount -= 1;
                 pendingToRemove.push_back(r);
             }
             return needDecrement;
+        }
+
+        inline size_t receiverCount() const
+        {
+            return rcount;
         }
 
         inline void receiversCall(const T&... args)
@@ -202,6 +207,72 @@ private:
             // we will apply them immediately.
             removePending();
             addPending();
+        }
+
+        inline void clearReceivers(Asyncable::IConnectable* conn)
+        {
+            auto deleteAll = [](std::vector<Receiver*>& recs, Asyncable::IConnectable* conn) {
+                for (Receiver* r : recs) {
+                    if (r->receiver) {
+                        r->receiver->async_disconnect(conn);
+                    }
+                    delete r;
+                }
+                recs.clear();
+            };
+
+            deleteAll(receivers, conn);
+            deleteAll(pendingToAdd, conn);
+        }
+
+        QueueData* addQueue(size_t queue_capacity, const std::thread::id& receiveTh,
+                            const std::function<void(const CallMsg& m)>& handler)
+        {
+            QueueData* qdata = new QueueData(queue_capacity);
+            qdata->receiveTh = receiveTh;
+            qdata->queue.port2()->onMessage(handler);
+
+            QueuePool* pool = QueuePool::instance();
+            pool->regPort(threadId, qdata->queue.port1());     // send
+            pool->regPort(receiveTh, qdata->queue.port2());    // receive
+
+            queues.push_back(qdata);
+
+            return qdata;
+        }
+
+        void clearAllQueue()
+        {
+            // the queue is no longer functioning or may even be destroyed
+            if (conf::terminated) {
+                return;
+            }
+
+            QueuePool* pool = QueuePool::instance();
+            for (QueueData* qdata : queues) {
+                qdata->queue.port2()->onMessage(nullptr);
+                pool->unregPort(threadId, qdata->queue.port1());             // send
+                pool->unregPort(qdata->receiveTh, qdata->queue.port2());     // receive
+
+                delete qdata;
+            }
+
+            queues.clear();
+        }
+
+        std::string dump() const
+        {
+            std::stringstream s;
+            s << "threadId: " << threadId << '\n';
+            s << "receivers: " << receiverCount() << '\n';
+            s << "queues: " << queues.size() << '\n';
+            for (size_t i = 0; i < queues.size(); ++i) {
+                const QueueData* qd = queues.at(i);
+                s << "  " << i << ": receiveTh: " << qd->receiveTh << '\n';
+                s << "    countToSend: " << qd->queue.port1()->countToSend() << '\n';
+            }
+
+            return s.str();
         }
 
     private:
@@ -246,6 +317,7 @@ private:
         std::vector<Receiver*> receivers;
         std::vector<Receiver*> pendingToAdd;
         std::vector<Receiver*> pendingToRemove;
+        std::atomic<size_t> rcount = 0;
     };
 
     struct ReceiverCall : public ICallable
@@ -287,6 +359,20 @@ private:
     ObjectPool<ThreadData*> m_thdatas;
     ObjectPool<SharedReceiverCall> m_rcalls;
     std::atomic<int> m_enabledReceiversCount = 0;
+    ChannelOpt m_opt;
+    std::mutex m_mutex;
+
+    std::string thDataDump() const
+    {
+        const size_t count = m_thdatas.count();
+        std::stringstream s;
+        s << "use threads: " << count << '\n';
+        for (size_t i = 0; i < count; ++i) {
+            const ThreadData* thdata = m_thdatas.at(i);
+            s << "  " << i << ": " << thdata->dump() << '\n';
+        }
+        return s.str();
+    }
 
     ThreadData& threadData(const std::thread::id& thId)
     {
@@ -299,7 +385,44 @@ private:
             return *thdata;
         }
 
-        assert(false && "thread data pool exhausted");
+        //! NOTE If we didn't find an empty slot, let's try looking for an unused one.
+        {
+            std::scoped_lock lock(m_mutex);
+            thdata = m_thdatas.tryGet(
+                [](ThreadData* td) {
+                if (td->receiverCount() > 0) {
+                    return false;
+                }
+
+                for (const QueueData* qd : td->queues) {
+                    if (qd->queue.port1()->countToSend() > 0) {
+                        return false;
+                    }
+                }
+
+                return true;
+            },
+                [thId] () { return new ThreadData(thId); }
+                );
+
+            if (thdata) {
+                thdata->threadId = thId;
+                thdata->clearAllQueue();
+                return *thdata;
+            }
+        }
+
+        {
+            std::scoped_lock lock(m_mutex);
+            std::cout << "[async::channel] [error] thread data pool exhausted!!" << std::endl;
+            std::cout << "channel: " << (m_opt.chname.empty() ? "no name" : m_opt.chname) << std::endl;
+            std::cout << "required thread: " << thId << std::endl;
+            std::cout << "current state:" << std::endl;
+            std::cout << thDataDump() << std::endl;
+
+            assert(false && "thread data pool exhausted");
+        }
+
         static std::thread::id dummyId;
         static ThreadData dummy(dummyId);
         return dummy;
@@ -343,45 +466,15 @@ private:
 
         // we'll create a new one if we didn't find one.
         if (!qdata) {
-            qdata = new QueueData();
-            qdata->receiveTh = receiveTh;
-            qdata->queue.port2()->onMessage([this](const CallMsg& m) {
+            qdata = sendThdata.addQueue(m_opt.queueCapacity, receiveTh, [this](const CallMsg& m) {
                 const std::thread::id threadId = std::this_thread::get_id();
                 ThreadData& thdata = threadData(threadId);
                 thdata.receiversCall(m);
                 m.func->unlock();
             });
-
-            QueuePool::instance()->regPort(sendThdata.threadId, qdata->queue.port1());  // send
-            QueuePool::instance()->regPort(receiveTh, qdata->queue.port2());            // receive
-
-            sendThdata.queues.push_back(qdata);
         }
 
         qdata->queue.port1()->send(msg);
-    }
-
-    void unregAllQueue()
-    {
-        // the queue is no longer functioning or may even be destroyed
-        if (conf::terminated) {
-            return;
-        }
-
-        QueuePool* pool = QueuePool::instance();
-        for (size_t i = 0; i < m_thdatas.count(); ++i) {
-            ThreadData* thdata = m_thdatas.at(i);
-            assert(thdata);
-            if (!thdata) {
-                break;
-            }
-
-            for (QueueData* qdata : thdata->queues) {
-                qdata->queue.port2()->onMessage(nullptr);
-                pool->unregPort(thdata->threadId, qdata->queue.port1()); // send
-                pool->unregPort(qdata->receiveTh, qdata->queue.port2()); // receive
-            }
-        }
     }
 
     void sendAuto(const T&... args)
@@ -403,6 +496,11 @@ private:
 
             if (receiveThdata->threadId == threadId) {
                 // skip this thread
+                continue;
+            }
+
+            if (receiveThdata->receiverCount() == 0) {
+                // skip if it has no receivers
                 continue;
             }
 
@@ -428,6 +526,11 @@ private:
                 break;
             }
 
+            if (receiveThdata->receiverCount() == 0) {
+                // skip if it has no receivers
+                continue;
+            }
+
             auto rcall = lockedReceiverCall();
             rcall->setArgs(args ...);
 
@@ -439,17 +542,16 @@ private:
 
 public:
 
-    ChannelImpl(size_t max_threads = conf::MAX_THREADS_PER_CHANNEL)
-        : m_thdatas(std::min(max_threads, conf::MAX_THREADS))
-        , m_rcalls(conf::QUEUE_CAPACITY) {}
+    ChannelImpl(const ChannelOpt& opt = {})
+        : m_thdatas(std::min(opt.maxThreads, conf::MAX_THREADS))
+        , m_rcalls(opt.queueCapacity)
+        , m_opt(opt) {}
 
     ChannelImpl(const ChannelImpl&) = delete;
     ChannelImpl& operator=(const ChannelImpl&) = delete;
 
     ~ChannelImpl()
     {
-        unregAllQueue();
-
         for (size_t i = 0; i < m_thdatas.count(); ++i) {
             ThreadData* thdata = m_thdatas.at(i);
             assert(thdata);
@@ -457,13 +559,39 @@ public:
                 break;
             }
 
-            thdata->clearAll(this);
+            thdata->clearAllQueue();
+            thdata->clearReceivers(this);
         }
 
         m_thdatas.clear();
     }
 
+    const ChannelOpt& opt() const { return m_opt; }
+
     size_t maxThreads() const { return m_thdatas.capacity(); }
+
+    bool waitSendPendingMessages()
+    {
+        size_t count = 0;
+        const std::thread::id threadId = std::this_thread::get_id();
+        ThreadData& sendThdata = threadData(threadId);
+        for (QueueData* qd : sendThdata.queues) {
+            if (threadId == qd->receiveTh) {
+                //! NOTE We can't wait if the receiver is also in this thread
+                continue;
+            }
+
+            while (qd->queue.port1()->hasPending()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(conf::WAIT_PENDINGS_MS));
+                qd->queue.port1()->sendPending();
+                ++count;
+                if (count == conf::MAX_SEND_PENDINGS_ATTEMPTS) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 
     void send(SendMode mode, const T&... args)
     {
@@ -478,6 +606,14 @@ public:
         case SendMode::Queue: {
             sendQueue(args ...);
         } break;
+        }
+
+        if (m_opt.isWaitPendingsOnSend) {
+            bool ok = waitSendPendingMessages();
+            if (m_opt.isWarnOnPendingsSendTimeout && !ok) {
+                std::cout << "[async::channel] [warning] not all pending messages were sent, channel: "
+                          << (m_opt.chname.empty() ? "no name" : m_opt.chname) << std::endl;
+            }
         }
     }
 
@@ -495,7 +631,10 @@ public:
     {
         assert(a);
         if (a) {
-            disconnect(a, a->async_connectThread(this));
+            const Asyncable::ConnectData& connectData = a->async_connectData(this);
+            if (connectData.connection) {
+                disconnect(a, connectData.threadId);
+            }
         }
     }
 
@@ -505,6 +644,8 @@ public:
         if (!a) {
             return;
         }
+
+        assert(connectThId != std::thread::id());
 
         const_cast<Asyncable*>(a)->async_disconnect(this);
 

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -72,6 +72,7 @@ Tuplet::Tuplet(Measure* parent)
     m_ratio        = Fraction(1, 1);
     m_number       = 0;
     m_hasBracket   = false;
+    m_hasSlur      = false;
     m_isUp         = true;
     m_id           = 0;
     initElementStyle(&tupletStyle);
@@ -82,6 +83,7 @@ Tuplet::Tuplet(const Tuplet& t)
 {
     m_tick         = t.m_tick;
     m_hasBracket   = t.m_hasBracket;
+    m_hasSlur      = t.m_hasSlur;
     m_ratio        = t.m_ratio;
     m_baseLen      = t.m_baseLen;
     m_direction    = t.m_direction;
@@ -283,17 +285,13 @@ bool Tuplet::calcHasBracket(const DurationElement* cr1, const DurationElement* c
 //   scanElements
 //---------------------------------------------------------
 
-void Tuplet::scanElements(void* data, void (* func)(void*, EngravingItem*), bool all)
+void Tuplet::scanElements(std::function<void(EngravingItem*)> func)
 {
-    for (EngravingObject* child : scanChildren()) {
-        if (child == m_number && !all) {
-            continue; // don't scan number unless all is true
-        }
-        child->scanElements(data, func, all);
+    if (m_number) {
+        m_number->scanElements(func);
     }
-    if (all || visible() || score()->isShowInvisible()) {
-        func(data, this);
-    }
+
+    func(this);
 }
 
 //---------------------------------------------------------
@@ -416,9 +414,12 @@ void Tuplet::startDragGrip(EditData& ed)
 
 void Tuplet::dragGrip(EditData& ed)
 {
-    if (ed.curGrip == Grip::START || ed.curGrip == Grip::MIDDLE) {
+    if (ed.curGrip == Grip::START) {
         m_userP1 += ed.delta;
-    } else if (ed.curGrip == Grip::END || ed.curGrip == Grip::MIDDLE) {
+    } else if (ed.curGrip == Grip::END) {
+        m_userP2 += ed.delta;
+    } else if (ed.curGrip == Grip::MIDDLE) {
+        m_userP1 += ed.delta;
         m_userP2 += ed.delta;
     } else {
         UNREACHABLE;
@@ -874,7 +875,7 @@ int Tuplet::computeTupletDenominator(int numerator, Fraction totalDuration)
 EngravingItem* Tuplet::nextElement()
 {
     ChordRest* firstElement = toChordRest(elements().front());
-    if (firstElement->type() == ElementType::CHORD) {
+    if (firstElement->isChord()) {
         Chord* chord = toChord(firstElement);
         return chord->firstGraceOrNote();
     }

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -273,6 +273,58 @@ void BarLine::calcY()
     double y1 = offset + from * lineDistance * .5 - lineWidth;
     double y2 = offset + (staffType1->lines() * 2 - 2 + to) * lineDistance * .5 + lineWidth;
 
+    if (staff()->isCipherStaff(tick)) {
+
+        int nstaves = score()->nstaves();
+        SysStaff* sysStaff1 = system->staff(staffIdx1);
+        qreal yp = sysStaff1->y();
+        bool spanStavesbefor = false;
+        int staffbefor = staffIdx1;
+        for (int i2 = staffIdx1 - 1; i2 >= 0; --i2) {
+            Staff* s = score()->staff(i2);
+            if (s && !s->staffType(tick)->invisible() && s->part()->show() && measure->visible(i2)) {
+                BarLine* nbl = toBarLine(segment()->element(i2 * VOICES));
+                if (nbl && nbl->spanStaff()) {
+                    spanStavesbefor = true;
+                    staffbefor = i2;
+                }
+                break;
+            }
+        }
+        for (int i2 = staffIdx1 + 1; i2 < nstaves; ++i2) {
+            Staff* s = score()->staff(i2);
+            if (s && !s->staffType(tick)->invisible() && s->part()->show() && measure->visible(i2)) {
+                BarLine* nbl = toBarLine(segment()->element(i2 * VOICES));
+                if (nbl && nbl->spanStaff()) {
+                    //spanStaves = true;
+                    staffIdx2 = i2;
+                }
+                break;
+            }
+        }
+        if (spanStaff && staffIdx2) {
+            y1 = 0.0;
+            if (spanStavesbefor) {
+                y1 = -(yp - measure->staffLines(staffbefor)->y1()) * 0.5;
+            }
+
+            y2 = (measure->staffLines(staffIdx2)->y1() - yp) * 0.5;
+        }
+        else if (spanStavesbefor) {
+
+            y1 = -(yp - measure->staffLines(staffbefor)->y1()) * 0.5;
+
+            y2 = 0.0;
+        }
+        else {
+
+            y1 = -staff()->get_cipherHeight() * style().styleD(Sid::cipherBarlineLength);
+            y2 = staff()->get_cipherHeight() * style().styleD(Sid::cipherBarlineLength);
+        }
+        data->y1 = y1;
+        data->y2 = y2;
+        return;
+    }
     if (spanStaff) {
         // we need spatium and line distance of bottom staff
         // as it may be scalled diferently
@@ -372,16 +424,22 @@ bool BarLine::isBottom() const
 
 bool BarLine::acceptDrop(EditData& data) const
 {
-    ElementType type = data.dropElement->type();
-    if (type == ElementType::BAR_LINE) {
+    EngravingItem* e = data.dropElement;
+
+    if (e->isBarLine()) {
         return true;
-    } else {
-        return (type == ElementType::FERMATA || type == ElementType::SYMBOL || type == ElementType::IMAGE)
-               && segment()
-               && segment()->isEndBarLineType();
+    } else if (e->isFermata() || e->isSymbol() || e->isImage()) {
+        return segment() && segment()->isEndBarLineType();
+    } else if (e->isMeasureNumber() || e->isJump() || e->isMarker() || e->isLayoutBreak()) {
+        if (Measure* m = measure()) {
+            bool left = (e->isMarker() && !toMarker(e)->isRightMarker()) || e->isMeasureNumber();
+            if (left && segment()->isEndBarLineType() && m->nextMeasureMM()) {
+                m = m->nextMeasureMM();
+            }
+            return m->acceptDrop(data);
+        }
     }
-    // Prevent unreachable code warning
-    // return false;
+    return false;
 }
 
 //---------------------------------------------------------
@@ -469,8 +527,16 @@ EngravingItem* BarLine::drop(EditData& data)
         e->setParent(segment());
         score()->undoAddElement(e);
         return e;
+    } else if (e->isMeasureNumber() || e->isJump() || e->isMarker() || e->isLayoutBreak()) {
+        if (Measure* m = measure()) {
+            bool left = (e->isMarker() && !toMarker(e)->isRightMarker()) || e->isMeasureNumber();
+            if (left && segment()->isEndBarLineType() && m->nextMeasureMM()) {
+                m = m->nextMeasureMM();
+            }
+            return m->drop(data);
+        }
     }
-    return 0;
+    return nullptr;
 }
 
 //---------------------------------------------------------
@@ -702,16 +768,11 @@ void BarLine::endDragGrip(EditData& ed)
 //   scanElements
 //---------------------------------------------------------
 
-void BarLine::scanElements(void* data, void (* func)(void*, EngravingItem*), bool all)
+void BarLine::scanElements(std::function<void(EngravingItem*)> func)
 {
-    // if no width (staff has bar lines turned off) and not all requested, do nothing
-    if (RealIsNull(width()) && !all) {
-        return;
-    }
-
-    func(data, this);
+    func(this);
     for (EngravingItem* e : m_el) {
-        e->scanElements(data, func, all);
+        e->scanElements(func);
     }
 }
 
@@ -981,10 +1042,10 @@ String BarLine::accessibleExtraInfo() const
             if (!score()->selectionFilter().canSelect(e)) {
                 continue;
             }
-            if (e->type() == ElementType::JUMP) {
+            if (e->isJump()) {
                 rez= String(u"%1 %2").arg(rez, e->screenReaderInfo());
             }
-            if (e->type() == ElementType::MARKER) {
+            if (e->isMarker()) {
                 const Marker* m1 = toMarker(e);
                 if (m1->markerType() == MarkerType::FINE) {
                     rez = String(u"%1 %2").arg(rez, e->screenReaderInfo());
@@ -1016,7 +1077,7 @@ String BarLine::accessibleExtraInfo() const
         if (!score()->selectionFilter().canSelect(s)) {
             continue;
         }
-        if (s->type() == ElementType::VOLTA) {
+        if (s->isVolta()) {
             if (s->tick() == tick) {
                 rez += u"; " + muse::mtrc("engraving", "Start of %1").arg(s->screenReaderInfo());
             }

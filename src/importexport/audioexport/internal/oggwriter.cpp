@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,7 @@ using namespace mu::iex::audioexport;
 using namespace muse;
 using namespace muse::io;
 
-Ret OggWriter::write(notation::INotationPtr notation, io::IODevice& destinationDevice, const Options&)
+Ret OggWriter::write(notation::INotationPtr notation, io::IODevice& destinationDevice, const Options& options)
 {
     const SoundTrackFormat format {
         SoundTrackType::OGG,
@@ -38,8 +38,9 @@ Ret OggWriter::write(notation::INotationPtr notation, io::IODevice& destinationD
             configuration()->exportBufferSize(),
             2 /* audioChannelsNumber */
         },
+        AudioSampleFormat::Undefined,
         128 /* bitRate */
     };
 
-    return doWriteAndWait(notation, destinationDevice, format);
+    return doWriteAndWait(notation, destinationDevice, format, options);
 }

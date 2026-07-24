@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -56,7 +56,7 @@ static constexpr double PLAYBACK_TAIL_SECS = 3;
 NotationPlayback::NotationPlayback(IGetScore* getScore,
                                    muse::async::Notification notationChanged,
                                    const modularity::ContextPtr& iocCtx)
-    : m_getScore(getScore), m_notationChanged(notationChanged), m_playbackModel(iocCtx)
+    : muse::Contextable(iocCtx), m_getScore(getScore), m_notationChanged(notationChanged), m_playbackModel(iocCtx)
 {
     m_notationChanged.onNotify(this, [this]() {
         updateLoopBoundaries();
@@ -312,10 +312,16 @@ RetVal<muse::midi::tick_t> NotationPlayback::playPositionTickByElement(const Eng
 
 void NotationPlayback::addLoopBoundary(LoopBoundaryType boundaryType, tick_t tick)
 {
+    const Measure* first = score()->firstMeasure();
+    const Measure* last = score()->lastMeasure();
+    IF_ASSERT_FAILED(first && last) {
+        return;
+    }
+
     if (tick == BoundaryTick::FirstScoreTick) {
-        tick = score()->firstMeasure()->tick().ticks();
+        tick = first->tick().ticks();
     } else if (tick == BoundaryTick::LastScoreTick) {
-        tick = score()->lastMeasure()->endTick().ticks();
+        tick = last->endTick().ticks();
     }
 
     switch (boundaryType) {

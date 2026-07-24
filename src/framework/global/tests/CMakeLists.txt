@@ -34,6 +34,7 @@ set(MODULE_TEST_SRC
     ${CMAKE_CURRENT_LIST_DIR}/bytearray_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/buffer_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/file_tests.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/filestream_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/iodevice_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/fileinfo_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/string_tests.cpp
@@ -52,7 +53,9 @@ set(MODULE_TEST_SRC
     ${CMAKE_CURRENT_LIST_DIR}/ret_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/xmldom_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/xmlstreamreader_tests.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/xmlstreamwriter_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ringqueue_tests.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/geometry_tests.cpp
 )
 
 include(SetupGTest)

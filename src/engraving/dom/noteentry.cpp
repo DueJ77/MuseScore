@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,7 @@
 
 #include "../editing/editmeasures.h"
 #include "../editing/inserttime.h"
+#include "../editing/transpose.h"
 #include "infrastructure/messagebox.h"
 
 #include "accidental.h"
@@ -65,22 +66,91 @@ NoteVal Score::noteValForPosition(Position pos, AccidentalType at, bool& error)
 {
     error           = false;
     Segment* s      = pos.segment;
-    int line        = pos.line;
+    int line        = pos.step;
     Fraction tick   = s->tick();
     staff_idx_t staffIdx = pos.staffIdx;
     Staff* st       = staff(staffIdx);
     ClefType clef   = st->clef(tick);
     const Instrument* instr = st->part()->instrument(s->tick());
     NoteVal nval;
-    const StringData* stringData = 0;
+    const StringData* stringData = nullptr;
 
     // pitched/unpitched note entry depends on instrument (override StaffGroup)
     StaffGroup staffGroup = st->staffType(tick)->group();
-    if (staffGroup != StaffGroup::TAB) {
+    if (staffGroup != StaffGroup::TAB && staffGroup != StaffGroup::CIPHER) {
         staffGroup = instr->useDrumset() ? StaffGroup::PERCUSSION : StaffGroup::STANDARD;
     }
 
+    if (staffGroup != StaffGroup::PERCUSSION) {
+        stringData = st->part()->stringData(s->tick(), st->idx());
+    }
+
     switch (staffGroup) {
+    case StaffGroup::CIPHER: {
+        line = pos.step;
+        AccidentalVal acci = Accidental::subtype2value(at);
+        if (line < 0)
+            line *= -1;
+        int octave = line / 7;
+        int ton = line % 7;
+        switch (ton) {
+        case 0: break;
+        case 1:
+            ton = 2;
+            break;
+        case 2:
+            ton = 4;
+
+            break;
+        case 3:
+            ton = 5;
+
+            break;
+        case 4:
+            ton = 7;
+
+            break;
+        case 5:
+            ton = 9;
+
+            break;
+        case 6:
+            ton = 11;
+
+            break;
+        default:
+            break;
+        }
+
+        Key key = st->key(pos.segment->tick());
+        ton -= Note::get_cipherTrans(key);
+        nval.pitch = octave * 12 + ton + int(acci);
+        nval.pitch += instr->transpose().chromatic;
+
+        int keyshift = 0;
+        switch (key) {
+        case Key::D:   keyshift = 1; break;
+        case Key::D_B: keyshift = 1; break;
+        case Key::E:   keyshift = 2; break;
+        case Key::E_B: keyshift = 2; break;
+        case Key::F:   keyshift = 3; break;
+        case Key::F_S: keyshift = 3; break;
+        case Key::G:   keyshift = 4; break;
+        case Key::G_B: keyshift = 4; break;
+        case Key::A:   keyshift = 5; break;
+        case Key::A_B: keyshift = 5; break;
+        case Key::B:   keyshift = 6; break;
+        case Key::B_B: keyshift = 6; break;
+        }
+        int step = (line % 7 + keyshift) % 7;
+        step = step2tpcByKey(step, key);
+        step += int(acci) * 7;
+        nval.tpc2 = step;
+        nval.tpc1 = nval.tpc2;
+        //qWarning().nospace() << step << " step " << int(acci) << " acci " << line << " line ";
+
+        break;
+    }
     case StaffGroup::PERCUSSION: {
         if (m_is.rest()) {
             break;
@@ -109,7 +179,6 @@ NoteVal Score::noteValForPosition(Position pos, AccidentalType at, bool& error)
         if (m_is.rest()) {
             return nval;
         }
-        stringData = st->part()->stringData(s->tick(), st->idx());
         line = st->staffType(tick)->visualStringToPhys(line);
         if (line < 0 || line >= static_cast<int>(stringData->strings())) {
             error = true;
@@ -129,10 +198,10 @@ NoteVal Score::noteValForPosition(Position pos, AccidentalType at, bool& error)
         }
         // for open strings, only accepts fret 0 (strings in StringData are from bottom to top)
         size_t strgDataIdx = stringData->strings() - line - 1;
-        if (nval.fret > 0 && stringData->stringList().at(strgDataIdx).open == true) {
+        if (nval.fret > 0 && stringData->stringList().at(strgDataIdx).open) {
             nval.fret = 0;
         }
-        nval.pitch = stringData->getPitch(line, nval.fret, st);
+        nval.pitch = stringData->getPitch(line, nval.fret, st, pos.segment->tick());
         break;
     }
 
@@ -154,9 +223,10 @@ NoteVal Score::noteValForPosition(Position pos, AccidentalType at, bool& error)
             if (v.isZero()) {
                 nval.tpc1 = nval.tpc2;
             } else {
-                nval.tpc1 = mu::engraving::transposeTpc(nval.tpc2, v, true);
+                nval.tpc1 = Transpose::transposeTpc(nval.tpc2, v, true);
             }
         }
+        stringData->convertPitch(nval.pitch, st, pos.segment->tick(), &nval.string, &nval.fret);
     }
     break;
     }
@@ -393,7 +463,7 @@ Ret Score::putNote(const Position& p, bool replace)
 
     // pitched/unpitched note entry depends on instrument (override StaffGroup)
     StaffGroup staffGroup = st->staffType(s->tick())->group();
-    if (staffGroup != StaffGroup::TAB) {
+    if (staffGroup != StaffGroup::TAB && staffGroup != StaffGroup::CIPHER) {
         staffGroup = st->part()->instrument(s->tick())->useDrumset() ? StaffGroup::PERCUSSION : StaffGroup::STANDARD;
     }
 
@@ -408,6 +478,10 @@ Ret Score::putNote(const Position& p, bool replace)
         }
         break;
     }
+    case StaffGroup::CIPHER:
+        stringData = st->part()->stringData(s->tick(), st->idx());
+        m_is.setDrumNote(-1);
+        break;
     case StaffGroup::TAB:
         stringData = st->part()->stringData(s->tick(), st->idx());
         m_is.setDrumNote(-1);

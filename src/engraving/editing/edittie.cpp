@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@
 #include "edittie.h"
 
 #include "../dom/tiejumppointlist.h"
+#include "../dom/note.h"
 
 using namespace mu::engraving;
 
@@ -37,6 +38,10 @@ void ChangeTieJumpPointActive::flip(EditData*)
         return;
     }
     bool oldActive = jumpPoint->active();
+
+    if (m_active && jumpPoint->endTie() && jumpPoint->endTie()->jumpPoint() != jumpPoint) {
+        jumpPoint->endTie()->setJumpPoint(jumpPoint);
+    }
 
     jumpPoint->setActive(m_active);
     m_active = oldActive;

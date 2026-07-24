@@ -42,6 +42,8 @@
 #include "synthesizers/synthresolver.h"
 #include "synthesizers/soundfontrepository.h"
 
+#include "transporteventsdispatcher.h"
+
 #include "log.h"
 
 using namespace muse;
@@ -56,13 +58,9 @@ static std::string moduleName()
     return "audio_engine";
 }
 
-static muse::modularity::ModulesIoC* ioc()
-{
-    return muse::modularity::globalIoc();
-}
-
-EngineController::EngineController(std::shared_ptr<rpc::IRpcChannel> rpcChannel)
-    : m_rpcChannel(rpcChannel)
+EngineController::EngineController(std::shared_ptr<rpc::IRpcChannel> rpcChannel,
+                                   const muse::modularity::ContextPtr& iocCtx)
+    : muse::Contextable(iocCtx), m_rpcChannel(rpcChannel)
 {
     m_rpcChannel->onMethod(rpc::Method::EngineInit, [this](const rpc::Msg& msg) {
         OutputSpec spec;
@@ -74,6 +72,11 @@ EngineController::EngineController(std::shared_ptr<rpc::IRpcChannel> rpcChannel)
 
         init(spec, conf);
 
+        m_rpcChannel->send(rpc::make_response(msg));
+    });
+
+    m_rpcChannel->onMethod(rpc::Method::EngineDeinit, [this](const rpc::Msg& msg) {
+        deinit();
         m_rpcChannel->send(rpc::make_response(msg));
     });
 }
@@ -89,17 +92,31 @@ void EngineController::registerExports()
     m_configuration = std::make_shared<AudioEngineConfiguration>();
     m_audioEngine = std::make_shared<AudioEngine>();
     m_playback = std::make_shared<EnginePlayback>();
-    m_rpcController  = std::make_shared<EngineRpcController>();
+    m_rpcController  = std::make_shared<EngineRpcController>(iocContext());
     m_fxResolver = std::make_shared<FxResolver>();
     m_synthResolver = std::make_shared<SynthResolver>();
     m_soundFontRepository = std::make_shared<SoundFontRepository>();
+    m_transportEventsDispatcher = std::make_shared<TransportEventsDispatcher>(iocContext());
 
-    ioc()->registerExport<IAudioEngineConfiguration>(moduleName(), m_configuration);
-    ioc()->registerExport<IAudioEngine>(moduleName(), m_audioEngine);
-    ioc()->registerExport<IEnginePlayback>(moduleName(), m_playback);
-    ioc()->registerExport<IFxResolver>(moduleName(), m_fxResolver);
-    ioc()->registerExport<ISynthResolver>(moduleName(), m_synthResolver);
-    ioc()->registerExport<ISoundFontRepository>(moduleName(), m_soundFontRepository);
+    globalIoc()->registerExport<IAudioEngineConfiguration>(moduleName(), m_configuration);
+    globalIoc()->registerExport<IAudioEngine>(moduleName(), m_audioEngine);
+    globalIoc()->registerExport<IEnginePlayback>(moduleName(), m_playback);
+    globalIoc()->registerExport<IFxResolver>(moduleName(), m_fxResolver);
+    globalIoc()->registerExport<ISynthResolver>(moduleName(), m_synthResolver);
+    globalIoc()->registerExport<ISoundFontRepository>(moduleName(), m_soundFontRepository);
+    globalIoc()->registerExport<ITransportEventsDispatcher>(moduleName(), m_transportEventsDispatcher);
+}
+
+void EngineController::unregisterExports()
+{
+    //! MAIN THREAD
+    globalIoc()->unregister<IAudioEngineConfiguration>(moduleName());
+    globalIoc()->unregister<IAudioEngine>(moduleName());
+    globalIoc()->unregister<IEnginePlayback>(moduleName());
+    globalIoc()->unregister<IFxResolver>(moduleName());
+    globalIoc()->unregister<ISynthResolver>(moduleName());
+    globalIoc()->unregister<ISoundFontRepository>(moduleName());
+    globalIoc()->unregister<ITransportEventsDispatcher>(moduleName());
 }
 
 void EngineController::onStartRunning()
@@ -121,6 +138,7 @@ void EngineController::onStartRunning()
 
 void EngineController::init(const OutputSpec& outputSpec, const AudioEngineConfig& conf)
 {
+    //! AUDIO THREAD
     m_configuration->setConfig(conf);
 
     engine::AudioEngine::RenderConstraints consts;
@@ -135,10 +153,13 @@ void EngineController::init(const OutputSpec& outputSpec, const AudioEngineConfi
     m_synthResolver->init(m_configuration->defaultAudioInputParams(), outputSpec);
 
     m_playback->init();
+
+    m_transportEventsDispatcher->init();
 }
 
 void EngineController::deinit()
 {
+    //! AUDIO THREAD
     m_playback->deinit();
     m_rpcController->deinit();
     m_audioEngine->deinit();

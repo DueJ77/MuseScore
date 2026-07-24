@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,8 @@
 #include "notation/inotationsolomutestate.h"
 
 namespace mu::project {
+using TrackInputParamsMap = std::unordered_map<engraving::InstrumentTrackId, muse::audio::AudioInputParams>;
+
 class IProjectAudioSettings
 {
 public:
@@ -45,6 +47,7 @@ public:
     virtual const muse::audio::AudioOutputParams& auxOutputParams(muse::audio::aux_channel_idx_t index) const = 0;
     virtual void setAuxOutputParams(muse::audio::aux_channel_idx_t index, const muse::audio::AudioOutputParams& params) = 0;
 
+    virtual const TrackInputParamsMap& allTrackInputParams() const = 0;
     virtual const muse::audio::AudioInputParams& trackInputParams(const engraving::InstrumentTrackId& trackId) const = 0;
     virtual void setTrackInputParams(const engraving::InstrumentTrackId& trackId, const muse::audio::AudioInputParams& params) = 0;
     virtual void clearTrackInputParams() = 0;

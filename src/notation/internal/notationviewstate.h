@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,12 +29,12 @@
 
 namespace mu::notation {
 class Notation;
-class NotationViewState : public INotationViewState, public muse::async::Asyncable
+class NotationViewState : public INotationViewState, public muse::async::Asyncable, public muse::Contextable
 {
-    INJECT_STATIC(INotationConfiguration, configuration)
+    muse::GlobalInject<INotationConfiguration> configuration;
 
 public:
-    explicit NotationViewState(Notation* notation);
+    explicit NotationViewState(Notation* notation, const muse::modularity::ContextPtr& ctx);
 
     muse::Ret read(const engraving::MscReader& reader, const muse::io::path_t& pathPrefix = "") override;
     muse::Ret write(engraving::MscWriter& writer, const muse::io::path_t& pathPrefix = "") override;

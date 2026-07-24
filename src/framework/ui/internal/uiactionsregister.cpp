@@ -23,6 +23,8 @@
 
 #include <QTimer>
 
+#include "muse_framework_config.h"
+
 #include "log.h"
 
 using namespace muse;
@@ -59,8 +61,10 @@ void UiActionsRegister::reg(const IUiActionsModulePtr& module)
         newActionCodeList.push_back(action.code);
     }
 
+#ifdef MUSE_MULTICONTEXT_WIP
     updateEnabled(newActionCodeList);
     updateChecked(newActionCodeList);
+#endif
 
     module->actionsChanged().onReceive(this, [this](const UiActionList& actions) {
         updateActions(actions);
@@ -137,6 +141,18 @@ std::vector<UiAction> UiActionsRegister::actionList() const
 const UiAction& UiActionsRegister::action(const ActionCode& code) const
 {
     return info(code).action;
+}
+
+const actions::ActionCode& UiActionsRegister::parentActionCode(const actions::ActionCode& code) const
+{
+    for (auto it = m_actions.begin(); it != m_actions.end(); it++) {
+        if (muse::contains(it->second.action.children, code)) {
+            return it->second.action.code;
+        }
+    }
+
+    static ActionCode null;
+    return null;
 }
 
 async::Channel<UiActionList> UiActionsRegister::actionsChanged() const

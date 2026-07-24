@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,7 +37,7 @@ enum class AnchorRebaseDirection : unsigned char {
     DOWN
 };
 
-class Arpeggio final : public EngravingItem
+class Arpeggio : public EngravingItem
 {
     OBJECT_ALLOCATOR(engraving, Arpeggio)
     DECLARE_CLASSOF(ElementType::ARPEGGIO)
@@ -92,11 +92,10 @@ public:
     bool setProperty(Pid propertyId, const PropertyValue&) override;
     PropertyValue propertyDefault(Pid propertyId) const override;
 
-    // TODO: add a grip for moving the entire arpeggio
     bool needStartEditingAfterSelecting() const override { return true; }
-    int gripsCount() const override { return 2; }
+    int gripsCount() const override { return 3; }
     Grip initialEditModeGrip() const override { return Grip::END; }
-    Grip defaultGrip() const override { return Grip::START; }
+    Grip defaultGrip() const override { return Grip::MIDDLE; }
     std::vector<PointF> gripsPositions(const EditData& = EditData()) const override;
 
     struct LayoutData : public EngravingItem::LayoutData {
@@ -114,12 +113,12 @@ public:
     };
     DECLARE_LAYOUTDATA_METHODS(Arpeggio)
 
-private:
-
+protected:
     friend class Factory;
 
-    Arpeggio(Chord* parent);
+    Arpeggio(Chord* parent, ElementType type = ElementType::ARPEGGIO);
 
+private:
     void spatiumChanged(double /*oldValue*/, double /*newValue*/) override;
     std::vector<LineF> dragAnchorLines() const override;
     std::vector<LineF> gripAnchorLines(Grip) const override;

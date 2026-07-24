@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,6 +24,7 @@
 
 #include "engraving/dom/masterscore.h"
 #include "engraving/editing/undo.h"
+#include "engraving/editing/transpose.h"
 
 #include "utils/scorerw.h"
 #include "utils/scorecomp.h"
@@ -50,8 +51,8 @@ public:
 
         // transpose major second up
         score->startCmd(TranslatableString::untranslatable("Engraving transpose tests"));
-        score->transpose(TransposeMode::BY_INTERVAL, TransposeDirection::UP, Key::C, 4,
-                         true, true, true);
+        Transpose::transpose(score, TransposeMode::BY_INTERVAL, TransposeDirection::UP, Key::C, 4,
+                             true, true, true);
         score->endCmd();
         EXPECT_TRUE(ScoreComp::saveCompareScore(score, writeFile1, reference1));
 
@@ -79,8 +80,8 @@ public:
 
         // transpose diatonic fourth down
         score->startCmd(TranslatableString::untranslatable("Engraving transpose tests"));
-        score->transpose(TransposeMode::DIATONICALLY, TransposeDirection::DOWN, Key::C, 3,
-                         true, false, false);
+        Transpose::transpose(score, TransposeMode::DIATONICALLY, TransposeDirection::DOWN, Key::C, 3,
+                             true, false, false);
         score->endCmd();
         EXPECT_TRUE(ScoreComp::saveCompareScore(score, writeFile1, reference1));
 
@@ -103,9 +104,29 @@ TEST_F(Engraving_TransposeTests, undoTransposeChordSymbols)
     undoTransposeTest(u"undoTransposeChordSymbols");
 }
 
+TEST_F(Engraving_TransposeTests, undoTransposeFretDiagramsChordSymbols)
+{
+    undoTransposeTest(u"undoTransposeFretDiagramsChordSymbols");
+}
+
+TEST_F(Engraving_TransposeTests, undoTransposeFretDiagrams)
+{
+    undoTransposeTest(u"undoTransposeFretDiagrams");
+}
+
 TEST_F(Engraving_TransposeTests, undoDiatonicTransposeChordSymbols)
 {
     undoDiatonicTransposeTest(u"undoDiatonicTransposeChordSymbols");
+}
+
+TEST_F(Engraving_TransposeTests, undoDiatonicTransposeFretDiagramsChordSymbols)
+{
+    undoTransposeTest(u"undoDiatonicTransposeFretDiagramsChordSymbols");
+}
+
+TEST_F(Engraving_TransposeTests, undoDiatonicTransposeFretDiagrams)
+{
+    undoTransposeTest(u"undoDiatonicTransposeFretDiagrams");
 }
 
 TEST_F(Engraving_TransposeTests, undoDiatonicTranspose)

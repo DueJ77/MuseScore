@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<museScore version="4.60">
+<museScore version="4.70">
   <Score>
     <eid>B_B</eid>
     <Division>480</Division>
@@ -259,6 +259,8 @@
             <HairPin>
               <subtype>0</subtype>
               <veloChange>10</veloChange>
+              <beginHookHeight>-1.9</beginHookHeight>
+              <endHookHeight>-1.9</endHookHeight>
               <beginText>cresc.</beginText>
               <continueText>(cresc.)</continueText>
               <eid>c_c</eid>
@@ -1091,7 +1093,7 @@
       <Tracklist sTrack="7" dstTrack="7"/>
       <Division>480</Division>
       <Style>
-        <spatium>1.74978</spatium>
+        <spatium>1.75</spatium>
         </Style>
       <showInvisible>1</showInvisible>
       <showUnprintable>1</showUnprintable>
@@ -1759,7 +1761,7 @@
       <Tracklist sTrack="11" dstTrack="0"/>
       <Division>480</Division>
       <Style>
-        <spatium>1.74978</spatium>
+        <spatium>1.75</spatium>
         </Style>
       <showInvisible>1</showInvisible>
       <showUnprintable>1</showUnprintable>
@@ -2172,7 +2174,7 @@
       <Tracklist sTrack="8" dstTrack="0"/>
       <Division>480</Division>
       <Style>
-        <spatium>1.74978</spatium>
+        <spatium>1.75</spatium>
         </Style>
       <showInvisible>1</showInvisible>
       <showUnprintable>1</showUnprintable>

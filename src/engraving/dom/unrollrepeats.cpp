@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -62,8 +62,7 @@ static void removeRepeatMarkings(Score* score)
     }
 
     // remove coda/fine labels and jumps
-    std::vector<EngravingItem*> elems;
-    score->scanElements(&elems, collectElements, false);
+    std::vector<EngravingItem*> elems = score->getChildren(false);
     for (auto e : elems) {
         if (e->isMarker() || e->isJump()) {
             score->deleteItem(e);

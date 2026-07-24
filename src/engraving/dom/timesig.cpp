@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@
 #include "staff.h"
 
 #include "log.h"
+#include "measure.h"
 
 using namespace mu;
 using namespace mu::engraving;
@@ -72,7 +73,7 @@ void TimeSig::setParent(Segment* parent)
 
 double TimeSig::mag() const
 {
-    return timeSigPlacement() == TimeSigPlacement::NORMAL && staff() ? staff()->staffMag(tick()) : 1.0;
+    return timeSigPlacement() == TimeSigPlacement::NORMAL && staff() ? staff()->staffMag(this) : 1.0;
 }
 
 //---------------------------------------------------------
@@ -483,4 +484,12 @@ void TimeSig::removed()
 
     score()->setUpTempoMapLater();
 }
+muse::draw::Font TimeSig::cipherTimeSigFont() const
+{
+    const MStyle& st = style();
+    muse::draw::Font f(st.styleSt(Sid::cipherTimeSigFont), muse::draw::Font::Type::Text);
+    f.setPointSizeF(st.styleD(Sid::cipherFontSize) * st.styleD(Sid::cipherTimeSigSize) * (spatium() / style().defaultSpatium()));
+    return f;
+}
+
 }

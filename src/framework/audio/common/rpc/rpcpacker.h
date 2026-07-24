@@ -63,8 +63,13 @@ void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SoundPreset& value);
 
 void pack_custom(muse::msgpack::Packer& p, const muse::audio::SoundTrackType& value);
 void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SoundTrackType& value);
+void pack_custom(muse::msgpack::Packer& p, const muse::audio::AudioSampleFormat& value);
+void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::AudioSampleFormat& value);
 void pack_custom(muse::msgpack::Packer& p, const muse::audio::SoundTrackFormat& value);
 void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SoundTrackFormat& value);
+
+void pack_custom(muse::msgpack::Packer& p, const muse::audio::SaveSoundTrackStage& value);
+void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SaveSoundTrackStage& value);
 
 void pack_custom(muse::msgpack::Packer& p, const muse::audio::AudioSignalVal& value);
 void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::AudioSignalVal& value);
@@ -75,6 +80,9 @@ void pack_custom(muse::msgpack::Packer& p, const muse::audio::InputProcessingPro
 void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::InputProcessingProgress::ProgressInfo& value);
 void pack_custom(muse::msgpack::Packer& p, const muse::audio::InputProcessingProgress::StatusInfo& value);
 void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::InputProcessingProgress::StatusInfo& value);
+
+void pack_custom(muse::msgpack::Packer& p, const muse::audio::TransportEvent& value);
+void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::TransportEvent& value);
 
 // MPE
 // PlaybackEvent
@@ -123,12 +131,14 @@ void unpack_custom(muse::msgpack::UnPacker& p, muse::mpe::PlaybackData& value);
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::AudioEngineConfig& value)
 {
-    p.process(value.autoProcessOnlineSoundsInBackground);
+    p.process(value.autoProcessOnlineSoundsInBackground, value.isLazyProcessingOfOnlineSoundsEnabled,
+              value.useSoundFontLowPassFilter);
 }
 
 inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::AudioEngineConfig& value)
 {
-    p.process(value.autoProcessOnlineSoundsInBackground);
+    p.process(value.autoProcessOnlineSoundsInBackground, value.isLazyProcessingOfOnlineSoundsEnabled,
+              value.useSoundFontLowPassFilter);
 }
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::OutputSpec& value)
@@ -259,24 +269,50 @@ inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SoundTrackTyp
     value = static_cast<muse::audio::SoundTrackType>(type);
 }
 
+inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::AudioSampleFormat& value)
+{
+    p.process(static_cast<int>(value));
+}
+
+inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::AudioSampleFormat& value)
+{
+    int format = 0;
+    p.process(format);
+    value = static_cast<muse::audio::AudioSampleFormat>(format);
+}
+
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::SoundTrackFormat& value)
 {
-    p.process(value.type, value.outputSpec, value.bitRate);
+    p.process(value.type, value.outputSpec, value.sampleFormat, value.bitRate,
+              value.leadingSilenceDuration, value.trailingSilenceDuration);
 }
 
 inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SoundTrackFormat& value)
 {
-    p.process(value.type, value.outputSpec, value.bitRate);
+    p.process(value.type, value.outputSpec, value.sampleFormat, value.bitRate,
+              value.leadingSilenceDuration, value.trailingSilenceDuration);
+}
+
+inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::SaveSoundTrackStage& value)
+{
+    p.process(static_cast<int>(value));
+}
+
+inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SaveSoundTrackStage& value)
+{
+    int stage = 0;
+    p.process(stage);
+    value = static_cast<muse::audio::SaveSoundTrackStage>(stage);
 }
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::AudioSignalVal& value)
 {
-    p.process(value.amplitude, value.pressure);
+    p.process(value.pressure);
 }
 
 inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::AudioSignalVal& value)
 {
-    p.process(value.amplitude, value.pressure);
+    p.process(value.pressure);
 }
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::InputProcessingProgress::ChunkInfo& value)
@@ -301,14 +337,37 @@ inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::InputProcessi
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::InputProcessingProgress::StatusInfo& value)
 {
-    p.process(static_cast<uint8_t>(value.status), value.errorCode, value.errorText);
+    p.process(static_cast<uint8_t>(value.status), value.errorCode, value.errorText, value.data);
 }
 
 inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::InputProcessingProgress::StatusInfo& value)
 {
     uint8_t status = 0;
-    p.process(status, value.errorCode, value.errorText);
+    p.process(status, value.errorCode, value.errorText, value.data);
     value.status = static_cast<muse::audio::InputProcessingProgress::Status>(status);
+}
+
+inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::TransportEvent& value)
+{
+    p.process(static_cast<uint8_t>(value.type));
+
+    if (value.type == muse::audio::TransportEvent::Type::Seek) {
+        const auto& seek = std::get<muse::audio::TransportEvent::SeekData>(value.data);
+        p.process(seek.position);
+    }
+}
+
+inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::TransportEvent& value)
+{
+    uint8_t type = 0;
+    p.process(type);
+    value.type = static_cast<muse::audio::TransportEvent::Type>(type);
+
+    if (value.type == muse::audio::TransportEvent::Type::Seek) {
+        muse::audio::TransportEvent::SeekData seek;
+        p.process(seek.position);
+        value.data = seek;
+    }
 }
 
 // MPE

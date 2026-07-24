@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -64,6 +64,11 @@ enum class ActionIconType : signed char {
     GRACE_NOTE_BEND,
     SLIGHT_BEND,
 
+    DIVE,
+    PRE_DIVE,
+    DIP,
+    SCOOP,
+
     NOTE_ANCHORED_LINE,
 
     SYSTEM_LOCK,
@@ -79,8 +84,6 @@ public:
     ActionIcon(EngravingItem* score);
     ~ActionIcon() override = default;
 
-    static constexpr double DEFAULT_FONT_SIZE = 16.0;
-
     ActionIcon* clone() const override;
 
     ActionIconType actionType() const;
@@ -92,8 +95,6 @@ public:
     char16_t icon() const { return m_icon; }
 
     const muse::draw::Font& iconFont() const { return m_iconFont; }
-    double fontSize() const;
-    void setFontSize(double size);
 
     PropertyValue getProperty(Pid) const override;
     bool setProperty(Pid, const PropertyValue&) override;

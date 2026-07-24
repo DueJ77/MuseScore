@@ -32,12 +32,22 @@ using namespace muse::audio::engine;
 using namespace muse::async;
 
 SequencePlayer::SequencePlayer(IGetTracks* getTracks, IClockPtr clock, const modularity::ContextPtr& iocCtx)
-    : Injectable(iocCtx), m_getTracks(getTracks), m_clock(clock)
+    : Contextable(iocCtx), m_getTracks(getTracks), m_clock(clock)
 {
-    m_clock->seekOccurred().onNotify(this, [this]() {
-        seekAllTracks(m_clock->currentTime());
+    m_clock->setOnAction([this](const IClock::ActionType type, const msecs_t) {
+        ONLY_AUDIO_PROC_THREAD;
+
+        if (type != IClock::ActionType::Seek && type != IClock::ActionType::LoopEndReached) {
+            return;
+        }
+
+        if (m_tracksFollowClockSeek) {
+            seekAllTracks(m_clock->currentTime(), true /*flushSound*/);
+        }
     });
 
+    // Fires synchronously from within execOperation (via play/pause/etc.),
+    // adding execOperation here would cause a deadlock
     m_clock->statusChanged().onReceive(this, [this](const PlaybackStatus status) {
         const bool active = status == PlaybackStatus::Running;
 
@@ -48,9 +58,32 @@ SequencePlayer::SequencePlayer(IGetTracks* getTracks, IClockPtr clock, const mod
         }
     });
 
+    // Fires only from the driver thread and is forwarded to the engine thread,
+    // so execOperation is needed to guard setIsActive() and prevent data race
     m_clock->countDownEnded().onNotify(this, [this]() {
         m_countDownIsSet = false;
-        audioEngine()->mixer()->setIsActive(m_clock->status() == PlaybackStatus::Running);
+
+        audioEngine()->execOperation(OperationType::QuickOperation, [this]() {
+            audioEngine()->mixer()->setIsActive(m_clock->status() == PlaybackStatus::Running);
+        });
+    });
+}
+
+SequencePlayer::~SequencePlayer()
+{
+    m_clock->setOnAction(nullptr);
+}
+
+async::Promise<Ret> SequencePlayer::prepareToPlay()
+{
+    ONLY_AUDIO_ENGINE_THREAD;
+
+    return async::make_promise<Ret>([this](auto resolve, auto) {
+        prepareAllTracksToPlay([resolve]() {
+            (void)resolve(make_ok());
+        });
+
+        return Promise<Ret>::dummy_result();
     });
 }
 
@@ -58,30 +91,34 @@ void SequencePlayer::play(const secs_t delay)
 {
     ONLY_AUDIO_ENGINE_THREAD;
 
-    auto doPlay = [this, delay]() {
-        m_clock->setCountDown(secsToMicrosecs(delay));
-        m_countDownIsSet = !delay.is_zero();
-        audioEngine()->setMode(RenderMode::RealTimeMode);
-        m_clock->start();
-    };
+    if (playbackStatus() == PlaybackStatus::Running) {
+        return;
+    }
 
-    prepareAllTracksToPlay(doPlay);
+    m_clock->setCountDown(secsToMicrosecs(delay));
+    m_countDownIsSet = !delay.is_zero();
+    audioEngine()->setMode(RenderMode::RealTimeMode);
+    m_clock->start();
 }
 
 void SequencePlayer::seek(const secs_t newPosition, const bool flushSound)
 {
     ONLY_AUDIO_ENGINE_THREAD;
 
-    m_flushSoundOnSeek = flushSound;
     msecs_t newPos = secsToMicrosecs(newPosition);
+    m_tracksFollowClockSeek = false;
     m_clock->seek(newPos);
-    seekAllTracks(newPos);
-    m_flushSoundOnSeek = true;
+    m_tracksFollowClockSeek = true;
+    seekAllTracks(newPos, flushSound);
 }
 
 void SequencePlayer::stop()
 {
     ONLY_AUDIO_ENGINE_THREAD;
+
+    if (playbackStatus() == PlaybackStatus::Stopped) {
+        return;
+    }
 
     audioEngine()->setMode(RenderMode::IdleMode);
     m_clock->stop();
@@ -92,6 +129,10 @@ void SequencePlayer::pause()
 {
     ONLY_AUDIO_ENGINE_THREAD;
 
+    if (playbackStatus() == PlaybackStatus::Paused) {
+        return;
+    }
+
     audioEngine()->setMode(RenderMode::IdleMode);
     m_clock->pause();
     m_notYetReadyToPlayTrackIdSet.clear();
@@ -101,14 +142,14 @@ void SequencePlayer::resume(const secs_t delay)
 {
     ONLY_AUDIO_ENGINE_THREAD;
 
-    auto doResume = [this, delay]() {
-        m_clock->setCountDown(secsToMicrosecs(delay));
-        m_countDownIsSet = !delay.is_zero();
-        audioEngine()->setMode(RenderMode::RealTimeMode);
-        m_clock->resume();
-    };
+    if (playbackStatus() == PlaybackStatus::Running) {
+        return;
+    }
 
-    prepareAllTracksToPlay(doResume);
+    m_clock->setCountDown(secsToMicrosecs(delay));
+    m_countDownIsSet = !delay.is_zero();
+    audioEngine()->setMode(RenderMode::RealTimeMode);
+    m_clock->resume();
 }
 
 msecs_t SequencePlayer::duration() const
@@ -171,7 +212,7 @@ Channel<PlaybackStatus> SequencePlayer::playbackStatusChanged() const
     return m_clock->statusChanged();
 }
 
-void SequencePlayer::seekAllTracks(const msecs_t newPositionMsecs)
+void SequencePlayer::seekAllTracks(const msecs_t newPositionMsecs, bool flushSound)
 {
     IF_ASSERT_FAILED(m_getTracks) {
         return;
@@ -179,7 +220,7 @@ void SequencePlayer::seekAllTracks(const msecs_t newPositionMsecs)
 
     for (const auto& pair : m_getTracks->allTracks()) {
         if (pair.second->inputHandler) {
-            pair.second->inputHandler->seek(newPositionMsecs, m_flushSoundOnSeek);
+            pair.second->inputHandler->seek(newPositionMsecs, flushSound);
         }
     }
 }
@@ -199,6 +240,8 @@ void SequencePlayer::flushAllTracks()
 
 void SequencePlayer::prepareAllTracksToPlay(AllTracksReadyCallback allTracksReadyCallback)
 {
+    ONLY_AUDIO_ENGINE_THREAD;
+
     IF_ASSERT_FAILED(m_getTracks) {
         return;
     }
@@ -238,6 +281,6 @@ void SequencePlayer::prepareAllTracksToPlay(AllTracksReadyCallback allTracksRead
             if (ptr && ptr->inputHandler) {
                 ptr->inputHandler->readyToPlayChanged().disconnect(this);
             }
-        });
+        }, Asyncable::Mode::SetReplace);
     }
 }

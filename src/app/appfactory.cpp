@@ -34,6 +34,10 @@
 
 #include "framework/draw/drawmodule.h"
 
+#ifdef MUSE_MODULE_DIAGNOSTICS
+#include "diagnostics/diagnosticsmodule.h"
+#endif
+
 #ifdef MUSE_MODULE_LANGUAGES
 #include "framework/languages/languagesmodule.h"
 #else
@@ -46,10 +50,22 @@
 #include "framework/stubs/learn/learnmodule.h"
 #endif
 
+#ifdef MUSE_MODULE_MEDIA
+#include "framework/media/mediamodule.h"
+#else
+#include "framework/stubs/media/mediastubmodule.h"
+#endif
+
 #ifdef MUSE_MODULE_MIDI
 #include "framework/midi/midimodule.h"
 #else
 #include "framework/stubs/midi/midistubmodule.h"
+#endif
+
+#ifdef MUSE_MODULE_MIDIREMOTE
+#include "framework/midiremote/midiremotemodule.h"
+#else
+#include "framework/stubs/midiremote/midiremotestubmodule.h"
 #endif
 
 #ifdef MUSE_MODULE_MPE
@@ -58,10 +74,10 @@
 #include "framework/stubs/mpe/mpestubmodule.h"
 #endif
 
-#ifdef MUSE_MODULE_MULTIINSTANCES
-#include "framework/multiinstances/multiinstancesmodule.h"
+#ifdef MUSE_MODULE_MULTIWINDOWS
+#include "framework/multiwindows/multiwindowsmodule.h"
 #else
-#include "framework/stubs/multiinstances/multiinstancesstubmodule.h"
+#include "framework/stubs/multiwindows/multiwindowsstubmodule.h"
 #endif
 
 #ifdef MUSE_MODULE_MUSESAMPLER
@@ -132,14 +148,12 @@
 #include "stubs/braille/braillestubmodule.h"
 #endif
 
-#include "commonscene/commonscenemodule.h"
 #include "context/contextmodule.h"
 
 #ifdef MUE_BUILD_CONVERTER_MODULE
 #include "converter/convertermodule.h"
 #endif
 
-#include "diagnostics/diagnosticsmodule.h"
 #include "engraving/engravingmodule.h"
 
 #ifdef MUE_BUILD_IMPEXP_BB_MODULE
@@ -153,15 +167,26 @@
 #endif
 #ifdef MUE_BUILD_IMPEXP_MIDI_MODULE
 #include "importexport/midi/midimodule.h"
+#else
+#include "stubs/importexport/midi/midimodule.h"
+#endif
+#ifdef MUE_BUILD_IMPEXP_MNX_MODULE
+#include "importexport/mnx/mnxmodule.h"
+#else
+#include "stubs/importexport/mnx/mnxmodule.h"
 #endif
 #ifdef MUE_BUILD_IMPEXP_MUSEDATA_MODULE
 #include "importexport/musedata/musedatamodule.h"
 #endif
 #ifdef MUE_BUILD_IMPEXP_MUSICXML_MODULE
 #include "importexport/musicxml/musicxmlmodule.h"
+#else
+#include "stubs/importexport/musicxml/musicxmlmodule.h"
 #endif
 #ifdef MUE_BUILD_IMPEXP_OVE_MODULE
 #include "importexport/ove/ovemodule.h"
+#else
+#include "stubs/importexport/ove/ovemodule.h"
 #endif
 #ifdef MUE_BUILD_IMPEXP_AUDIOEXPORT_MODULE
 #include "importexport/audioexport/audioexportmodule.h"
@@ -174,12 +199,18 @@
 #endif
 #ifdef MUE_BUILD_IMPEXP_MEI_MODULE
 #include "importexport/mei/meimodule.h"
+#else
+#include "stubs/importexport/mei/meimodule.h"
 #endif
+
 #ifdef MUE_BUILD_IMPEXP_VIDEOEXPORT_MODULE
 #include "importexport/videoexport/videoexportmodule.h"
 #endif
 #ifdef MUE_BUILD_IMPEXP_TABLEDIT_MODULE
 #include "importexport/tabledit/tableditmodule.h"
+#endif
+#ifdef MUE_BUILD_IMPEXP_LYRICS_MODULE
+#include "importexport/lyricsexport/lyricsexportmodule.h"
 #endif
 
 #include "inspector/inspectormodule.h"
@@ -202,6 +233,12 @@
 #include "stubs/notation/notationstubmodule.h"
 #endif
 
+#ifdef MUE_BUILD_NOTATIONSCENE_MODULE
+#include "notationscene/notationscenemodule.h"
+#else
+#include "stubs/notationscene/notationscenestubmodule.h"
+#endif
+
 #ifdef MUE_BUILD_PALETTE_MODULE
 #include "palette/palettemodule.h"
 #else
@@ -212,6 +249,10 @@
 #include "playback/playbackmodule.h"
 #else
 #include "stubs/playback/playbackstubmodule.h"
+#endif
+
+#ifdef MUE_BUILD_PREFERENCES_MODULE
+#include "preferences/preferencesmodule.h"
 #endif
 
 #ifdef MUE_BUILD_PRINT_MODULE
@@ -249,9 +290,11 @@ std::shared_ptr<muse::IApplication> AppFactory::newGuiApp(const CmdOptions& opti
 
     std::shared_ptr<GuiApp> app = std::make_shared<GuiApp>(options, ctx);
 
+#ifdef MUSE_MODULE_DIAGNOSTICS
     //! NOTE `diagnostics` must be first, because it installs the crash handler.
     //! For other modules, the order is (and should be) unimportant.
     app->addModule(new muse::diagnostics::DiagnosticsModule());
+#endif
 
     // framework
     app->addModule(new muse::accessibility::AccessibilityModule());
@@ -262,6 +305,7 @@ std::shared_ptr<muse::IApplication> AppFactory::newGuiApp(const CmdOptions& opti
 #endif
     app->addModule(new muse::draw::DrawModule());
     app->addModule(new muse::midi::MidiModule());
+    app->addModule(new muse::midiremote::MidiRemoteModule());
     app->addModule(new muse::mpe::MpeModule());
 
 #ifdef MUSE_MODULE_MUSESAMPLER
@@ -290,6 +334,7 @@ std::shared_ptr<muse::IApplication> AppFactory::newGuiApp(const CmdOptions& opti
 #endif
     app->addModule(new muse::tours::ToursModule());
     app->addModule(new muse::vst::VSTModule());
+    app->addModule(new muse::media::MediaModule());
 
 // modules
 #ifdef MUE_BUILD_APPSHELL_MODULE
@@ -303,7 +348,6 @@ std::shared_ptr<muse::IApplication> AppFactory::newGuiApp(const CmdOptions& opti
     app->addModule(new mu::braille::BrailleModule());
 
     app->addModule(new muse::cloud::CloudModule());
-    app->addModule(new mu::commonscene::CommonSceneModule());
     app->addModule(new mu::context::ContextModule());
 
 #ifdef MUE_BUILD_CONVERTER_MODULE
@@ -321,18 +365,13 @@ std::shared_ptr<muse::IApplication> AppFactory::newGuiApp(const CmdOptions& opti
 #ifdef MUE_BUILD_IMPEXP_CAPELLA_MODULE
     app->addModule(new mu::iex::capella::CapellaModule());
 #endif
-#ifdef MUE_BUILD_IMPEXP_MIDI_MODULE
     app->addModule(new mu::iex::midi::MidiModule());
-#endif
+    app->addModule(new mu::iex::mnxio::MnxModule());
 #ifdef MUE_BUILD_IMPEXP_MUSEDATA_MODULE
     app->addModule(new mu::iex::musedata::MuseDataModule());
 #endif
-#ifdef MUE_BUILD_IMPEXP_MUSICXML_MODULE
     app->addModule(new mu::iex::musicxml::MusicXmlModule());
-#endif
-#ifdef MUE_BUILD_IMPEXP_OVE_MODULE
     app->addModule(new mu::iex::ove::OveModule());
-#endif
 #ifdef MUE_BUILD_IMPEXP_AUDIOEXPORT_MODULE
     app->addModule(new mu::iex::audioexport::AudioExportModule());
 #endif
@@ -342,26 +381,31 @@ std::shared_ptr<muse::IApplication> AppFactory::newGuiApp(const CmdOptions& opti
 #ifdef MUE_BUILD_IMPEXP_GUITARPRO_MODULE
     app->addModule(new mu::iex::guitarpro::GuitarProModule());
 #endif
-#ifdef MUE_BUILD_IMPEXP_MEI_MODULE
     app->addModule(new mu::iex::mei::MeiModule());
-#endif
 #ifdef MUE_BUILD_IMPEXP_VIDEOEXPORT_MODULE
     app->addModule(new mu::iex::videoexport::VideoExportModule());
 #endif
 #ifdef MUE_BUILD_IMPEXP_TABLEDIT_MODULE
     app->addModule(new mu::iex::tabledit::TablEditModule());
 #endif
+#ifdef MUE_BUILD_IMPEXP_LYRICS_MODULE
+    app->addModule(new mu::iex::lrcexport::LyricsExportModule());
+#endif
 
     app->addModule(new mu::inspector::InspectorModule());
     app->addModule(new mu::instrumentsscene::InstrumentsSceneModule());
+    app->addModule(new muse::extensions::ExtensionsModule());
     app->addModule(new muse::languages::LanguagesModule());
     app->addModule(new muse::learn::LearnModule());
     app->addModule(new muse::mi::MultiInstancesModule());
     app->addModule(new mu::musesounds::MuseSoundsModule());
     app->addModule(new mu::notation::NotationModule());
+    app->addModule(new mu::notation::NotationSceneModule());
     app->addModule(new mu::palette::PaletteModule());
     app->addModule(new mu::playback::PlaybackModule());
-    app->addModule(new muse::extensions::ExtensionsModule());
+#ifdef MUE_BUILD_PREFERENCES_MODULE
+    app->addModule(new mu::preferences::PreferencesModule());
+#endif
 
 #ifdef MUE_BUILD_PRINT_MODULE
     app->addModule(new mu::print::PrintModule());
@@ -377,25 +421,17 @@ std::shared_ptr<muse::IApplication> AppFactory::newGuiApp(const CmdOptions& opti
     return app;
 }
 
-std::shared_ptr<muse::IApplication> AppFactory::newConsoleApp(const CmdOptions& options) const
+static void addConsoleModules(std::shared_ptr<ConsoleApp> app)
 {
-#ifdef MUE_ENABLE_CONSOLEAPP
-
-    modularity::ContextPtr ctx = std::make_shared<modularity::Context>();
-    ++m_lastID;
-    // ctx->id = m_lastID;
-    ctx->id = -1; //! NOTE At the moment global ioc
-
-    std::shared_ptr<ConsoleApp> app = std::make_shared<ConsoleApp>(options, ctx);
-
+#ifdef MUSE_MODULE_DIAGNOSTICS
     //! NOTE `diagnostics` must be first, because it installs the crash handler.
     //! For other modules, the order is (an should be) unimportant.
     app->addModule(new muse::diagnostics::DiagnosticsModule());
+#endif
 
     //! TODO Some modules can be removed
 
     // framework
-    app->addModule(new muse::accessibility::AccessibilityModule());
     app->addModule(new muse::actions::ActionsModule());
     app->addModule(new muse::audio::AudioModule());
 #ifdef MUSE_MODULE_AUDIOPLUGINS
@@ -419,32 +455,20 @@ std::shared_ptr<muse::IApplication> AppFactory::newConsoleApp(const CmdOptions& 
     }
 #endif
 
-    app->addModule(new muse::network::NetworkModule());
-    app->addModule(new muse::shortcuts::ShortcutsModule());
 #ifdef MUSE_MODULE_UI
     app->addModule(new muse::ui::UiModule());
-    app->addModule(new muse::uicomponents::UiComponentsModule());
 #endif
 
-#ifdef MUSE_MODULE_DOCKWINDOW
-    app->addModule(new muse::dock::DockModule());
-#endif
-    app->addModule(new muse::tours::ToursModule());
+#ifdef MUSE_MODULE_VST
     app->addModule(new muse::vst::VSTModule());
-
-// modules
-#ifdef MUE_BUILD_APPSHELL_MODULE
-    app->addModule(new mu::appshell::AppShellModule());
 #endif
 
 #ifdef MUSE_MODULE_AUTOBOT
     app->addModule(new muse::autobot::AutobotModule());
 #endif
 
-    app->addModule(new mu::braille::BrailleModule());
+    app->addModule(new muse::media::MediaModule());
 
-    app->addModule(new muse::cloud::CloudModule());
-    app->addModule(new mu::commonscene::CommonSceneModule());
     app->addModule(new mu::context::ContextModule());
 
 #ifdef MUE_BUILD_CONVERTER_MODULE
@@ -462,18 +486,13 @@ std::shared_ptr<muse::IApplication> AppFactory::newConsoleApp(const CmdOptions& 
 #ifdef MUE_BUILD_IMPEXP_CAPELLA_MODULE
     app->addModule(new mu::iex::capella::CapellaModule());
 #endif
-#ifdef MUE_BUILD_IMPEXP_MIDI_MODULE
     app->addModule(new mu::iex::midi::MidiModule());
-#endif
+    app->addModule(new mu::iex::mnxio::MnxModule());
 #ifdef MUE_BUILD_IMPEXP_MUSEDATA_MODULE
     app->addModule(new mu::iex::musedata::MuseDataModule());
 #endif
-#ifdef MUE_BUILD_IMPEXP_MUSICXML_MODULE
     app->addModule(new mu::iex::musicxml::MusicXmlModule());
-#endif
-#ifdef MUE_BUILD_IMPEXP_OVE_MODULE
     app->addModule(new mu::iex::ove::OveModule());
-#endif
 #ifdef MUE_BUILD_IMPEXP_AUDIOEXPORT_MODULE
     app->addModule(new mu::iex::audioexport::AudioExportModule());
 #endif
@@ -483,32 +502,54 @@ std::shared_ptr<muse::IApplication> AppFactory::newConsoleApp(const CmdOptions& 
 #ifdef MUE_BUILD_IMPEXP_GUITARPRO_MODULE
     app->addModule(new mu::iex::guitarpro::GuitarProModule());
 #endif
-#ifdef MUE_BUILD_IMPEXP_MEI_MODULE
     app->addModule(new mu::iex::mei::MeiModule());
-#endif
 #ifdef MUE_BUILD_IMPEXP_VIDEOEXPORT_MODULE
     app->addModule(new mu::iex::videoexport::VideoExportModule());
 #endif
 #ifdef MUE_BUILD_IMPEXP_TABLEDIT_MODULE
     app->addModule(new mu::iex::tabledit::TablEditModule());
 #endif
+#ifdef MUE_BUILD_IMPEXP_LYRICS_MODULE
+    app->addModule(new mu::iex::lrcexport::LyricsExportModule());
+#endif
 
-    app->addModule(new mu::inspector::InspectorModule());
-    app->addModule(new mu::instrumentsscene::InstrumentsSceneModule());
-    app->addModule(new muse::languages::LanguagesModule());
-    app->addModule(new muse::learn::LearnModule());
     app->addModule(new muse::mi::MultiInstancesModule());
     app->addModule(new mu::notation::NotationModule());
-    app->addModule(new mu::palette::PaletteModule());
     app->addModule(new mu::playback::PlaybackModule());
-    app->addModule(new muse::extensions::ExtensionsModule());
-
-#ifdef MUE_BUILD_PRINT_MODULE
-    app->addModule(new mu::print::PrintModule());
-#endif
     app->addModule(new mu::project::ProjectModule());
-    app->addModule(new muse::update::UpdateModule());
-    app->addModule(new muse::workspace::WorkspaceModule());
+    app->addModule(new muse::extensions::ExtensionsModule());
+    app->addModule(new mu::notation::NotationSceneModule());
+}
+
+static void addAudioPluginRegistrationModules(std::shared_ptr<ConsoleApp> app)
+{
+    app->addModule(new muse::audio::AudioModule());
+
+#ifdef MUSE_MODULE_AUDIOPLUGINS
+    app->addModule(new muse::audioplugins::AudioPluginsModule());
+#endif
+
+#ifdef MUSE_MODULE_VST
+    app->addModule(new muse::vst::VSTModule());
+#endif
+}
+
+std::shared_ptr<muse::IApplication> AppFactory::newConsoleApp(const CmdOptions& options) const
+{
+#ifdef MUE_ENABLE_CONSOLEAPP
+
+    modularity::ContextPtr ctx = std::make_shared<modularity::Context>();
+    ++m_lastID;
+    // ctx->id = m_lastID;
+    ctx->id = -1; //! NOTE At the moment global ioc
+
+    std::shared_ptr<ConsoleApp> app = std::make_shared<ConsoleApp>(options, ctx);
+
+    if (options.runMode == muse::IApplication::RunMode::ConsoleApp) {
+        addConsoleModules(app);
+    } else if (options.runMode == muse::IApplication::RunMode::AudioPluginRegistration) {
+        addAudioPluginRegistrationModules(app);
+    }
 
     return app;
 

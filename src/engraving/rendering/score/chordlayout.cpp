@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@
 
 #include "dom/accidental.h"
 #include "dom/arpeggio.h"
+#include "dom/chordbracket.h"
 #include "dom/beam.h"
 #include "dom/chord.h"
 #include "dom/factory.h"
@@ -56,6 +57,7 @@
 #include "dom/tremolotwochord.h"
 #include "dom/utils.h"
 #include "editing/undo.h"
+#include "editing/editchord.h"
 
 #include "accidentalslayout.h"
 #include "arpeggiolayout.h"
@@ -91,6 +93,8 @@ void ChordLayout::layout(Chord* item, LayoutContext& ctx)
 
     if (item->onTabStaff()) {
         layoutTablature(item, ctx);
+    } else if (item->onCipherStaff()) {
+        layoutCipher(item, ctx);
     } else {
         layoutPitched(item, ctx);
     }
@@ -173,7 +177,7 @@ void ChordLayout::layoutPitched(Chord* item, LayoutContext& ctx)
         item->arpeggio()->findAndAttachToChords();
         item->arpeggio()->mutldata()->maxChordPad = 0.0;
         item->arpeggio()->mutldata()->minChordX = DBL_MAX;
-        TLayout::layoutArpeggio(item->arpeggio(), item->arpeggio()->mutldata(), ctx.conf());
+        TLayout::layoutItem(item->arpeggio(), ctx);
     }
 
     if (item->spanArpeggio() != oldSpanArp) {
@@ -185,9 +189,11 @@ void ChordLayout::layoutPitched(Chord* item, LayoutContext& ctx)
         if (!spanArp || !spanArp->chord()) {
             continue;
         }
+
         Arpeggio::LayoutData* arpldata = spanArp->mutldata();
+
         const Segment* seg = spanArp->chord()->segment();
-        const EngravingItem* endItem = seg->elementAt(spanArp->endTrack());
+        const EngravingItem* endItem = seg->element(spanArp->endTrack());
         const Chord* endChord = item;
         if (endItem && endItem->isChord()) {
             endChord = toChord(endItem);
@@ -199,9 +205,10 @@ void ChordLayout::layoutPitched(Chord* item, LayoutContext& ctx)
         bool belowEnd = std::make_pair(item->vStaffIdx(), item->upLine()) > std::make_pair(endChord->vStaffIdx(), endChord->downLine());
 
         if (!(aboveStart || belowEnd)) {
+            ElementType elType = spanArp->type();
             const PaddingTable& paddingTable = item->score()->paddingTable();
-            double arpeggioNoteDistance = paddingTable.at(ElementType::ARPEGGIO).at(ElementType::NOTE) * mag_;
-            double arpeggioLedgerDistance = paddingTable.at(ElementType::ARPEGGIO).at(ElementType::LEDGER_LINE) * mag_;
+            double arpeggioNoteDistance = paddingTable.at(elType).at(ElementType::NOTE) * mag_;
+            double arpeggioLedgerDistance = paddingTable.at(elType).at(ElementType::LEDGER_LINE) * mag_;
             int firstLedgerBelow = item->staff()->lines(item->downNote()->tick()) * 2 - 1;
             int firstLedgerAbove = -1;
 
@@ -218,7 +225,7 @@ void ChordLayout::layoutPitched(Chord* item, LayoutContext& ctx)
             double arpChordX = std::min(chordX, 0.0);
 
             if (!chordAccidentals.empty()) {
-                double arpeggioAccidentalDistance = paddingTable.at(ElementType::ARPEGGIO).at(ElementType::ACCIDENTAL) * mag_;
+                double arpeggioAccidentalDistance = paddingTable.at(elType).at(ElementType::ACCIDENTAL) * mag_;
                 double accidentalDistance = ctx.conf().styleMM(Sid::accidentalDistance) * mag_;
                 gapSize = arpeggioAccidentalDistance - accidentalDistance;
                 gapSize -= ArpeggioLayout::insetDistance(spanArp, ctx, mag_, item, chordAccidentals);
@@ -285,11 +292,13 @@ void ChordLayout::layoutPitched(Chord* item, LayoutContext& ctx)
     }
 
     for (EngravingItem* e : item->el()) {
-        if (e->type() == ElementType::SLUR) {       // we cannot at this time as chordpositions are not fixed
+        // Cannot layout slurs as chord positions are not fixed
+        // Chord brackets should be the outermost element
+        if (e->isSlur() || e->isChordBracket()) {
             continue;
         }
         TLayout::layoutItem(e, ctx);
-        if (e->type() == ElementType::CHORDLINE) {
+        if (e->isChordLine()) {
             RectF tbbox = e->ldata()->bbox().translated(e->pos());
             double lx = tbbox.left() + chordX;
             double rx = tbbox.right() + chordX;
@@ -327,6 +336,15 @@ void ChordLayout::layoutPitched(Chord* item, LayoutContext& ctx)
 
     layoutLvArticulation(item, ctx);
 
+    createParenGroups(item);
+    ParenthesisLayout::layoutChordParentheses(item, ctx);
+
+    for (EngravingItem* e : item->el()) {
+        if (e->isChordBracket()) {
+            TLayout::layoutItem(e, ctx);
+        }
+    }
+
     fillShape(item, item->mutldata(), ctx.conf());
 }
 
@@ -349,7 +367,7 @@ void ChordLayout::layoutTablature(Chord* item, LayoutContext& ctx)
     const Staff* st    = item->staff();
     const StaffType* tab = st->staffTypeForElement(item);
     double lineDist    = tab->lineDistance().val() * _spatium;
-    double stemX       = StemLayout::tabStemPosX() * _spatium;
+    double stemX       = 0.5 * headWidth;
     int ledgerLines = 0;
     double llY         = 0.0;
 
@@ -521,7 +539,7 @@ void ChordLayout::layoutTablature(Chord* item, LayoutContext& ctx)
                        || prevCR->durationType().type() != item->durationType().type()
                        || prevCR->dots() != item->dots()
                        || prevCR->tuplet() != item->tuplet()
-                       || prevCR->type() == ElementType::REST) {
+                       || prevCR->isRest()) {
                 needTabDur = true;
             } else if (tab->symRepeat() == TablatureSymbolRepeat::ALWAYS
                        || ((tab->symRepeat() == TablatureSymbolRepeat::MEASURE
@@ -663,7 +681,7 @@ void ChordLayout::layoutTablature(Chord* item, LayoutContext& ctx)
     }
     for (EngravingItem* e : item->el()) {
         TLayout::layoutItem(e, ctx);
-        if (e->type() == ElementType::CHORDLINE) {
+        if (e->isChordLine()) {
             RectF tbbox = e->ldata()->bbox().translated(e->pos());
             double lx = tbbox.left();
             double rx = tbbox.right();
@@ -682,6 +700,254 @@ void ChordLayout::layoutTablature(Chord* item, LayoutContext& ctx)
 
     if (item->stemSlash()) {
         TLayout::layoutStemSlash(item->stemSlash(), item->stemSlash()->mutldata(), ctx.conf());
+    }
+
+    layoutLvArticulation(item, ctx);
+
+    createParenGroups(item);
+    ParenthesisLayout::layoutChordParentheses(item, ctx);
+
+    fillShape(item, item->mutldata(), ctx.conf());
+}
+
+//---------------------------------------------------------
+//   layoutCipher
+//   Layout cipher notation
+//---------------------------------------------------------
+
+void ChordLayout::layoutCipher(Chord* item, LayoutContext& ctx)
+{//
+    for (Chord* c : item->graceNotes()) {
+        layoutPitched(c, ctx);
+    }
+
+    double mag_ = item->staff() ? item->staff()->staffMag(item) : 1.0;      // palette elements do not have a staff
+    double dotNoteDistance = ctx.conf().styleMM(Sid::dotNoteDistance) * mag_;
+
+    double chordX = (item->noteType() == NoteType::NORMAL) ? item->ldata()->pos().x() : 0.0;
+
+    double lll = 0.0;           // space to leave at left of chord
+    double rrr = 0.0;           // space to leave at right of chord
+    double lhead = 0.0;           // amount of notehead to left of chord origin
+    Note* upnote = item->upNote();
+    Note* downnote = item->downNote();
+    Note* leftNote = nullptr;
+
+    delete item->tabDur();     // no TAB? no duration symbol! (may happen when converting a TAB into PITCHED)
+    item->setTabDur(nullptr);
+
+    //-----------------------------------------
+    //  process notes
+    //-----------------------------------------
+
+    // Keeps track if there are any accidentals in this chord.
+    // Used to remove excess space in front of arpeggios.
+    // See GitHub issue #8970 for more details.
+    // https://github.com/musescore/MuseScore/issues/8970
+    std::vector<Accidental*> chordAccidentals;
+
+    for (Note* note : item->notes()) {
+        TLayout::layoutNote(note, note->mutldata());
+        double x1 = note->pos().x() + chordX;
+        double x2 = x1 + note->headWidth();
+        lll = std::max(lll, -x1);
+        rrr = std::max(rrr, x2);
+        // track amount of space due to notehead only
+        lhead = std::max(lhead, -x1);
+        if (!leftNote || note->x() < leftNote->x()) {
+            leftNote = note;
+        }
+
+        Accidental* accidental = note->accidental();
+        if (accidental && accidental->visible()) {
+            chordAccidentals.push_back(accidental);
+        }
+        if (accidental && accidental->addToSkyline() && !note->fixed()) {
+            // convert x position of accidental to segment coordinate system
+            double x = accidental->pos().x() + note->pos().x() + chordX;
+            // distance from accidental to note already taken into account
+            // but here perhaps we create more padding in *front* of accidental?
+            x -= ctx.conf().styleMM(Sid::accidentalDistance) * mag_;
+            lll = std::max(lll, -x);
+        }
+
+        // clear layout for note-based fingerings
+        for (EngravingItem* e : note->el()) {
+            if (e->isFingering()) {
+                Fingering* f = toFingering(e);
+                if (f->layoutType() == ElementType::NOTE) {
+                    f->setPos(PointF());
+                    f->setbbox(RectF());
+                }
+            }
+        }
+    }
+
+    // A chord can have its own arpeggio and also be part of another arpeggio's span.  We need to lay out both of these arpeggios properly
+    Arpeggio* oldSpanArp = item->spanArpeggio();
+    Arpeggio* newSpanArp = nullptr;
+
+    // If item has an arpeggio: mark chords which are part of the arpeggio
+    if (item->arpeggio()) {
+        item->arpeggio()->findAndAttachToChords();
+        item->arpeggio()->mutldata()->maxChordPad = 0.0;
+        item->arpeggio()->mutldata()->minChordX = DBL_MAX;
+        TLayout::layoutArpeggio(item->arpeggio(), item->arpeggio()->mutldata(), ctx.conf());
+    }
+
+    if (item->spanArpeggio() != oldSpanArp) {
+        newSpanArp = item->spanArpeggio();
+    }
+    // If item is within arpeggio span, keep track of largest space needed between glissando and chord across staves
+    double lllMax = lll;
+    for (Arpeggio* spanArp : { oldSpanArp, newSpanArp }) {
+        if (!spanArp || !spanArp->chord()) {
+            continue;
+        }
+        Arpeggio::LayoutData* arpldata = spanArp->mutldata();
+        const Segment* seg = spanArp->chord()->segment();
+        const EngravingItem* endItem = seg->element(spanArp->endTrack());
+        const Chord* endChord = item;
+        if (endItem && endItem->isChord()) {
+            endChord = toChord(endItem);
+        }
+
+        // If a note is covered in the voice span but located outside the visual span of the arpeggio calculate accidental offset later
+        bool aboveStart
+            = std::make_pair(item->vStaffIdx(), item->downLine()) < std::make_pair(spanArp->vStaffIdx(), spanArp->chord()->upLine());
+        bool belowEnd = std::make_pair(item->vStaffIdx(), item->upLine()) > std::make_pair(endChord->vStaffIdx(), endChord->downLine());
+
+        if (!(aboveStart || belowEnd)) {
+            const PaddingTable& paddingTable = item->score()->paddingTable();
+            double arpeggioNoteDistance = paddingTable.at(ElementType::ARPEGGIO).at(ElementType::NOTE) * mag_;
+            double arpeggioLedgerDistance = paddingTable.at(ElementType::ARPEGGIO).at(ElementType::LEDGER_LINE) * mag_;
+            int firstLedgerBelow = item->staff()->lines(item->downNote()->tick()) * 2 - 1;
+            int firstLedgerAbove = -1;
+
+            double gapSize = arpeggioNoteDistance;
+
+            if (leftNote && muse::RealIsNull(leftNote->x())) {
+                if (downnote->line() > firstLedgerBelow || upnote->line() < firstLedgerAbove) {
+                    gapSize = arpeggioLedgerDistance + ctx.conf().styleS(Sid::ledgerLineLength).val() * item->spatium();
+                }
+            }
+            else if (leftNote && (leftNote->line() > firstLedgerBelow || leftNote->line() < firstLedgerAbove)) {
+                gapSize = arpeggioLedgerDistance + ctx.conf().styleS(Sid::ledgerLineLength).val() * item->spatium();
+            }
+
+            double arpChordX = std::min(chordX, 0.0);
+
+            if (!chordAccidentals.empty()) {
+                double arpeggioAccidentalDistance = paddingTable.at(ElementType::ARPEGGIO).at(ElementType::ACCIDENTAL) * mag_;
+                double accidentalDistance = ctx.conf().styleMM(Sid::accidentalDistance) * mag_;
+                gapSize = arpeggioAccidentalDistance - accidentalDistance;
+                gapSize -= ArpeggioLayout::insetDistance(spanArp, ctx, mag_, item, chordAccidentals);
+            }
+
+            double extraX = spanArp->width() + gapSize;
+
+            // Track leftmost chord position, as we we always want the arpeggio to be to the left of this
+            arpldata->minChordX = std::min(arpldata->minChordX, arpChordX);
+
+            // Save this to arpeggio if largest
+            arpldata->maxChordPad = std::max(arpldata->maxChordPad, lll + extraX);
+
+            // If first chord in arpeggio set y
+            if (item->arpeggio() && item->arpeggio() == spanArp) {
+                double y1 = upnote->pos().y() - upnote->headHeight() * .5;
+                item->arpeggio()->mutldata()->setPosY(y1);
+            }
+
+            Note* endDownNote = endChord->downNote();
+
+            // If last chord in arpeggio, set x
+            if (endDownNote->track() == item->track()) {
+                // Amount to move arpeggio from it's parent chord to factor in chords further to the left
+                double firstChordX = spanArp->chord()->ldata()->pos().x();
+                double xDiff = firstChordX - arpldata->minChordX;
+
+                double offset = -(xDiff + arpldata->maxChordPad);
+                spanArp->mutldata()->setPosX(offset);
+                if (spanArp->visible()) {
+                    lllMax = std::max(lllMax, offset);
+                }
+            }
+        }
+
+    }
+
+    lll = lllMax;
+
+    if (item->dots()) {
+        double x = item->dotPosX() + dotNoteDistance
+            + double(item->dots() - 1) * ctx.conf().styleMM(Sid::dotDotDistance) * mag_;
+        x += item->symWidth(SymId::augmentationDot);
+        rrr = std::max(rrr, x);
+    }
+
+    for (Note* note : item->notes()) {
+        //layoutNote2(note, ctx);
+        TLayout::layoutNoteCipherAccidental(note, note->mutldata());
+    }
+    if (item->hook()) {
+
+        item->hook()->setHookType(item->up() ? item->durationType().hooks() : -item->durationType().hooks());
+        Note* note = item->notes().at(0);
+        if (item->notes().size() > 0) {
+            item->hook()->setCipherDimension(note->get_cipherWidth(), note->get_cipherHeigth());
+        }
+        PointF p(0, 0);
+        p.ry() = note->pos().y();
+        p.rx() = note->pos().x();
+
+        item->hook()->setPos(p);
+        TLayout::layoutHook(item->hook(), item->hook()->mutldata());
+
+    }
+
+    item->setSpaceLw(lll);
+    item->setSpaceRw(rrr);
+
+
+    for (EngravingItem* e : item->el()) {
+        if (e->type() == ElementType::SLUR) {       // we cannot at this time as chordpositions are not fixed
+            continue;
+        }
+        TLayout::layoutItem(e, ctx);
+        if (e->type() == ElementType::CHORDLINE) {
+            RectF tbbox = e->ldata()->bbox().translated(e->pos());
+            double lx = tbbox.left() + chordX;
+            double rx = tbbox.right() + chordX;
+            if (-lx > item->spaceLw()) {
+                item->setSpaceLw(item->spaceLw() - lx);
+            }
+            if (rx > item->spaceRw()) {
+                item->setSpaceRw(rx);
+            }
+        }
+    }
+
+    // align note-based fingerings
+    std::vector<Fingering*> alignNote;
+    double xNote = DBL_MAX;
+    for (Note* note : item->notes()) {
+        bool leftFound = false;
+        for (EngravingItem* e : note->el()) {
+            if (e->isFingering() && e->autoplace()) {
+                Fingering* f = toFingering(e);
+                if (f->layoutType() == ElementType::NOTE && f->textStyleType() == TextStyleType::LH_GUITAR_FINGERING) {
+                    alignNote.push_back(f);
+                    if (!leftFound) {
+                        leftFound = true;
+                        double xf = f->ldata()->pos().x();
+                        xNote = std::min(xNote, xf);
+                    }
+                }
+            }
+        }
+    }
+    for (Fingering* f : alignNote) {
+        f->mutldata()->setPosX(xNote);
     }
 
     layoutLvArticulation(item, ctx);
@@ -1217,7 +1483,10 @@ void ChordLayout::layoutStem(Chord* item, const LayoutContext& ctx)
     TRACEFUNC;
 
     LAYOUT_CALL() << "chord: " << item->eid();
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        return;
 
+    }
     // Stem needs to know hook's bbox and SMuFL anchors.
     // This is done before calcDefaultStemLength because the presence or absence of a hook affects stem length
     if (item->hook()) {
@@ -1267,6 +1536,34 @@ bool ChordLayout::computeUpBeamCase(const Chord* item, Beam* beam)
 
 void ChordLayout::updateLedgerLines(Chord* item, LayoutContext& ctx)
 {
+    if (item->staff() && (item->staff()->isCipherStaff(item->tick()))) {
+        int anzahl = item->notes()[0]->get_cipherLedgerline();
+        if (anzahl < 0)
+            anzahl *= -1;
+        if (anzahl > 10) return;
+        item->resizeLedgerLinesTo(anzahl);
+        for (int n = 0; n < anzahl; n++) {
+            LedgerLine* h = item->ledgerLines()[n];
+            h->setParent(item);
+            h->setTrack(item->track());
+            h->setVisible(item->visible());
+            h->set_width(item->notes()[0]->get_cipherHeigth() * item->style().styleD(Sid::cipherLedgerlineThick));
+            h->setLen(item->notes()[0]->get_cipherWidth() * item->style().styleD(Sid::cipherLedgerlineLength));
+            qreal x = item->notes()[0]->get_cipherTextPos().x()+(item->notes()[0]->get_cipherWidth() * 0.5) - (item->notes()[0]->get_cipherWidth() * item->style().styleD(Sid::cipherLedgerlineLength) * 0.5) +
+                item->style().styleD(Sid::cipherLedgerlineShift);
+            if (item->notes()[0]->get_cipherLedgerline() < 0)
+                h->setPos(x, item->notes()[0]->get_cipherHeigth() * item->style().styleD(Sid::cipherDistanceOctave) * 2.0 * (n + 1));
+            else
+                h->setPos(x, -item->notes()[0]->get_cipherHeigth() * item->style().styleD(Sid::cipherDistanceOctave) * 2.0 * (n + 1));
+        }
+
+
+        for (LedgerLine* ll : item->ledgerLines()) {
+            TLayout::layoutLedgerLine(ll, ctx);
+        }
+
+        return;
+    }
     // initialize for palette
     track_idx_t track = 0;                     // the track lines belong to
     // the line pos corresponding to the bottom line of the staff
@@ -1641,7 +1938,7 @@ static void layoutSegmentElements(Segment* segment, track_idx_t startTrack, trac
 void ChordLayout::skipAccidentals(Segment* segment, track_idx_t startTrack, track_idx_t endTrack)
 {
     for (track_idx_t track = startTrack; track < endTrack; ++track) {
-        EngravingItem* item = segment->elementAt(track);
+        EngravingItem* item = segment->element(track);
         if (item && item->isChord()) {
             for (Note* note : toChord(item)->notes()) {
                 Accidental* acc = note->accidental();
@@ -2250,6 +2547,12 @@ void ChordLayout::layoutChords1(LayoutContext& ctx, Segment* segment, staff_idx_
     }
 
     ChordPosInfo posInfo = calculateChordPosInfo(segment, staffIdx, partStartTrack, partEndTrack, ctx);
+    if (staff && staff->isCipherStaff(tick)) {
+
+        layoutSegmentElements(segment, partStartTrack, partEndTrack, staffIdx, ctx);
+        layoutLedgerLines(posInfo.chords, ctx);
+        return;
+    }
 
     if (posInfo.upVoices + posInfo.downVoices && (staffType->stemThrough() || staffType->isCommonTabStaff())) {
         // TODO: use track as secondary sort criteria?
@@ -2298,7 +2601,6 @@ double ChordLayout::layoutChords2(std::vector<Note*>& notes, bool up, LayoutCont
 {
     int startIdx, endIdx, incIdx;
     double maxWidth = 0.0;
-
     // loop in correct direction so that first encountered notehead wins conflict
     if (up) {
         // loop bottom up
@@ -2965,7 +3267,11 @@ void ChordLayout::updateLineAttachPoints(Chord* chord, bool isFirstInMeasure, La
                 if (sp->isGlissando()) {
                     TLayout::layoutGlissando(toGlissando(sp), ctx);
                 } else if (sp->isGuitarBend()) {
-                    TLayout::layoutGuitarBend(toGuitarBend(sp), ctx);
+                    const StaffType* staffType = chord->staffType();
+                    bool isDiveOnTab = toGuitarBend(sp)->isDive() && staffType && staffType->isTabStaff();
+                    if (!isDiveOnTab) {
+                        TLayout::layoutGuitarBend(toGuitarBend(sp), ctx);
+                    }
                 } else if (sp->isNoteLine()) {
                     TLayout::layoutNoteLine(toNoteLine(sp), ctx);
                 }
@@ -3095,28 +3401,24 @@ void ChordLayout::layoutNote2(Note* item, LayoutContext& ctx)
     const StaffType* staffType = staff->staffTypeForElement(item);
     // for standard staves this is done in Score::layoutChords3()
     // so that the results are available there
-    bool isTabStaff = staffType && staffType->isTabStaff();
+    const bool isTabStaff = staffType && staffType->isTabStaff();
     // First, for tab staves that have show back-tied fret marks option, we add parentheses to the tied note if
     // the tie spans a system boundary. This can't be done in layout as the system of each note is not decided yet
-    ShowTiedFret showTiedFret = item->style().value(Sid::tabShowTiedFret).value<ShowTiedFret>();
-    bool useParens = isTabStaff && !item->fixed() && item->tieBack()
-                     && (showTiedFret != ShowTiedFret::TIE_AND_FRET || item->isContinuationOfBend()) && !item->shouldHideFret();
+    const ShowTiedFret showTiedFret = item->style().value(Sid::tabShowTiedFret).value<ShowTiedFret>();
+    const bool tieBackParen = isTabStaff && !item->fixed() && item->tieBack()
+                              && (showTiedFret != ShowTiedFret::TIE_AND_FRET || item->isContinuationOfBend()) && !item->shouldHideFret();
+    bool useParens =  (tieBackParen || item->ghost()) && !item->hideGeneratedParens();
 
     if (item->harmonic() && item->displayFret() != Note::DisplayFretOption::NaturalHarmonic) {
         useParens = false;
     }
 
     if (useParens) {
-        double widthWithoutParens = item->tabHeadWidth(staffType);
-        item->setParenthesesMode(ParenthesesMode::BOTH, /* addToLinked= */ false, /* generated= */ true);
-        double w = item->tabHeadWidth(staffType);
-        double xOff = 0.5 * (w - widthWithoutParens);
-        ldata->moveX(-xOff);
-        ldata->setBbox(0, staffType->fretBoxY() * item->magS(), w,
-                       staffType->fretBoxH() * item->magS());
-    } else if (isTabStaff && (!item->ghost() || item->shouldHideFret()) && item->bothParentheses()) {
-        item->setParenthesesMode(ParenthesesMode::NONE, /*addToLinked=*/ false, /* generated= */ true);
+        ldata->hasGeneratedParens = true;
+    } else if (!item->ghost() || item->shouldHideFret() || item->hideGeneratedParens()) {
+        ldata->hasGeneratedParens = false;
     }
+
     int dots = chord->dots();
     if (dots && !item->dots().empty()) {
         if (chord->slash() && !item->visible()) {
@@ -3197,7 +3499,36 @@ void ChordLayout::layoutNote2(Note* item, LayoutContext& ctx)
         }
     }
 
-    ParenthesisLayout::layoutParentheses(item, ctx);
+    TLayout::fillNoteShape(item, ldata);
+}
+
+void ChordLayout::createParenGroups(Chord* chord)
+{
+    std::vector<Note*> addParens;
+    std::vector<Note*> removeParens;
+
+    for (Note* note : chord->notes()) {
+        const NoteParenthesisInfo* noteParenInfo = note->parenthesisInfo();
+        const Parenthesis* leftParen = noteParenInfo ? noteParenInfo->leftParen() : nullptr;
+        bool parenGenerated = leftParen && leftParen->generated();
+
+        if (note->ldata()->hasGeneratedParens()) {
+            if (noteParenInfo) {
+                if (parenGenerated) {
+                    EditChord::removeChordParentheses(chord, { note }, false, true);
+                } else {
+                    continue;
+                }
+            }
+            addParens.push_back(note);
+            note->undoChangeProperty(Pid::HAS_PARENTHESES, ParenthesesMode::BOTH);
+        } else if (parenGenerated) {
+            removeParens.push_back(note);
+        }
+    }
+
+    EditChord::addChordParentheses(chord, addParens, false, true);
+    EditChord::removeChordParentheses(chord, removeParens, false, true);
 }
 
 void ChordLayout::checkStartEndSlurs(Chord* chord, LayoutContext& ctx)
@@ -3252,13 +3583,13 @@ void ChordLayout::fillShape(const ChordRest* item, Chord::LayoutData* ldata, con
 {
     switch (item->type()) {
     case ElementType::CHORD:
-        fillShape(static_cast<const Chord*>(item), static_cast<Chord::LayoutData*>(ldata));
+        fillShape(toChord(item), static_cast<Chord::LayoutData*>(ldata));
         break;
     case ElementType::MEASURE_REPEAT:
-        fillShape(static_cast<const MeasureRepeat*>(item), static_cast<MeasureRepeat::LayoutData*>(ldata), conf);
+        fillShape(toMeasureRepeat(item), static_cast<MeasureRepeat::LayoutData*>(ldata), conf);
         break;
     default:
-        RestLayout::fillShape(static_cast<const Rest*>(item), static_cast<Rest::LayoutData*>(ldata), conf);
+        RestLayout::fillShape(toRest(item), static_cast<Rest::LayoutData*>(ldata), conf);
         break;
     }
 }
@@ -3366,6 +3697,18 @@ void ChordLayout::fillShape(const Chord* item, ChordRest::LayoutData* ldata)
         shape.add(note->shape().translate(note->pos()));
     }
 
+    for (const NoteParenthesisInfo* parenInfo : item->noteParentheses()) {
+        Parenthesis* leftParen = parenInfo->leftParen();
+        Parenthesis* rightParen = parenInfo->rightParen();
+
+        if (leftParen && leftParen->addToSkyline()) {
+            shape.add(leftParen->shape().translate(leftParen->pos()));
+        }
+        if (rightParen && rightParen->addToSkyline()) {
+            shape.add(rightParen->shape().translate(rightParen->pos()));
+        }
+    }
+
     for (EngravingItem* e : item->el()) {
         if (e->addToSkyline()) {
             shape.add(e->shape().translate(e->pos()));
@@ -3375,7 +3718,7 @@ void ChordLayout::fillShape(const Chord* item, ChordRest::LayoutData* ldata)
     shape.add(chordRestShape(item));      // add lyrics
 
     for (const LedgerLine* l : item->ledgerLines()) {
-        shape.add(l->shape().translate(l->pos() - l->staffOffset()));
+        shape.add(l->shape().translate(l->pos()));
     }
 
     if (beamlet && stem) {

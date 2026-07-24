@@ -31,16 +31,18 @@
 #include "audio/common/rpc/irpcchannel.h"
 
 namespace muse::audio {
-class Player : public IPlayer, public async::Asyncable
+class Player : public IPlayer, public async::Asyncable, public Contextable
 {
-    Inject<rpc::IRpcChannel> channel;
+    ContextInject<rpc::IRpcChannel> channel = { this };
 
 public:
-    Player(const TrackSequenceId sequenceId);
+    Player(const TrackSequenceId sequenceId, const muse::modularity::ContextPtr& iocCtx);
 
     void init();
 
     TrackSequenceId sequenceId() const override;
+
+    async::Promise<Ret> prepareToPlay() override;
 
     void play(const secs_t delay = 0) override;
     void seek(const secs_t newPosition, const bool flushSound = true) override;

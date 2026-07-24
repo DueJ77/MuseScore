@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -346,23 +346,27 @@ void PlaybackEventsRenderer::renderFixedNoteEvent(const Note* note, const mpe::t
 {
     static const ArticulationMap articulations;
 
-    int durationTicks = ticksFromTempoAndDuration(Constants::DEFAULT_TEMPO.val, actualDuration);
+    const Score* score = note->score();
+    const int durationTicks = ticksFromTempoAndDuration(Constants::DEFAULT_TEMPO.val, actualDuration);
+    const int tick = note->tick().ticks();
+    const int utick = score ? score->repeatList().tick2utick(tick) : tick;
+    const int tickOffset = utick - tick;
 
     RenderingContext ctx{ actualTimestamp,
                           actualDuration,
                           actualDynamicLevel,
-                          note->tick().ticks(), /*nominalPositionStartTick*/
+                          tick, /*nominalPositionStartTick*/
                           durationTicks, /*nominalPositionEndTick*/
                           durationTicks, /*nominalDurationTicks*/
-                          0, /*positionTickOffset*/
+                          tickOffset,
                           Constants::DEFAULT_TEMPO,
                           TimeSigMap::DEFAULT_TIME_SIGNATURE,
                           articulations,
-                          note->score(),
+                          score,
                           profile,
                           playbackCtx };
 
-    NoteArticulationsParser::parsePlayingTechnique(ctx, ctx.commonArticulations);
+    NoteArticulationsParser::parsePlayingTechnique(ctx, ctx.commonArticulations, false /*sustainAllowed*/);
     NoteArticulationsParser::parseGhostNote(note, ctx, ctx.commonArticulations);
     NoteArticulationsParser::parseNoteHead(note, ctx, ctx.commonArticulations);
     NoteArticulationsParser::parseSymbols(note, ctx, ctx.commonArticulations);

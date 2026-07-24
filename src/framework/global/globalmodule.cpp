@@ -84,8 +84,12 @@ public:
     ApplicationStub()
         : BaseApplication(std::make_shared<modularity::Context>()) {}
 
-    void perform() override {}
+    void setup() override {}
     void finish() override {}
+
+    modularity::ContextPtr setupNewContext() override { return nullptr; }
+    int contextCount() const override { return 0; }
+    std::vector<modularity::ContextPtr> contexts() const override { return {}; }
 };
 
 GlobalModule::GlobalModule()
@@ -137,10 +141,12 @@ void GlobalModule::registerApi()
 
     auto api = ioc()->resolve<IApiRegister>(moduleName());
     if (api) {
-        api->regApiCreator(moduleName(), "api.log", new ApiCreator<LogApi>());
-        api->regApiCreator(moduleName(), "api.interactive", new api::ApiCreator<InteractiveApi>());
+        api->regApiCreator(moduleName(), "MuseApi.Log", new ApiCreator<LogApi>());
+        api->regApiCreator(moduleName(), "MuseApi.Interactive", new api::ApiCreator<InteractiveApi>());
         api->regApiCreator(moduleName(), "api.process", new ApiCreator<ProcessApi>());
         api->regApiCreator(moduleName(), "api.filesystem", new ApiCreator<FileSystemApi>());
+
+        api->regGlobalEnum(moduleName(), QMetaEnum::fromType<InteractiveApi::ButtonCode>());
     }
 }
 

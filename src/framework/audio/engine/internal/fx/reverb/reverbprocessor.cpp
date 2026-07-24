@@ -246,7 +246,7 @@ ReverbProcessor::ReverbProcessor(const AudioFxParams& params)
     m_processor.setupParameter(ERtoLate, "ERtoLate", { -60.f, 20.f }, -20);
 
     m_processor.setupParameter(PreDelayMs, "PreDelay", { 0.f, 500.f }, 10);
-    m_processor.setupParameter(StereoSpread, "Stereo", { 0.f, 150.f }, 110);
+    m_processor.setupParameter(StereoSpread, "Stereo", { 0.f, 150.f }, 100);
 
     m_processor.setupParameter(ReverbTimeMs, "ReverbTimeMs", { 100.f, 10000.f }, 2200);
     m_processor.setupParameter(LateRoomScale, "LateRoomScale", { 0.5f, 4.f }, 0.8f);
@@ -333,7 +333,16 @@ void ReverbProcessor::setActive(bool active)
     m_params.active = active;
 }
 
-void ReverbProcessor::process(float* buffer, unsigned int sampleCount)
+void ReverbProcessor::setPlaying(bool)
+{
+}
+
+bool ReverbProcessor::shouldProcessDuringSilence() const
+{
+    return false;
+}
+
+void ReverbProcessor::process(float* buffer, samples_t sampleCount, samples_t)
 {
     if (m_processor._blockSize != static_cast<int>(sampleCount)) {
         setFormat(m_processor._audioChannelsCount, m_processor._sampleRate, sampleCount);
@@ -348,13 +357,13 @@ void ReverbProcessor::process(float* buffer, unsigned int sampleCount)
     }
 
     switch (m_delays) {
-    case 24: _processLines<24>(m_signalBuffers, sampleCount);
+    case 24: _processLines<24>(m_signalBuffers, static_cast<int32_t>(sampleCount));
         break;
-    case 16: _processLines<16>(m_signalBuffers, sampleCount);
+    case 16: _processLines<16>(m_signalBuffers, static_cast<int32_t>(sampleCount));
         break;
-    case 12: _processLines<12>(m_signalBuffers, sampleCount);
+    case 12: _processLines<12>(m_signalBuffers, static_cast<int32_t>(sampleCount));
         break;
-    default: _processLines<8>(m_signalBuffers, sampleCount);
+    default: _processLines<8>(m_signalBuffers, static_cast<int32_t>(sampleCount));
         break;
     }
 

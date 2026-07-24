@@ -37,6 +37,8 @@ using namespace muse::audio;
 using namespace muse::audio::synth;
 using namespace muse::mpe;
 
+static constexpr bool FLUID_DEBUG = false;
+
 static constexpr double FLUID_GLOBAL_VOLUME_GAIN = 4.8;
 static constexpr int DEFAULT_MIDI_VOLUME = 100;
 static constexpr msecs_t MIN_NOTE_LENGTH = 10;
@@ -90,7 +92,9 @@ Ret FluidSynth::init(const OutputSpec& spec)
             LOGI() << message;
         } break;
         case FLUID_DBG:  {
-            LOGD() << message;
+            if (FLUID_DEBUG) {
+                LOGD() << message;
+            }
         } break;
         }
 
@@ -128,10 +132,16 @@ Ret FluidSynth::init(const OutputSpec& spec)
 
     fluid_settings_setint(m_fluid->settings, "synth.chorus.active", 0);
     fluid_settings_setint(m_fluid->settings, "synth.reverb.active", 0);
+    fluid_settings_setint(m_fluid->settings, "synth.iir-lowpass-filter.active", config()->useSoundFontLowPassFilter() ? 1 : 0);
 
     fluid_settings_setstr(m_fluid->settings, "audio.sample-format", "float");
 
     createFluidInstance();
+
+    config()->useSoundFontLowPassFilterChanged().onReceive(this, [this](bool use) {
+        fluid_settings_setint(m_fluid->settings, "synth.iir-lowpass-filter.active", use ? 1 : 0);
+        m_flushSoundRequested = true;
+    });
 
     m_sequencer.setOnOffStreamFlushed([this]() {
         m_flushSoundRequested = true;

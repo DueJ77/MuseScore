@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,7 @@
 
 #include "translation.h"
 #include "types/typesconv.h"
+#include "editing/transpose.h"
 
 #include "chord.h"
 #include "key.h"
@@ -390,6 +391,19 @@ Char tpc2stepName(int tpc)
     return names.at((tpc - Tpc::TPC_MIN) % 7);
 }
 
+String tpcUserName(int tpc, int pitch, bool explicitAccidental, bool full)
+{
+    String pitchStr = tpc2name(tpc, NoteSpellingType::STANDARD, NoteCaseType::AUTO, explicitAccidental, full);
+    if (!explicitAccidental) {
+        pitchStr.replace(u"b", u"♭");
+        pitchStr.replace(u"#", u"♯");
+    }
+
+    const String octaveStr = String::number(((pitch - static_cast<int>(tpc2alter(tpc))) / PITCH_DELTA_OCTAVE) - 1);
+
+    return pitchStr + octaveStr;
+}
+
 // table of alternative spellings for one octave
 // each entry is the TPC of the note
 //    tab1 does not contain double sharps
@@ -687,9 +701,13 @@ void changeAllTpcs(Note* n, int tpc1)
         v = n->staff()->transpose(tick);
         v.flip();
     }
-    int tpc2 = transposeTpc(tpc1, v, true);
+    int tpc2 = Transpose::transposeTpc(tpc1, v, true);
     n->undoChangeProperty(Pid::TPC1, tpc1);
     n->undoChangeProperty(Pid::TPC2, tpc2);
+    for (Note* tied : n->tiedNotes()) {
+        tied->undoChangeProperty(Pid::TPC1, tpc1);
+        tied->undoChangeProperty(Pid::TPC2, tpc2);
+    }
 }
 
 //---------------------------------------------------------
@@ -1121,10 +1139,10 @@ int convertNote(const String& s, NoteSpellingType noteSpelling, NoteCaseType& no
 
 int clampEnharmonic(int tpc, bool useDoubleSharpsFlats)
 {
-    while (tpc > (useDoubleSharpsFlats ? Tpc::TPC_MAX : Tpc::TPC_F_SS)) {
+    while (tpc > (useDoubleSharpsFlats ? Tpc::TPC_MAX : Tpc::TPC_B_S)) {
         tpc -= TPC_DELTA_ENHARMONIC;
     }
-    while (tpc < (useDoubleSharpsFlats ? Tpc::TPC_MIN : Tpc::TPC_B_BB)) {
+    while (tpc < (useDoubleSharpsFlats ? Tpc::TPC_MIN : Tpc::TPC_F_B)) {
         tpc += TPC_DELTA_ENHARMONIC;
     }
     return tpc;
@@ -1162,5 +1180,47 @@ Key clampKey(Key key, PreferSharpFlat prefer)
     }
 
     return key;
+}
+
+int bestEnharmonicFit(const std::vector<int> tpcs, Key key)
+{
+    int keyIndex = int(key) - int(Key::MIN);
+    if (keyIndex < 0 || keyIndex >= int(Key::NUM_OF)) {
+        return tpcs.front();
+    }
+
+    // Highest penalty in enharmonicSpelling available (100) + 1
+    int bestPenalty = 101;
+    int closestTpc = Tpc::TPC_INVALID;
+
+    for (int tpc : tpcs) {
+        if (tpc == Tpc::TPC_INVALID) {
+            continue;
+        }
+
+        int lof = tpc - Tpc::TPC_MIN;
+        if (lof < 0 || lof >= 34) {
+            continue;
+        }
+
+        int penalty = enharmonicSpelling[keyIndex][lof];
+
+        if (penalty < bestPenalty) {
+            bestPenalty = penalty;
+            closestTpc = tpc;
+        }
+    }
+
+    return closestTpc;
+}
+
+int key2Tpc(Key key)
+{
+    return (int)key + KEY_TO_TPC_OFFSET;
+}
+
+Key tpc2Key(int tpc)
+{
+    return Key(tpc - KEY_TO_TPC_OFFSET);
 }
 }

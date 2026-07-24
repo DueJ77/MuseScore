@@ -30,21 +30,21 @@
 #include "audio/common/rpc/irpcchannel.h"
 
 namespace muse::audio {
-class AudioConfiguration : public IAudioConfiguration, public Injectable
+class AudioConfiguration : public IAudioConfiguration, public Contextable
 {
-    Inject<IGlobalConfiguration> globalConfiguration = { this };
-    Inject<io::IFileSystem> fileSystem = { this };
-    Inject<rpc::IRpcChannel> rpcChannel = { this };
+    GlobalInject<IGlobalConfiguration> globalConfiguration;
+    GlobalInject<io::IFileSystem> fileSystem;
+    ContextInject<rpc::IRpcChannel> rpcChannel = { this };
 
 public:
     AudioConfiguration(const modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx) {}
+        : Contextable(iocCtx) {}
 
     void init();
 
     AudioEngineConfig engineConfig() const override;
-    void onWorkerConfigChanged();
 
+    std::string defaultAudioApi() const override;
     std::string currentAudioApi() const override;
     void setCurrentAudioApi(const std::string& name) override;
     async::Notification currentAudioApiChanged() const override;
@@ -59,14 +59,12 @@ public:
     void setDriverBufferSize(unsigned int size) override;
     async::Notification driverBufferSizeChanged() const override;
 
-    samples_t samplesToPreallocate() const override;
-    async::Channel<samples_t> samplesToPreallocateChanged() const override;
-
     unsigned int sampleRate() const override;
     void setSampleRate(unsigned int sampleRate) override;
     async::Notification sampleRateChanged() const override;
 
-    // synthesizers
+    OutputSpec defaultOutputSpec() const override;
+    OutputSpec desiredOutputSpec() const override;
 
     io::paths_t soundFontDirectories() const override;
     io::paths_t userSoundFontDirectories() const override;
@@ -77,20 +75,23 @@ public:
     void setAutoProcessOnlineSoundsInBackground(bool process) override;
     async::Channel<bool> autoProcessOnlineSoundsInBackgroundChanged() const override;
 
+    bool useSoundFontLowPassFilter() const override;
+    void setUseSoundFontLowPassFilter(bool value) override;
+    async::Channel<bool> useSoundFontLowPassFilterChanged() const override;
+
     bool shouldMeasureInputLag() const override;
 
 private:
-    void updateSamplesToPreallocate();
+    void onEngineConfigChanged();
 
     async::Channel<io::paths_t> m_soundFontDirsChanged;
     async::Channel<samples_t> m_samplesToPreallocateChanged;
     async::Channel<bool> m_autoProcessOnlineSoundsInBackgroundChanged;
+    async::Channel<bool> m_useSoundFontLowPassFilterChanged;
 
     async::Notification m_currentAudioApiChanged;
     async::Notification m_audioOutputDeviceIdChanged;
     async::Notification m_driverBufferSizeChanged;
     async::Notification m_driverSampleRateChanged;
-
-    samples_t m_samplesToPreallocate = 0;
 };
 }

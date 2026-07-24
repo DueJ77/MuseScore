@@ -19,8 +19,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MUSE_AUDIO_MIXERCHANNEL_H
-#define MUSE_AUDIO_MIXERCHANNEL_H
+
+#pragma once
 
 #include "global/modularity/ioc.h"
 #include "global/async/asyncable.h"
@@ -28,18 +28,20 @@
 
 #include "../ifxresolver.h"
 #include "../ifxprocessor.h"
-#include "dsp/compressor.h"
+#include "audiosignalnotifier.h"
 #include "track.h"
 
 namespace muse::audio::engine {
-class MixerChannel : public ITrackAudioOutput, public Injectable, public async::Asyncable
+class IGetPlaybackPosition;
+class MixerChannel : public ITrackAudioOutput, public Contextable, public async::Asyncable
 {
-    Inject<fx::IFxResolver> fxResolver = { this };
+    ContextInject<fx::IFxResolver> fxResolver = { this };
 
 public:
-    explicit MixerChannel(const TrackId trackId, IAudioSourcePtr source, const OutputSpec& outputSpec,
+    explicit MixerChannel(const TrackId trackId, const OutputSpec& outputSpec, IAudioSourcePtr source,
+                          const IGetPlaybackPosition* getPlaybackPosition, const modularity::ContextPtr& iocCtx);
+    explicit MixerChannel(const TrackId trackId, const OutputSpec& outputSpec, const IGetPlaybackPosition* getPlaybackPosition,
                           const modularity::ContextPtr& iocCtx);
-    explicit MixerChannel(const TrackId trackId, const OutputSpec& outputSpec, const modularity::ContextPtr& iocCtx);
 
     TrackId trackId() const;
     IAudioSourcePtr source() const;
@@ -48,8 +50,11 @@ public:
     async::Notification mutedChanged() const;
 
     bool isSilent() const;
+    bool shouldProcessDuringSilence() const;
+    async::Channel<bool> shouldProcessDuringSilenceChanged() const;
 
-    void notifyNoAudioSignal();
+    AudioSignalsNotifier& signalNotifier() const;
+    void setNoAudioSignal();
 
     const AudioOutputParams& outputParams() const override;
     void applyOutputParams(const AudioOutputParams& requiredParams) override;
@@ -68,17 +73,20 @@ public:
 private:
     void completeOutput(float* buffer, unsigned int samplesCount);
 
+    void updateShouldProcessDuringSilence();
+
     TrackId m_trackId = -1;
 
     OutputSpec m_outputSpec;
     AudioOutputParams m_params;
 
     IAudioSourcePtr m_audioSource = nullptr;
+    const IGetPlaybackPosition* m_getPlaybackPosition = nullptr;
     std::vector<IFxProcessorPtr> m_fxProcessors = {};
 
-    dsp::CompressorPtr m_compressor = nullptr;
-
     bool m_isSilent = true;
+    bool m_shouldProcessDuringSilence = false;
+    async::Channel<bool> m_shouldProcessDuringSilenceChanged;
 
     async::Notification m_mutedChanged;
     mutable async::Channel<AudioOutputParams> m_paramsChanges;
@@ -87,5 +95,3 @@ private:
 
 using MixerChannelPtr = std::shared_ptr<MixerChannel>;
 }
-
-#endif // MUSE_AUDIO_MIXERCHANNEL_H

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,12 +33,13 @@
 
 namespace mu::engraving {
 class AccessibleRoot;
-class AccessibleItem : public muse::accessibility::IAccessible, public muse::Injectable, public std::enable_shared_from_this<AccessibleItem>
+class AccessibleItem : public muse::accessibility::IAccessible, public muse::Contextable,
+    public std::enable_shared_from_this<AccessibleItem>
 {
     OBJECT_ALLOCATOR(engraving, AccessibleItem)
 
 public:
-    muse::Inject<muse::accessibility::IAccessibilityController> accessibilityController = { this };
+    muse::ContextInject<muse::accessibility::IAccessibilityController> accessibilityController = { this };
 
 public:
     AccessibleItem(EngravingItem* e, Role role = Role::ElementOnScore);
@@ -58,7 +59,7 @@ public:
     // IAccessible
     const IAccessible* accessibleParent() const override;
     size_t accessibleChildCount() const override;
-    const IAccessible* accessibleChild(size_t i) const override;
+    IAccessible* accessibleChild(size_t i) const override;
     QWindow* accessibleWindow() const override;
     muse::modularity::ContextPtr iocContext() const override;
 

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -92,14 +92,15 @@ void MarkerLayout::doLayoutMarker(Marker* item, TextBase::LayoutData* ldata, Lay
         }
 
         switch (hPos) {
+        case AlignH::LEFT:
+        case AlignH::JUSTIFY:
+            xAdj -= startRepeat ? 0.0 : blWidth;
+            break;
         case AlignH::HCENTER:
             xAdj -=  +blWidth / 2;
             break;
         case AlignH::RIGHT:
             xAdj -=  (startRepeat ? blWidth : 0.0);
-            break;
-        case AlignH::LEFT:
-            xAdj -= startRepeat ? 0.0 : blWidth;
             break;
         }
     } else {

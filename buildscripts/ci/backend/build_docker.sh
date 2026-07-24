@@ -5,7 +5,7 @@
 # MuseScore Studio
 # Music Composition & Notation
 #
-# Copyright (C) 2021 MuseScore Limited
+# Copyright (C) 2021 MuseScore Limited and others
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -48,10 +48,17 @@ cp $HERE/docker/install_mu_template.sh $DOCKER_WORK_DIR/install_mu.sh
 
 sed -i 's|x.x.x.xxxxxx|'${MU_VERSION}'|' $DOCKER_WORK_DIR/install_mu.sh
 
-
 cd $DOCKER_WORK_DIR
 echo "Build Docker"
-docker build -t ghcr.io/musescore/converter_4:${MU_VERSION} .
+
+# Enable buildx
+docker buildx create --use >/dev/null 2>&1 || true
+
+docker buildx build \
+    --platform linux/amd64\
+    -t ghcr.io/musescore/converter_4:${MU_VERSION} \
+    --load .
+
 cd $ORIGIN_DIR
 
 echo "Done!!"

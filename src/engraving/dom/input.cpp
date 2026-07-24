@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -98,8 +98,8 @@ StaffGroup InputState::staffGroup() const
     StaffGroup staffGroup = staff->staffType(tick)->group();
     const Instrument* instrument = staff->part()->instrument(tick);
 
-    // if not tab, pitched/unpitched input depends on instrument, not staff (override StaffGroup)
-    if (staffGroup != StaffGroup::TAB) {
+    // if not tab or cipher, pitched/unpitched input depends on instrument, not staff (override StaffGroup)
+    if (staffGroup != StaffGroup::TAB && staffGroup != StaffGroup::CIPHER) {
         staffGroup = instrument->useDrumset() ? StaffGroup::PERCUSSION : StaffGroup::STANDARD;
     }
 

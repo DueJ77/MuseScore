@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-22.04-arm
     steps:
     - name: Clone repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Setup QEMU
       run: |
         sudo apt-get update
@@ -151,7 +151,7 @@ jobs:
           bash /MuseScore/buildscripts/ci/linux/setup.sh --arch armv7l && \
           bash /MuseScore/buildscripts/ci/linux/arm32/install_qt.sh && \
           git config --global --add safe.directory /MuseScore && \
-          bash /MuseScore/buildscripts/ci/translation/run_lupdate.sh && \
+          bash /MuseScore/buildscripts/ci/linux/arm32/run_lupdate.sh && \
           bash /MuseScore/buildscripts/ci/linux/build.sh -n ${{ env.BUILD_NUMBER }} --crash_log_url $C_URL --arch armv7l && \
           bash /MuseScore/buildscripts/ci/linux/package.sh --arch armv7l && \
           bash /MuseScore/buildscripts/ci/tools/checksum.sh \
@@ -167,13 +167,14 @@ jobs:
                    -DSENTRY_ORG=sentry \
                    -DSENTRY_AUTH_TOKEN=${{ secrets.SENTRY_MUSE_AUTH_TOKEN }} \
                    -DSENTRY_PROJECT=${SENTRY_PROJECT} \
+                   -DSTAGE=${BUILD_MODE} \
                    -P buildscripts/ci/crashdumps/ci_generate_and_upload.cmake
     - name: Publish to OSUOSL
       if: env.DO_PUBLISH == 'true'
       run: |
         bash ./buildscripts/ci/tools/osuosl/publish.sh -s ${{ secrets.OSUOSL_SSH_ENCRYPT_SECRET }} --os linux --arch armv7l -v 4
     - name: Upload artifacts on GitHub
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ env.UPLOAD_ARTIFACT_NAME }}
         path: ./build.artifacts/

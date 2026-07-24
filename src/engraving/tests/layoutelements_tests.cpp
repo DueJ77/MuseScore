@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,9 +54,8 @@ public:
 //    data.
 //---------------------------------------------------------
 
-static void isLayoutDone(void* data, EngravingItem* e)
+static void isLayoutDone(bool* result, EngravingItem* e)
 {
-    bool* result = static_cast<bool*>(data);
     if (e->isTuplet()) {
         Tuplet* t = toTuplet(e);
         if (!t->hasBracket() || !t->number()) {
@@ -95,7 +94,7 @@ static void isLayoutDone(void* data, EngravingItem* e)
         (*result) = false;
         // Print some info about the element to make test more useful...
         if (Measure* m = toMeasure(e->findMeasure())) {
-            LOGD("Layout of %s is not done (page %zu, measure %d)", e->typeName(), m->system()->page()->no() + 1,
+            LOGD("Layout of %s is not done (page %zu, measure %d)", e->typeName(), m->system()->page()->pageNumber() + 1,
                  m->no() + 1);
         } else {
             LOGD("Layout of %s is not done", e->typeName());
@@ -117,7 +116,7 @@ void Engraving_LayoutElementsTests::tstLayoutAll(String file)
         score->setLayoutMode(mode);
         bool layoutDone = true;
         for (Score* s : score->scoreList()) {
-            s->scanElements(&layoutDone, isLayoutDone, /* all */ true);
+            s->scanElements([&](EngravingItem* item) { isLayoutDone(&layoutDone, item); });
             EXPECT_TRUE(layoutDone);
         }
     }

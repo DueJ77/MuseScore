@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,15 +33,15 @@
 #include "iprojectconfiguration.h"
 #include "imscmetareader.h"
 #include "io/ifilesystem.h"
-#include "multiinstances/imultiinstancesprovider.h"
+#include "multiwindows/imultiwindowsprovider.h"
 
 namespace mu::project {
-class RecentFilesController : public IRecentFilesController, public muse::async::Asyncable, public muse::Injectable
+class RecentFilesController : public IRecentFilesController, public muse::async::Asyncable
 {
-    muse::ThreadSafeInject<IProjectConfiguration> configuration = { this };
-    muse::ThreadSafeInject<IMscMetaReader> mscMetaReader = { this };
-    muse::ThreadSafeInject<muse::io::IFileSystem> fileSystem = { this };
-    muse::ThreadSafeInject<muse::mi::IMultiInstancesProvider> multiInstancesProvider = { this };
+    muse::GlobalThreadSafeInject<IProjectConfiguration> configuration;
+    muse::GlobalThreadSafeInject<muse::io::IFileSystem> fileSystem;
+    muse::GlobalThreadSafeInject<muse::mi::IMultiWindowsProvider> multiwindowsProvider;
+    muse::GlobalThreadSafeInject<IMscMetaReader> mscMetaReader;
 
 public:
     void init();

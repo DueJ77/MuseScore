@@ -151,6 +151,7 @@ enum ms_NoteArticulation2 : uint64_t
     ms_NoteArticulation2_PlopRough = 1LL << 10,
     ms_NoteArticulation2_DoitRough = 1LL << 11,
     ms_NoteArticulation2_ScoopRough = 1LL << 12,
+    ms_NoteArticulation2_BreathMark = 1LL << 13,
 };
 
 // added in v0.6
@@ -258,6 +259,8 @@ typedef struct ms_PitchBendInfo
     int _offset_cents;
     ms_PitchBendType _type;
 } ms_PitchBendInfo;
+
+static constexpr int MAX_PITCH_BEND_RANGE_CENTS = 1200;
 
 typedef struct ms_VibratoInfo
 {
@@ -395,14 +398,24 @@ typedef enum ms_RenderingState
     ms_RenderingState_ErrorNetwork,
     ms_RenderingState_ErrorFileIO,
     ms_RenderingState_ErrorTimeOut,
+    ms_RenderingState_ErrorLimitReached,
+    ms_RenderingState_OutOfRange,
 } ms_RenderingState;
 
-typedef struct ms_RenderProgressInfo
+typedef struct ms_RenderRangeInfo
 {
     long long _start_us;
     long long _end_us;
     ms_RenderingState _state;
 } ms_RenderRangeInfo;
+
+typedef struct ms_RenderRangeInfo2
+{
+    long long _start_us;
+    long long _end_us;
+    ms_RenderingState _state;
+    const char* _error_message; // possibly null
+} ms_RenderRangeInfo2;
 
 typedef void* ms_RenderingRangeList;
 
@@ -422,6 +435,19 @@ typedef ms_Result (* ms_MuseSampler_start_audition_note_5)(ms_MuseSampler ms, ms
 typedef void (* ms_rendering_state_changed_callback)(void* user_data, ms_RenderingRangeList list, int num_ranges);
 typedef void (* ms_MuseSampler_set_rendering_state_changed_callback)(ms_MuseSampler ms, ms_rendering_state_changed_callback callback,
                                                                      void* user_data);
+// ------------------------------------------------------------
+
+// added in v0.104
+typedef ms_RenderRangeInfo2 (* ms_RenderProgressInfo2_get_next)(ms_RenderingRangeList range_list);
+// ------------------------------------------------------------
+
+// added in v0.105
+typedef ms_Result (* ms_init_2)();
+typedef ms_Result (* ms_deinit)();
+
+typedef void (* ms_MuseSampler_set_lazy_render)(ms_MuseSampler ms, bool enabled);
+typedef void (* ms_MuseSampler_set_rendering_state_changed_callback_2)(ms_MuseSampler ms, ms_rendering_state_changed_callback callback,
+                                                                       void* user_data);
 // ------------------------------------------------------------
 
 namespace muse::musesampler {
@@ -459,4 +485,5 @@ using DynamicEvent = ms_DynamicsEvent_2;
 using PedalEvent = ms_PedalEvent_2;
 using NoteEvent = ms_NoteEvent_5;
 using SyllableEvent = ms_SyllableEvent2;
+using RenderRangeInfo = ms_RenderRangeInfo2;
 }

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -72,6 +72,22 @@ static const ElementStyle tempoStyle {
     { Sid::tempoChangeDashLineLen, Pid::DASH_LINE_LEN },
     { Sid::tempoChangeDashGapLen, Pid::DASH_GAP_LEN },
     { Sid::tempoChangeFontSpatiumDependent, Pid::TEXT_SIZE_SPATIUM_DEPENDENT },
+
+    { Sid::gradualTempoChangeEndLineArrowHeight,         Pid::END_LINE_ARROW_HEIGHT },
+    { Sid::gradualTempoChangeEndLineArrowWidth,          Pid::END_LINE_ARROW_WIDTH },
+    { Sid::gradualTempoChangeBeginLineArrowHeight,       Pid::BEGIN_LINE_ARROW_HEIGHT },
+    { Sid::gradualTempoChangeBeginLineArrowWidth,        Pid::BEGIN_LINE_ARROW_WIDTH },
+    { Sid::gradualTempoChangeEndFilledArrowHeight,       Pid::END_FILLED_ARROW_HEIGHT },
+    { Sid::gradualTempoChangeEndFilledArrowWidth,        Pid::END_FILLED_ARROW_WIDTH },
+    { Sid::gradualTempoChangeBeginFilledArrowHeight,     Pid::BEGIN_FILLED_ARROW_HEIGHT },
+    { Sid::gradualTempoChangeBeginFilledArrowWidth,      Pid::BEGIN_FILLED_ARROW_WIDTH },
+
+    { Sid::tempoChangeMusicalSymbolSize,          Pid::BEGIN_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::tempoChangeMusicalSymbolSize,          Pid::CONTINUE_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::tempoChangeMusicalSymbolSize,          Pid::END_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::dummyMusicalSymbolsScale,           Pid::BEGIN_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::dummyMusicalSymbolsScale,           Pid::CONTINUE_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::dummyMusicalSymbolsScale,           Pid::END_TEXT_MUSICAL_SYMBOLS_SCALE },
 };
 
 static const ElementStyle tempoSegmentStyle {

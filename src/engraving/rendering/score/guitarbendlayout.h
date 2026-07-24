@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,6 +42,7 @@ public:
     static void layoutHoldLine(GuitarBendHoldSegment* item);
 
 private:
+    // Standard staff layout
     static void layoutAngularBend(GuitarBendSegment* item, LayoutContext& ctx);
     static void computeUp(GuitarBend* item);
     static void computeIsInside(GuitarBend* item);
@@ -49,9 +50,12 @@ private:
     static void adjustX(GuitarBendSegment* item, PointF& startPos, PointF& endPos, const Note* startNote, const Note* endNote);
     static void layoutSlightBend(GuitarBendSegment* item, LayoutContext&);
 
+    // TAB layout
+    static void layoutBendTabStaff(GuitarBendSegment* item, LayoutContext&);
     static PointF computeStartPos(GuitarBendSegment* item, Note* startNote, double distAboveTab, double verticalPad, double arrowHeight);
     static PointF computeEndPos(GuitarBendSegment* item, Note* endNote, double distAboveTab, double verticalPad, double arrowHeight,
                                 double arrowWidth, const PointF& startPos, const PointF& prevEndPoint);
     static void checkConflictWithOtherBends(GuitarBendSegment* item);
+    static bool startOnEndNote(GuitarBend* bend);
 };
 }

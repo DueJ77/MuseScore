@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@
 #pragma once
 
 #include "undo.h"
+#include "../dom/segment.h"
 
 namespace mu::engraving {
 class AddElement : public UndoCommand
@@ -102,6 +103,25 @@ public:
     UNDO_TYPE(CommandType::ChangeParent)
     UNDO_NAME("ChangeParent")
     UNDO_CHANGED_OBJECTS({ element })
+};
+
+class ChangeSegmentParent : public UndoCommand
+{
+    OBJECT_ALLOCATOR(engraving, ChangeSegmentParent)
+
+    Segment* segment = nullptr;
+    Measure* parent = nullptr;
+    Fraction tick;
+
+    void flip(EditData*) override;
+
+public:
+    ChangeSegmentParent(Segment* s, Measure* p, Fraction t)
+        : segment(s), parent(p), tick(t) {}
+
+    UNDO_TYPE(CommandType::ChangeParent)
+    UNDO_NAME("ChangeSegmentParent")
+    UNDO_CHANGED_OBJECTS({ segment })
 };
 
 class LinkUnlink : public UndoCommand

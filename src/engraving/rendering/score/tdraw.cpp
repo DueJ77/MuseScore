@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,8 @@
  */
 #include "tdraw.h"
 
+#include "defer.h"
+
 #include "draw/fontmetrics.h"
 #include "draw/svgrenderer.h"
 
@@ -32,6 +34,7 @@
 #include "dom/actionicon.h"
 #include "dom/ambitus.h"
 #include "dom/arpeggio.h"
+#include "dom/chordbracket.h"
 #include "dom/articulation.h"
 
 #include "dom/bagpembell.h"
@@ -182,6 +185,8 @@ void TDraw::drawItem(const EngravingItem* item, Painter* painter, const PaintOpt
         break;
     case ElementType::ARPEGGIO:     draw(item_cast<const Arpeggio*>(item), painter, opt);
         break;
+    case ElementType::CHORD_BRACKET: draw(item_cast<const ChordBracket*>(item), painter, opt);
+        break;
     case ElementType::ARTICULATION: draw(item_cast<const Articulation*>(item), painter, opt);
         break;
 
@@ -312,8 +317,6 @@ void TDraw::drawItem(const EngravingItem* item, Painter* painter, const PaintOpt
     case ElementType::OTTAVA_SEGMENT:       draw(item_cast<const OttavaSegment*>(item), painter, opt);
         break;
 
-    case ElementType::PAGE:                 draw(item_cast<const Page*>(item), painter, opt);
-        break;
     case ElementType::PARENTHESIS:          draw(item_cast<const Parenthesis*>(item), painter, opt);
         break;
     case ElementType::PARTIAL_TIE_SEGMENT:  draw(item_cast<const PartialTieSegment*>(item), painter, opt);
@@ -410,6 +413,7 @@ void TDraw::drawItem(const EngravingItem* item, Painter* painter, const PaintOpt
     case ElementType::WHAMMY_BAR_SEGMENT:   draw(item_cast<const WhammyBarSegment*>(item), painter, opt);
         break;
 
+    case ElementType::PAGE:
     case ElementType::SYSTEM:
     case ElementType::MEASURE:
     case ElementType::SEGMENT:
@@ -554,6 +558,30 @@ void TDraw::draw(const Arpeggio* item, Painter* painter, const PaintOptions& opt
     painter->restore();
 }
 
+void TDraw::draw(const ChordBracket* item, muse::draw::Painter* painter, const PaintOptions& opt)
+{
+    const Arpeggio::LayoutData* ldata = item->ldata();
+
+    const double lineWidth = item->style().styleMM(Sid::chordBracketLineWidth);
+    painter->setPen(Pen(item->curColor(opt), lineWidth, PenStyle::SolidLine, PenCapStyle::FlatCap));
+
+    const double halfLineWidth = 0.5 * lineWidth;
+    const double y1 = ldata->bbox().top() + halfLineWidth;
+    const double y2 = ldata->bbox().bottom() - halfLineWidth;
+
+    double w = item->absoluteFromSpatium(item->hookLength());
+
+    if (item->hookPos() != DirectionV::DOWN) {
+        painter->drawLine(LineF(0.0, y1, w, y1));
+    }
+    if (item->hookPos() != DirectionV::UP) {
+        painter->drawLine(LineF(0.0, y2, w, y2));
+    }
+
+    const double x = item->rightSide() ? w - halfLineWidth : halfLineWidth;
+    painter->drawLine(LineF(x, y1, x, y2));
+}
+
 void TDraw::draw(const Articulation* item, Painter* painter, const PaintOptions& opt)
 {
     TRACE_DRAW_ITEM;
@@ -640,9 +668,11 @@ static void drawDots(const BarLine* item, Painter* painter, double x)
         y2l = 2.5 * spatium;
     } else {
         const StaffType* st = item->staffType();
+        const int lines = st->lines();
+        const double lineDistance = st->lineDistance().toMM(spatium);
 
-        y1l = st->doty1() * spatium;
-        y2l = st->doty2() * spatium;
+        y1l = (static_cast<double>((lines - 1) / 2) - 0.5) * lineDistance;
+        y2l = (static_cast<double>(lines / 2) + 0.5) * lineDistance;
 
         //adjust for staffType offset
         double stYOffset = item->staffOffsetY();
@@ -677,13 +707,17 @@ void TDraw::draw(const BarLine* item, Painter* painter, const PaintOptions& opt)
 {
     TRACE_DRAW_ITEM;
 
-    painter->save();
-    setMask(item, painter);
-
     const BarLine::LayoutData* data = item->ldata();
     IF_ASSERT_FAILED(data) {
         return;
     }
+
+    painter->save();
+    DEFER {
+        painter->restore();
+    };
+
+    setMask(item, painter);
 
     switch (item->barLineType()) {
     case BarLineType::NORMAL: {
@@ -834,27 +868,41 @@ void TDraw::draw(const BarLine* item, Painter* painter, const PaintOptions& opt)
     }
     break;
     }
-    Segment* s = item->segment();
-    if (s && s->isEndBarLineType() && !opt.isPrinting) {
-        Measure* m = s->measure();
-        if (m->isIrregular() && item->score()->markIrregularMeasures() && !m->isMMRest()) {
-            painter->setPen(item->configuration()->invisibleColor());
 
-            Font f(u"Edwin", Font::Type::Text);
-            f.setPointSizeF(12 * item->spatium() / SPATIUM20);
-            f.setBold(true);
-            Char ch = m->ticks() > m->timesig() ? u'+' : u'-';
-            RectF r = FontMetrics(f).boundingRect(ch);
+    // draw irregular measure mark
 
-            Font scaledFont(f);
-            scaledFont.setPointSizeF(f.pointSizeF() * MScore::pixelRatio);
-            painter->setFont(scaledFont);
-
-            painter->drawText(-r.width(), 0.0, ch);
-        }
+    if (opt.isPrinting || !item->score()->markIrregularMeasures()) {
+        return;
     }
 
-    painter->restore();
+    const Segment* s = item->segment();
+    if (s && (s->isEndBarLineType() || s->isStartRepeatBarLineType())) {
+        const Measure* measure = s->measure();
+        if (s->isStartRepeatBarLineType()) {
+            const Measure* prevMeasure = measure ? measure->prevMeasure() : nullptr;
+            if (!prevMeasure) {
+                return;
+            }
+            if (const BarLine* prevEndBl = prevMeasure->endBarLine(item->staffIdx())) {
+                if (prevEndBl->segment() && prevEndBl->segment()->enabled()) {
+                    return;
+                }
+            }
+            measure = prevMeasure;
+        }
+
+        if (measure && measure->isIrregular() && !measure->isMMRest()) {
+            painter->setPen(item->configuration()->invisibleColor());
+            Font f(u"Edwin", Font::Type::Text);
+            f.setPointSizeF(12 * item->spatium() / item->defaultSpatium());
+            f.setBold(true);
+            Char ch = measure->ticks() > measure->timesig() ? u'+' : u'-';
+            RectF r = FontMetrics(f).boundingRect(ch);
+
+            painter->setFont(f);
+            painter->drawText(-r.width(), -item->spatium(), ch);
+        }
+    }
 }
 
 void TDraw::draw(const Beam* item, Painter* painter, const PaintOptions& opt)
@@ -904,8 +952,7 @@ void TDraw::draw(const Bend* item, Painter* painter, const PaintOptions& opt)
     painter->setPen(pen);
     painter->setBrush(Brush(item->curColor(opt)));
 
-    Font f = item->font(spatium * MScore::pixelRatio);
-    painter->setFont(f);
+    Font f = item->font(spatium);
 
     double x  = data->noteWidth + spatium * .2;
     double y  = -spatium * .8;
@@ -930,6 +977,7 @@ void TDraw::draw(const Bend* item, Painter* painter, const PaintOptions& opt)
 
             int idx = (pitch + 12) / 25;
             const char* l = item->label[idx];
+            painter->setFont(f);
             painter->drawText(RectF(x2, y2, .0, .0),
                               muse::draw::AlignHCenter | muse::draw::AlignBottom | muse::draw::TextDontClip,
                               String::fromAscii(l));
@@ -962,6 +1010,7 @@ void TDraw::draw(const Bend* item, Painter* painter, const PaintOptions& opt)
             int idx = (item->points()[pt + 1].pitch + 12) / 25;
             const char* l = item->label[idx];
             double ty = y2;       // - _spatium;
+            painter->setFont(f);
             painter->drawText(RectF(x2, ty, .0, .0),
                               muse::draw::AlignHCenter | muse::draw::AlignBottom | muse::draw::TextDontClip,
                               String::fromAscii(l));
@@ -999,7 +1048,7 @@ void TDraw::draw(const Box* item, Painter* painter, const PaintOptions& opt)
     const bool showFrame = showHighlightedFrame || (item->score() ? item->score()->showFrames() : false);
 
     if (showFrame) {
-        double lineWidth = SPATIUM20 * .10;
+        double lineWidth = item->defaultSpatium() * .10;
         Pen pen;
         pen.setWidthF(lineWidth);
         pen.setJoinStyle(PenJoinStyle::RoundJoin);
@@ -1052,11 +1101,12 @@ void TDraw::draw(const Bracket* item, Painter* painter, const PaintOptions& opt)
             painter->drawPath(ldata->path);
         } else {
             double h = ldata->bracketHeight;
-            double mag = h / (100 * item->magS());
+            double glyphHeight = item->symHeight(ldata->braceSymbol);
+            double mag = h / glyphHeight;
             painter->setPen(item->curColor(opt));
             painter->save();
             painter->scale(item->magx(), mag);
-            item->drawSymbol(ldata->braceSymbol, painter, PointF(0, 100 * item->magS()));
+            item->drawSymbol(ldata->braceSymbol, painter, PointF(0.0, glyphHeight));
             painter->restore();
         }
     }
@@ -1216,8 +1266,8 @@ void TDraw::draw(const FiguredBassItem* item, Painter* painter, const PaintOptio
     Font f(FiguredBass::FBFonts().at(font).family, Font::Type::Tablature);
 
     // (use the same font selection as used in layout() above)
-    double m = item->style().styleD(Sid::figuredBassFontSize) * item->spatium() / SPATIUM20;
-    f.setPointSizeF(m * MScore::pixelRatio);
+    double m = item->style().styleD(Sid::figuredBassFontSize) * item->spatium() / item->defaultSpatium();
+    f.setPointSizeF(m);
 
     painter->setFont(f);
     painter->setBrush(BrushStyle::NoBrush);
@@ -1421,7 +1471,7 @@ void TDraw::draw(const FretDiagram* item, Painter* painter, const PaintOptions& 
     // Draw fret offset number
     if (item->fretOffset() > 0) {
         Font scaledFont(item->fretNumFont());
-        scaledFont.setPointSizeF(scaledFont.pointSizeF() * (item->spatium() / SPATIUM20) * MScore::pixelRatio);
+        scaledFont.setPointSizeF(scaledFont.pointSizeF() * (item->spatium() / item->defaultSpatium()));
         painter->setFont(scaledFont);
         String text = ldata->fretText;
 
@@ -1454,7 +1504,7 @@ void TDraw::draw(const FretDiagram* item, Painter* painter, const PaintOptions& 
         painter->save();
 
         Font scaledFont(item->fingeringFont());
-        scaledFont.setPointSizeF(scaledFont.pointSizeF() * (item->spatium() / SPATIUM20) * MScore::pixelRatio);
+        scaledFont.setPointSizeF(scaledFont.pointSizeF() * (item->spatium() / item->defaultSpatium()));
         painter->setFont(scaledFont);
         if (item->orientation() == Orientation::HORIZONTAL) {
             painter->translate(-translation);
@@ -1533,13 +1583,13 @@ void TDraw::draw(const GlissandoSegment* item, Painter* painter, const PaintOpti
 
         painter->drawLine(LineF(0.0, 0.0, l, 0.0));
     } else if (glissando->glissandoType() == GlissandoType::WAVY) {
-        RectF b = item->symBbox(SymId::wiggleTrill);
-        double a  = item->symAdvance(SymId::wiggleTrill);
+        RectF b = item->symBbox(SymId::wiggleGlissando);
+        double a  = item->symAdvance(SymId::wiggleGlissando);
         int n    = static_cast<int>(l / a);          // always round down (truncate) to avoid overlap
         double x  = (l - n * a) * 0.5;     // centre line in available space
         SymIdList ids;
         for (int i = 0; i < n; ++i) {
-            ids.push_back(SymId::wiggleTrill);
+            ids.push_back(SymId::wiggleGlissando);
         }
 
         item->score()->engravingFont()->draw(ids, painter, item->magS(), PointF(x, -(b.y() + b.height() * 0.5)));
@@ -1547,7 +1597,7 @@ void TDraw::draw(const GlissandoSegment* item, Painter* painter, const PaintOpti
 
     if (glissando->showText()) {
         Font f(glissando->fontFace(), Font::Type::Unknown);
-        f.setPointSizeF(glissando->fontSize() * _spatium / SPATIUM20);
+        f.setPointSizeF(glissando->fontSize() * _spatium / item->defaultSpatium());
         f.setBold(glissando->fontStyle() & FontStyle::Bold);
         f.setItalic(glissando->fontStyle() & FontStyle::Italic);
         f.setUnderline(glissando->fontStyle() & FontStyle::Underline);
@@ -1557,15 +1607,12 @@ void TDraw::draw(const GlissandoSegment* item, Painter* painter, const PaintOpti
 
         // if text longer than available space, skip it
         if (r.width() < l) {
-            double yOffset = r.height() + r.y();             // find text descender height
+            double x = (l - r.width()) * 0.5;
+            double yOffset = r.height() + r.y(); // find text descender height
             // raise text slightly above line and slightly more with WAVY than with STRAIGHT
             yOffset += _spatium * (glissando->glissandoType() == GlissandoType::WAVY ? 0.4 : 0.1);
 
-            Font scaledFont(f);
-            scaledFont.setPointSizeF(f.pointSizeF() * MScore::pixelRatio);
-            painter->setFont(scaledFont);
-
-            double x = (l - r.width()) * 0.5;
+            painter->setFont(f);
             painter->drawText(PointF(x, -yOffset), glissando->text());
         }
     }
@@ -1576,11 +1623,29 @@ void TDraw::draw(const GuitarBendSegment* item, Painter* painter, const PaintOpt
 {
     TRACE_DRAW_ITEM;
 
+    bool tabStaff = item->staff()->isTabStaff(item->tick());
+    GuitarBend* bend = item->guitarBend();
+
     Pen pen(item->curColor(opt));
+    if (bend->bendType() == GuitarBendType::SCOOP) {
+        painter->setPen(pen);
+        item->drawSymbol(SymId::guitarVibratoBarScoop, painter);
+        return;
+    }
+
     pen.setWidthF(item->lineWidth());
     pen.setCapStyle(PenCapStyle::FlatCap);
-    pen.setJoinStyle(PenJoinStyle::MiterJoin);
+    pen.setJoinStyle(bend->bendType() == GuitarBendType::DIP ? PenJoinStyle::BevelJoin : PenJoinStyle::MiterJoin);
     pen.setColor(item->curColor(opt));
+    if (tabStaff && bend->bendType() == GuitarBendType::PRE_DIVE) {
+        const PainterPath& path = item->ldata()->path();
+        if (path.elementCount() > 1) {
+            double lineLength = std::abs(item->ldata()->path().elementAt(1).y);
+            pen.setDashPattern(distributedDashPattern(3, 3, lineLength / pen.widthF()));
+        } else {
+            pen.setDashPattern({ 3, 3 });
+        }
+    }
     painter->setPen(pen);
 
     Brush brush;
@@ -1589,7 +1654,7 @@ void TDraw::draw(const GuitarBendSegment* item, Painter* painter, const PaintOpt
 
     painter->drawPath(item->ldata()->path());
 
-    if (item->staff()->isTabStaff(item->tick())) {
+    if (tabStaff) {
         brush.setStyle(BrushStyle::SolidPattern);
         brush.setColor(item->curColor(opt));
         painter->setBrush(brush);
@@ -1603,10 +1668,30 @@ void TDraw::draw(const GuitarBendHoldSegment* item, Painter* painter, const Pain
     TRACE_DRAW_ITEM;
 
     Pen pen(item->curColor(item->visible(), opt));
+    if (!item->ldata()->symIds().empty()) {
+        painter->setPen(pen);
+        item->drawSymbols(item->ldata()->symIds(), painter);
+        return;
+    }
+
     pen.setWidthF(item->lineWidth());
-    double dash = item->dashLength();
-    pen.setDashPattern({ dash, dash });
     pen.setCapStyle(PenCapStyle::FlatCap);
+
+    switch (item->getProperty(Pid::LINE_STYLE).value<LineType>()) {
+    case LineType::DASHED:
+    {
+        double dash = item->dashLength();
+        pen.setDashPattern(distributedDashPattern(dash, dash, item->pos2().x() / pen.widthF()));
+        break;
+    }
+    case LineType::DOTTED:
+        pen.setCapStyle(PenCapStyle::RoundCap);           // True dots
+        pen.setDashPattern({ 0.01, 1.99 });
+        break;
+    default:
+        break;
+    }
+
     pen.setJoinStyle(PenJoinStyle::MiterJoin);
     painter->setPen(pen);
 
@@ -1633,25 +1718,58 @@ void TDraw::drawTextBase(const TextBase* item, Painter* painter, const PaintOpti
         if (item->circle()) {
             painter->drawEllipse(ldata->frame);
         } else {
-            double frameRoundFactor = (item->sizeIsSpatiumDependent() ? (item->spatium() / baseSpatium) / 2 : 0.5f);
-
-            int r2 = item->frameRound() * frameRoundFactor;
-            if (r2 > 99) {
-                r2 = 99;
-            }
-            painter->drawRoundedRect(ldata->frame, item->frameRound() * frameRoundFactor, r2);
+            double frameRadius = item->frameRound().val() * (item->sizeIsSpatiumDependent() ? item->spatium() : baseSpatium);
+            painter->drawRoundedRect(ldata->frame, frameRadius, frameRadius);
         }
     }
     painter->setBrush(BrushStyle::NoBrush);
     painter->setPen(item->textColor(opt));
     for (const TextBlock& t : ldata->blocks) {
-        t.draw(painter, item);
+        draw(t, item, painter);
     }
+}
+
+void TDraw::draw(const TextBlock& textBlock, const TextBase* item, Painter* painter)
+{
+    painter->translate(0.0, textBlock.y());
+    for (const TextFragment& f : textBlock.fragments()) {
+        draw(f, item, painter);
+    }
+    painter->translate(0.0, -textBlock.y());
+}
+
+void TDraw::draw(const TextFragment& textFragment, const TextBase* item, muse::draw::Painter* painter)
+{
+#ifndef Q_OS_MACOS
+    drawTextWorkaround(textFragment, item, painter);
+    return;
+#endif
+    painter->setFont(textFragment.font(item));
+    painter->drawText(textFragment.pos, textFragment.text);
+}
+
+void TDraw::drawTextWorkaround(const TextFragment& textFragment, const TextBase* item, muse::draw::Painter* painter)
+{
+    Font f = textFragment.font(item);
+    const String& text = textFragment.text;
+    const PointF& pos = textFragment.pos;
+
+    painter->setFont(f);
+
+    double mm = painter->worldTransform().m11();
+    bool useWorkaround = !(MScore::pdfPrinting) && (mm < 1.0) && f.bold() && !(f.underline() || f.strike());
+    if (!useWorkaround) {
+        painter->drawText(pos, text);
+        return;
+    }
+
+    painter->drawTextWorkaround(pos, text);
 }
 
 void TDraw::drawTextLineBaseSegment(const TextLineBaseSegment* item, Painter* painter, const PaintOptions& opt)
 {
     const TextLineBase* tl = item->textLineBase();
+    const TextLineBaseSegment::LayoutData* ldata = item->ldata();
 
     if (!item->text()->empty()) {
         painter->translate(item->text()->pos());
@@ -1667,7 +1785,7 @@ void TDraw::drawTextLineBaseSegment(const TextLineBaseSegment* item, Painter* pa
         painter->translate(-item->endText()->pos());
     }
 
-    if (item->npoints() == 0
+    if (ldata->npoints == 0
         || ((opt.isPrinting || (item->score() && !item->score()->isShowInvisible()))
             && !tl->lineVisible())) {
         return;
@@ -1696,63 +1814,89 @@ void TDraw::drawTextLineBaseSegment(const TextLineBaseSegment* item, Painter* pa
 
         pen.setJoinStyle(PenJoinStyle::BevelJoin);
         painter->setPen(pen);
-        if (!item->joinedHairpin().empty() && !isNonSolid) {
-            painter->drawPolyline(item->joinedHairpin());
+        if (!ldata->joinedHairpin.empty() && !isNonSolid) {
+            painter->drawPolyline(ldata->joinedHairpin);
         } else {
-            painter->drawLines(&item->points()[0], 2);
+            painter->drawLines(&ldata->points[0], 2);
         }
         return;
     }
 
-    int start = 0, end = item->npoints();
+    int start = 0, end = ldata->npoints;
 
     // Draw begin hook, if it needs to be drawn separately
     if (item->isSingleBeginType() && tl->beginHookType() != HookType::NONE) {
-        bool isTHook = tl->beginHookType() == HookType::HOOK_90T;
+        if (tl->beginHookType() == HookType::ARROW_FILLED) {
+            Brush brush;
+            brush.setStyle(BrushStyle::SolidPattern);
+            brush.setColor(color);
+            painter->setBrush(brush);
+            painter->setNoPen();
+            painter->drawPolygon(ldata->beginArrow);
+        } else if (tl->beginHookType() == HookType::ARROW) {
+            pen.setJoinStyle(PenJoinStyle::MiterJoin);
+            painter->setPen(pen);
+            painter->drawPolyline(ldata->beginArrow);
+        } else {
+            bool isTHook = tl->beginHookType() == HookType::HOOK_90T;
 
-        if (isNonSolid || isTHook) {
-            const PointF& p1 = item->points()[start++];
-            const PointF& p2 = item->points()[start++];
+            if (isNonSolid || isTHook) {
+                const PointF& p1 = ldata->points[start++];
+                const PointF& p2 = ldata->points[start++];
 
-            if (isTHook) {
-                painter->setPen(solidPen);
-            } else {
-                double hookLength = sqrt(PointF::dotProduct(p2 - p1, p2 - p1));
-                pen.setDashPattern(distributedDashPattern(dash, gap, hookLength / lineWidth));
-                painter->setPen(pen);
+                if (isTHook) {
+                    painter->setPen(solidPen);
+                } else {
+                    double hookLength = sqrt(PointF::dotProduct(p2 - p1, p2 - p1));
+                    pen.setDashPattern(distributedDashPattern(dash, gap, hookLength / lineWidth));
+                    painter->setPen(pen);
+                }
+
+                painter->drawLine(p1, p2);
             }
-
-            painter->drawLine(p1, p2);
         }
     }
 
     // Draw end hook, if it needs to be drawn separately
     if (item->isSingleEndType() && tl->endHookType() != HookType::NONE) {
-        bool isTHook = tl->endHookType() == HookType::HOOK_90T;
+        if (tl->endHookType() == HookType::ARROW_FILLED) {
+            Brush brush;
+            brush.setStyle(BrushStyle::SolidPattern);
+            brush.setColor(color);
+            painter->setBrush(brush);
+            painter->setNoPen();
+            painter->drawPolygon(ldata->endArrow);
+        } else if (tl->endHookType() == HookType::ARROW) {
+            pen.setJoinStyle(PenJoinStyle::MiterJoin);
+            painter->setPen(pen);
+            painter->drawPolyline(ldata->endArrow);
+        } else {
+            bool isTHook = tl->endHookType() == HookType::HOOK_90T;
 
-        if (isNonSolid || isTHook) {
-            const PointF& p1 = item->points()[--end];
-            const PointF& p2 = item->points()[--end];
+            if (isNonSolid || isTHook) {
+                const PointF& p1 = ldata->points[--end];
+                const PointF& p2 = ldata->points[--end];
 
-            if (isTHook) {
-                painter->setPen(solidPen);
-            } else {
-                double hookLength = sqrt(PointF::dotProduct(p2 - p1, p2 - p1));
-                pen.setDashPattern(distributedDashPattern(dash, gap, hookLength / lineWidth));
-                painter->setPen(pen);
+                if (isTHook) {
+                    painter->setPen(solidPen);
+                } else {
+                    double hookLength = sqrt(PointF::dotProduct(p2 - p1, p2 - p1));
+                    pen.setDashPattern(distributedDashPattern(dash, gap, hookLength / lineWidth));
+                    painter->setPen(pen);
+                }
+
+                painter->drawLine(p1, p2);
             }
-
-            painter->drawLine(p1, p2);
         }
     }
 
     // Draw the rest
     if (isNonSolid) {
-        pen.setDashPattern(distributedDashPattern(dash, gap, item->lineLength() / lineWidth));
+        pen.setDashPattern(distributedDashPattern(dash, gap, ldata->lineLength / lineWidth));
     }
 
     painter->setPen(pen);
-    painter->drawPolyline(&item->points()[start], end - start);
+    painter->drawPolyline(&ldata->points[start], end - start);
 }
 
 void TDraw::draw(const GradualTempoChangeSegment* item, Painter* painter, const PaintOptions& opt)
@@ -1829,11 +1973,9 @@ void TDraw::draw(const Harmony* item, Painter* painter, const PaintOptions& opt)
         if (item->circle()) {
             painter->drawArc(ldata->frame, 0, 5760);
         } else {
-            int r2 = item->frameRound();
-            if (r2 > 99) {
-                r2 = 99;
-            }
-            painter->drawRoundedRect(ldata->frame, item->frameRound(), r2);
+            double baseSpatium = DefaultStyle::baseStyle().value(Sid::spatium).toReal();
+            double frameRadius = item->frameRound().val() * (item->sizeIsSpatiumDependent() ? item->spatium() : baseSpatium);
+            painter->drawRoundedRect(ldata->frame, frameRadius, frameRadius);
         }
     }
     painter->setBrush(BrushStyle::NoBrush);
@@ -1841,14 +1983,8 @@ void TDraw::draw(const Harmony* item, Painter* painter, const PaintOptions& opt)
     painter->setPen(color);
     for (const HarmonyRenderItem* renderItem : ldata->renderItemList()) {
         if (const TextSegment* ts = dynamic_cast<const TextSegment*>(renderItem)) {
-            Font f(ts->font());
-            f.setPointSizeF(f.pointSizeF() * MScore::pixelRatio);
-#ifndef Q_OS_MACOS
-            TextBase::drawTextWorkaround(painter, f, ts->pos(), ts->text());
-#else
-            painter->setFont(f);
+            painter->setFont(ts->font());
             painter->drawText(ts->pos(), ts->text());
-#endif
         } else if (const ChordSymbolParen* parenItem = dynamic_cast<const ChordSymbolParen*>(renderItem)) {
             Parenthesis* p = parenItem->parenItem;
             painter->translate(parenItem->pos());
@@ -1871,6 +2007,18 @@ void TDraw::draw(const Harmony* item, Painter* painter, const PaintOptions& opt)
 void TDraw::draw(const Hook* item, Painter* painter, const PaintOptions& opt)
 {
     TRACE_DRAW_ITEM;
+
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        painter->setPen(Pen(item->curColor(opt), item->get_cipherLineThick()));
+        for (int i = 0; i < qAbs(item->hookType()); ++i) {
+
+            painter->drawLine(LineF(item->get_cipherLine().x1(),
+                item->get_cipherLine().y1() + (i * item->get_cipherLineSpace()),
+                item->get_cipherLine().x2(),
+                item->get_cipherLine().y1() + (i * item->get_cipherLineSpace())));
+        }
+        return;
+    }
     // hide if belonging to the second chord of a cross-measure pair
     if (item->chord() && item->chord()->crossMeasure() == CrossMeasure::SECOND) {
         return;
@@ -1902,13 +2050,16 @@ void TDraw::draw(const Image* item, Painter* painter, const PaintOptions& opt)
             } else {
                 s = item->size() * DPMM;
             }
-            if (opt.isPrinting && !MScore::svgPrinting) {
-                // use original image size for printing, but not for svg for reasonable file size.
+            Transform t = painter->worldTransform();
+            muse::Size ss = muse::Size(s.width() * t.m11(), s.height() * t.m22());
+            int maxDim = item->configuration()->maxScaledImageDim();
+            bool useDirectDraw = (opt.isPrinting && !MScore::svgPrinting)
+                                 || (maxDim > 0 && std::max(ss.width(), ss.height()) > maxDim);
+
+            if (useDirectDraw) {
                 painter->scale(s.width() / item->rasterImage()->width(), s.height() / item->rasterImage()->height());
                 painter->drawPixmap(PointF(0, 0), *item->rasterImage());
             } else {
-                Transform t = painter->worldTransform();
-                muse::Size ss = muse::Size(s.width() * t.m11(), s.height() * t.m22());
                 t.setMatrix(1.0, t.m12(), t.m13(), t.m21(), 1.0, t.m23(), t.m31(), t.m32(), t.m33());
                 painter->setWorldTransform(t);
                 if ((item->buffer().size() != ss || item->dirty()) && item->rasterImage() && !item->rasterImage()->isNull()) {
@@ -1961,6 +2112,47 @@ void TDraw::draw(const KeySig* item, Painter* painter, const PaintOptions& opt)
 {
     TRACE_DRAW_ITEM;
     const KeySig::LayoutData* ldata = item->ldata();
+
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        Font font = item->cipherKeySigFont();
+        font.setPointSizeF(font.pointSizeF() * item->magS());
+        painter->setFont(font);
+
+        if (!item->segment()->isKeySigAnnounceType()) {
+
+            if ((item->tick().isZero() || item->staff()->key(item->tick() - Fraction::fromTicks(1)) != item->keySigEvent().key()) && item->staff() && (item->staff()->idx()) < 1) {
+
+                font.setItalic(true);
+                painter->setFont(font);
+                painter->setPen(item->curColor(opt));
+                painter->drawText(item->get_cipherPoint(), item->get_cipherString());
+            }
+        }
+        if (item->get_cipherDrawNote()) {
+
+            font = item->get_cipherFont();
+            font.setPointSizeF(font.pointSizeF() * item->magS());
+            painter->setFont(font);
+            painter->drawText(item->get_cipherNotePoint(), item->get_cipherNoteString());
+            painter->setFont(font);
+            painter->drawText(item->get_cipherNoteKlammerPoint(), (String)"(");
+            if (item->get_cipherAccidentalShift() != 0) {
+                if (item->get_cipherAccidentalShift() == 1) {
+                    Font fontAccidental = item->get_cipherAccidentalFont();
+                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignSharp) * item->spatium() / item->defaultSpatium()));
+                    item->drawSharp(painter, item->get_cipherAccidentalPoint(), fontAccidental);
+                }
+                if (item->get_cipherAccidentalShift() == -1) {
+                    Font fontAccidental = item->get_cipherAccidentalFont();
+                    fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() / item->defaultSpatium()));
+                    item->drawFlat(painter, item->get_cipherAccidentalPoint(), fontAccidental);
+                }
+            }
+
+        }
+        return;
+    }
 
     painter->setPen(item->curColor(opt));
     double _spatium = item->spatium();
@@ -2020,11 +2212,7 @@ void TDraw::draw(const LayoutBreak* item, Painter* painter, const PaintOptions& 
 
     Pen pen(item->selected() ? item->configuration()->selectionColor() : item->configuration()->formattingColor());
     painter->setPen(pen);
-
-    Font f(item->font());
-    f.setPointSizeF(f.pointSizeF() * MScore::pixelRatio);
-    painter->setFont(f);
-
+    painter->setFont(item->font());
     painter->drawSymbol(PointF(), item->iconCode());
 }
 
@@ -2032,6 +2220,11 @@ void TDraw::draw(const LedgerLine* item, Painter* painter, const PaintOptions& o
 {
     TRACE_DRAW_ITEM;
 
+    if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        painter->setPen(Pen(item->curColor(opt), item->get_width()));
+        painter->drawLine(LineF(0.0, 0.0, item->len(), 0.0));
+        return;
+    }
     if (item->chord()->crossMeasure() == CrossMeasure::SECOND) {
         return;
     }
@@ -2124,7 +2317,7 @@ void TDraw::draw(const MMRest* item, Painter* painter, const PaintOptions& opt)
     painter->setPen(item->curColor(opt));
     RectF numberBox = item->symBbox(ldata->numberSym);
     PointF numberPos = item->numberPos();
-    if (item->shouldShowNumber()) {
+    if (item->showNumber()) {
         item->drawSymbols(ldata->numberSym, painter, numberPos);
     }
 
@@ -2150,7 +2343,7 @@ void TDraw::draw(const MMRest* item, Painter* painter, const PaintOptions& opt)
             pen.setWidthF(hBarThickness);
             painter->setPen(pen);
             double halfHBarThickness = hBarThickness * .5;
-            if (item->shouldShowNumber() // avoid painting line through number
+            if (item->showNumber() // avoid painting line through number
                 && item->style().styleB(Sid::mmRestNumberMaskHBar)
                 && numberBox.bottom() >= -halfHBarThickness
                 && numberBox.top() <= halfHBarThickness) {
@@ -2190,23 +2383,26 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
 
     const Note::LayoutData* ldata = item->ldata();
 
-    auto config = item->configuration();
+    const auto config = item->configuration();
+    const StaffType* staffType = item->staff() ? item->staff()->staffTypeForElement(item) : nullptr;
 
-    bool negativeFret = item->negativeFretUsed() && item->staff()->isTabStaff(item->tick());
+    const bool isTabStaff = staffType && staffType->isTabStaff();
+    const bool negativeFret = isTabStaff && item->negativeFretUsed();
+    const bool useCriticalColor = negativeFret && !item->deadNote() && opt.isPrinting;
 
-    Color c(negativeFret ? config->criticalColor() : item->curColor(opt));
-    painter->setPen(c);
     bool tablature = item->staff() && item->staff()->isTabStaff(item->chord()->tick());
+    bool cipher = item->staff() && item->staff()->isCipherStaff(item->chord()->tick());
+    painter->setPen(useCriticalColor ? config->criticalColor() : item->curColor(opt));
 
     // tablature
-    if (tablature) {
+    if (isTabStaff) {
         if (item->displayFret() == Note::DisplayFretOption::Hide || item->shouldHideFret()) {
             return;
         }
         const Staff* st = item->staff();
         const StaffType* tab = st->staffTypeForElement(item);
 
-        if (negativeFret || (item->fretConflict() && !opt.isPrinting && item->score()->showUnprintable())) {                    // fret conflict
+        if (negativeFret || (item->fretConflict() && !opt.isPrinting && item->score()->showUnprintable())) { // fret conflict
             painter->save();
             painter->setPen(config->criticalColor());
             painter->setBrush(config->criticalBackgroundColor());
@@ -2215,15 +2411,44 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
         }
 
         Font f(tab->fretFont());
-        f.setPointSizeF(f.pointSizeF() * item->magS() * MScore::pixelRatio);
+        f.setPointSizeF(f.pointSizeF() * item->magS());
         painter->setFont(f);
-        painter->setPen(c);
-        double startPosX = ldata->bbox().x();
 
-        double yOffset = tab->fretFontYOffset();
+        const double startPosX = ldata->bbox().x();
+        const double yOffset = tab->fretFontYOffset();
         painter->drawText(PointF(startPosX, yOffset * item->magS()), item->fretString());
     }
-    // NOT tablature
+    else if (cipher) {
+
+        Font font = item->get_cipherFont();
+        font.setPointSizeF(font.pointSizeF() * item->magS());
+        painter->setFont(font);
+        painter->setPen(item->curColor(opt));
+        painter->drawText(item->get_cipherTextPos(), item->fretString());
+        if (item->accidental() || item->get_drawFlat() || item->get_drawSharp()) {
+            if (item->get_drawSharp()) {
+                Font fontAccidental = item->get_cipherAccidentalFont();
+                fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignSharp) * item->spatium() / item->defaultSpatium()) * item->get_trackthick());
+                item->drawSharp(painter, item->get_cipherAccidentalPos(), fontAccidental);
+                //score()->scoreFont()->draw(SymId::cipherAccidentalSharp, painter,( score()->styleD(Sid::cipherSizeSignSharp)/100*_cipherHigth), _cipherAccidentalPos);
+            }
+            if (item->get_drawFlat()) {
+                Font fontAccidental = item->get_cipherAccidentalFont();
+                fontAccidental.setPointSizeF((item->style().styleD(Sid::cipherFontSize) * item->style().styleD(Sid::cipherSizeSignFlat) * item->spatium() / item->defaultSpatium()) * item->get_trackthick());
+                item->drawFlat(painter, item->get_cipherAccidentalPos(), fontAccidental);
+                //score()->scoreFont()->draw(SymId::cipherAccidentalFlat, painter,( score()->styleD(Sid::cipherSizeSignFlat)/100*_cipherHigth),_cipherAccidentalPos);
+            }
+        }
+        if (item->get_trackthick() != 1.0 && item->style().styleB(Sid::cipherbracket)) {
+
+            painter->setFont(font);
+            painter->drawText(item->get_cipherKlammerPos(), (String)"(");
+            painter->setFont(font);
+            painter->drawText((PointF(item->get_cipherTextPos().x() + item->get_cipherWidth2(), item->get_cipherKlammerPos().y())), (String)")");
+        }
+    }
+
+    // NOT tablature and cipher
     else {
         // skip drawing, if second note of a cross-measure value
         if (item->chord() && item->chord()->crossMeasure() == CrossMeasure::SECOND) {
@@ -2236,8 +2461,7 @@ void TDraw::draw(const Note* item, Painter* painter, const PaintOptions& opt)
             const Instrument* in = item->part()->instrument(item->chord()->tick());
             int i = item->ppitch();
             if (i < in->minPitchP() || i > in->maxPitchP()) {
-                painter->setPen(
-                    item->selected() ? config->criticalSelectedColor() : config->criticalColor());
+                painter->setPen(item->selected() ? config->criticalSelectedColor() : config->criticalColor());
             } else if (i < in->minPitchA() || i > in->maxPitchA()) {
                 painter->setPen(item->selected() ? config->warningSelectedColor() : config->warningColor());
             }
@@ -2298,69 +2522,6 @@ void TDraw::draw(const OttavaSegment* item, Painter* painter, const PaintOptions
     drawTextLineBaseSegment(item, painter, opt);
 }
 
-void TDraw::draw(const Page* item, Painter* painter, const PaintOptions& opt)
-{
-    TRACE_DRAW_ITEM;
-    bool shouldDraw = item->score()->isLayoutMode(LayoutMode::PAGE) || item->score()->isLayoutMode(LayoutMode::FLOAT);
-    if (!shouldDraw) {
-        return;
-    }
-    //
-    // draw header/footer
-    //
-
-    page_idx_t n = item->no() + 1 + item->score()->pageNumberOffset();
-    painter->setPen(item->curColor(opt));
-
-    auto drawHeaderFooter = [item, &opt](Painter* p, int area, const String& ss)
-    {
-        Text* text = item->layoutHeaderFooter(area, ss);
-        if (!text) {
-            return;
-        }
-        p->translate(text->pos());
-        draw(text, p, opt);
-        p->translate(-text->pos());
-        text->resetExplicitParent();
-    };
-
-    String s1, s2, s3;
-
-    if (item->style().styleB(Sid::showHeader) && (item->no() || item->style().styleB(Sid::headerFirstPage))) {
-        bool odd = (n & 1) || !item->style().styleB(Sid::headerOddEven);
-        if (odd) {
-            s1 = item->style().styleSt(Sid::oddHeaderL);
-            s2 = item->style().styleSt(Sid::oddHeaderC);
-            s3 = item->style().styleSt(Sid::oddHeaderR);
-        } else {
-            s1 = item->style().styleSt(Sid::evenHeaderL);
-            s2 = item->style().styleSt(Sid::evenHeaderC);
-            s3 = item->style().styleSt(Sid::evenHeaderR);
-        }
-
-        drawHeaderFooter(painter, 0, s1);
-        drawHeaderFooter(painter, 1, s2);
-        drawHeaderFooter(painter, 2, s3);
-    }
-
-    if (item->style().styleB(Sid::showFooter) && (item->no() || item->style().styleB(Sid::footerFirstPage))) {
-        bool odd = (n & 1) || !item->style().styleB(Sid::footerOddEven);
-        if (odd) {
-            s1 = item->style().styleSt(Sid::oddFooterL);
-            s2 = item->style().styleSt(Sid::oddFooterC);
-            s3 = item->style().styleSt(Sid::oddFooterR);
-        } else {
-            s1 = item->style().styleSt(Sid::evenFooterL);
-            s2 = item->style().styleSt(Sid::evenFooterC);
-            s3 = item->style().styleSt(Sid::evenFooterR);
-        }
-
-        drawHeaderFooter(painter, 3, s1);
-        drawHeaderFooter(painter, 4, s2);
-        drawHeaderFooter(painter, 5, s3);
-    }
-}
-
 void TDraw::draw(const Parenthesis* item, muse::draw::Painter* painter, const PaintOptions& opt)
 {
     TRACE_DRAW_ITEM;
@@ -2375,17 +2536,17 @@ void TDraw::draw(const Parenthesis* item, muse::draw::Painter* painter, const Pa
     Color penColor = item->curColor(opt);
 
     Pen pen(penColor);
-    double mag = item->staff() ? item->staff()->staffMag(item->tick()) : 1.0;
 
     if (item->ldata()->symId != SymId::noSym) {
-        item->drawSymbol(item->ldata()->symId, painter);
+        painter->setPen(pen);
+        item->drawSymbol(item->ldata()->symId, painter, PointF(), item->ldata()->symScale);
         return;
     }
 
     painter->setBrush(Brush(pen.color()));
     pen.setCapStyle(PenCapStyle::RoundCap);
     pen.setJoinStyle(PenJoinStyle::RoundJoin);
-    pen.setWidthF(item->ldata()->endPointThickness * item->spatium() * mag);
+    pen.setWidthF(item->ldata()->endPointThickness * item->spatium() * item->ldata()->intrinsicMag());
 
     painter->setPen(pen);
     painter->drawPath(item->ldata()->path());
@@ -2453,6 +2614,27 @@ void TDraw::draw(const Rest* item, Painter* painter, const PaintOptions& opt)
 
     const Rest::LayoutData* ldata = item->ldata();
 
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        Color c(item->curColor(opt));
+        painter->setPen(c);
+
+        Font font = item->get_cipherFont();
+        font.setPointSizeF(font.pointSizeF() * item->magS());
+        painter->setFont(font);
+        painter->setPen(c);
+        painter->drawText(PointF(-ldata->cipherWidth/2, ldata->cipherHeigth * item->style().styleD(Sid::cipherHeightDisplacement)), ldata->fretString);
+
+        painter->setPen(Pen(item->curColor(opt), ldata->cipherLineThick));
+        for (int i = 0; i < qAbs(item->durationType().hooks()); ++i) {
+
+            painter->drawLine(LineF(ldata->cipherHeigth * item->style().styleD(Sid::cipherOffsetLine) - (ldata->cipherLineWidth / 2),
+                ldata->cipherHeigthLine + (i * ldata->cipherLineSpace),
+                ldata->cipherHeigth * item->style().styleD(Sid::cipherOffsetLine) + (ldata->cipherLineWidth / 2),
+                ldata->cipherHeigthLine + (i * ldata->cipherLineSpace)));
+        }
+        return;
+    }
     painter->setPen(item->curColor(opt));
 
     if (DeadSlapped* ds = item->deadSlapped()) {
@@ -2589,9 +2771,14 @@ void TDraw::draw(const SlurSegment* item, Painter* painter, const PaintOptions& 
 
     switch (item->slurTie()->styleType()) {
     case SlurStyleType::Solid:
-        painter->setBrush(Brush(pen.color()));
-        pen.setCapStyle(PenCapStyle::RoundCap);
-        pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        if (!(item->staff() && item->staff()->isCipherStaff(item->tick()))) {
+            painter->setBrush(Brush(pen.color()));
+            pen.setCapStyle(PenCapStyle::RoundCap);
+            pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        }
+        else {
+            painter->setBrush(BrushStyle::NoBrush);
+        }
         pen.setWidthF(item->endWidth() * mag);
         break;
     case SlurStyleType::Dotted:
@@ -2612,6 +2799,11 @@ void TDraw::draw(const SlurSegment* item, Painter* painter, const PaintOptions& 
         break;
     case SlurStyleType::Undefined:
         break;
+    }
+
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        pen.setWidthF(item->style().styleD(Sid::cipherSlurThick));
     }
     painter->setPen(pen);
     painter->drawPath(item->ldata()->path());
@@ -2724,6 +2916,9 @@ void TDraw::draw(const Stem* item, Painter* painter, const PaintOptions& opt)
     if (!item->chord()) { // may be need assert?
         return;
     }
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        return;
+    }
 
     // hide if second chord of a cross-measure pair
     if (item->chord()->crossMeasure() == CrossMeasure::SECOND) {
@@ -2795,6 +2990,9 @@ void TDraw::draw(const Stem* item, Painter* painter, const PaintOptions& opt)
 void TDraw::draw(const StemSlash* item, Painter* painter, const PaintOptions& opt)
 {
     TRACE_DRAW_ITEM;
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        return;
+    }
     const StemSlash::LayoutData* ldata = item->ldata();
     painter->setPen(Pen(item->curColor(opt), ldata->stemWidth, PenStyle::SolidLine, PenCapStyle::FlatCap));
     painter->drawLine(ldata->line);
@@ -2813,24 +3011,21 @@ void TDraw::draw(const StringTunings* item, Painter* painter, const PaintOptions
     if (item->noStringVisible()) {
         const TextBase::LayoutData* data = item->ldata();
 
-        double spatium = item->spatium();
-        double lineWidth = spatium * .15;
+        const double spatium = item->spatium();
+        const double lineWidth = spatium * .15;
 
-        Pen pen(item->curColor(opt), lineWidth, PenStyle::SolidLine, PenCapStyle::RoundCap, PenJoinStyle::RoundJoin);
+        const Pen pen(item->curColor(opt), lineWidth, PenStyle::SolidLine, PenCapStyle::RoundCap, PenJoinStyle::RoundJoin);
         painter->setPen(pen);
         painter->setBrush(Brush(item->curColor(opt)));
 
-        Font f(item->font());
-        painter->setFont(f);
+        const RectF rect = data->bbox();
 
-        RectF rect = data->bbox();
-
-        double x = rect.x();
-        double y = rect.y();
-        double width = rect.width();
-        double height = rect.height();
-        double topPartHeight = height * .66;
-        double cornerRadius = 8.0;
+        const double x = rect.x();
+        const double y = rect.y();
+        const double width = rect.width();
+        const double height = rect.height();
+        const double topPartHeight = height * .66;
+        const double cornerRadius = height * .1;
 
         PainterPath path;
         path.moveTo(x, y);
@@ -2866,9 +3061,7 @@ void TDraw::draw(const FSymbol* item, Painter* painter, const PaintOptions& opt)
 {
     TRACE_DRAW_ITEM;
 
-    Font f(item->font());
-    f.setPointSizeF(f.pointSizeF() * MScore::pixelRatio);
-    painter->setFont(f);
+    painter->setFont(item->font());
     painter->setPen(item->curColor(opt));
     painter->drawText(PointF(0, 0), item->toString());
 }
@@ -2893,11 +3086,7 @@ void TDraw::draw(const IndicatorIcon* item, muse::draw::Painter* painter, const 
 
     Pen pen(item->selected() ? item->configuration()->selectionColor() : item->configuration()->formattingColor());
     painter->setPen(pen);
-
-    Font f(item->font());
-    f.setPointSizeF(f.pointSizeF() * MScore::pixelRatio);
-    painter->setFont(f);
-
+    painter->setFont(item->font());
     painter->drawSymbol(PointF(), item->iconCode());
 
     if (item->isSystemLockIndicator() && item->selected()) {
@@ -2924,12 +3113,9 @@ void TDraw::draw(const SoundFlag* item, Painter* painter, const PaintOptions& op
 
     painter->setNoPen();
     painter->setBrush(item->iconBackgroundColor());
-    painter->drawEllipse(item->ldata()->bbox());
+    painter->drawEllipse(item->ldata()->bbox().adjusted(-4.0, -4.0, 4.0, 4.0));
 
-    Font f(item->iconFont());
-    f.setPointSizeF(item->spatium() * 2.0);
-    painter->setFont(f);
-
+    painter->setFont(item->iconFont());
     painter->setPen(!item->selected() ? item->curColor(true, opt) : Color::WHITE);
     painter->drawText(item->ldata()->bbox(), muse::draw::AlignCenter, Char(item->iconCode()));
 }
@@ -2960,9 +3146,7 @@ void TDraw::draw(const TabDurationSymbol* item, Painter* painter, const PaintOpt
     painter->scale(mag, mag);
     if (ldata->beamGrid == TabBeamGrid::NONE) {
         // if no beam grid, draw symbol
-        Font f(item->tab()->durationFont());
-        f.setPointSizeF(f.pointSizeF() * MScore::pixelRatio);
-        painter->setFont(f);
+        painter->setFont(item->tab()->durationFont());
         painter->drawText(PointF(0.0, 0.0), item->text());
     } else {
         // if beam grid, draw stem line
@@ -3049,9 +3233,14 @@ void TDraw::draw(const TieSegment* item, Painter* painter, const PaintOptions& o
 
     switch (item->slurTie()->styleType()) {
     case SlurStyleType::Solid:
-        painter->setBrush(Brush(pen.color()));
-        pen.setCapStyle(PenCapStyle::RoundCap);
-        pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        if (!(item->staff() && item->staff()->isCipherStaff(item->tick()))) {
+            painter->setBrush(Brush(pen.color()));
+            pen.setCapStyle(PenCapStyle::RoundCap);
+            pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        }
+        else {
+            painter->setBrush(BrushStyle::NoBrush);
+        }
         pen.setWidthF(item->endWidth() * mag);
         break;
     case SlurStyleType::Dotted:
@@ -3073,6 +3262,10 @@ void TDraw::draw(const TieSegment* item, Painter* painter, const PaintOptions& o
     case SlurStyleType::Undefined:
         break;
     }
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        pen.setWidthF(item->style().styleD(Sid::cipherSlurThick));
+    }
     painter->setPen(pen);
     painter->drawPath(item->ldata()->path());
 }
@@ -3090,6 +3283,28 @@ void TDraw::draw(const TimeSig* item, Painter* painter, const PaintOptions& opt)
     painter->setPen(item->curColor(opt));
 
     const TimeSig::LayoutData* ldata = item->ldata();
+
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        if (ldata->cipherVisible) {
+            Pen pen(item->curColor(opt));
+            muse::draw::Font font = item->cipherTimeSigFont();
+            font.setPointSizeF(font.pointSizeF() * item->magS());
+            painter->setFont(font);
+            painter->setPen(pen);
+            painter->drawText(ldata->pn, ldata->cipher_ds);
+            painter->setFont(font);
+            painter->setPen(pen);
+            painter->drawText(ldata->pz, ldata->cipher_ns);
+            painter->setPen(Pen(item->curColor(opt), ldata->cipherLineThick));
+            painter->drawLine(ldata->cipherLine);
+            if (!ldata->cipherBegin) {
+                qreal lw = item->style().styleMM(Sid::barWidth) * item->mag();
+                painter->setPen(Pen(item->curColor(opt), lw, PenStyle::SolidLine, PenCapStyle::FlatCap));
+                painter->drawLine(ldata->cipherBarLine);
+            }
+        }
+        return;
+    }
 
     item->drawSymbols(ldata->ns, painter, ldata->pz, item->scale());
     item->drawSymbols(ldata->ds, painter, ldata->pn, item->scale());
@@ -3221,7 +3436,16 @@ void TDraw::draw(const Tuplet* item, Painter* painter, const PaintOptions& opt)
         draw(item->number(), painter, opt);
         painter->translate(-pos);
     }
-    if (item->hasBracket()) {
+    if (item->hasSlur()) {
+
+        Pen pen(color);
+        pen.setCapStyle(PenCapStyle::RoundCap);
+        pen.setJoinStyle(PenJoinStyle::RoundJoin);
+        pen.setWidthF(item->style().styleD(Sid::cipherTupletSlurThickness)*item->mag());
+        painter->setPen(pen);
+        painter->drawPath(item->get_SlurPath());
+    }
+    else if (item->hasBracket()) {
         Pen pen(color, item->absoluteFromSpatium(item->bracketWidth()));
         pen.setJoinStyle(PenJoinStyle::MiterJoin);
         pen.setCapStyle(PenCapStyle::FlatCap);

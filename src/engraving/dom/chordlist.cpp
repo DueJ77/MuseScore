@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -390,6 +390,12 @@ static void readRenderList(String val, std::vector<RenderActionPtr>& renderList,
             renderList.emplace_back(new RenderActionNote());
         } else if (s == u":a") {
             renderList.emplace_back(new RenderActionAccidental());
+        } else if (s == u":push_abs") {
+            renderList.emplace_back(new RenderActionPushAbs());
+        } else if (s == u":pop_abs") {
+            renderList.emplace_back(new RenderActionPopAbs());
+        } else if (s == u":pop_mx") {
+            renderList.emplace_back(new RenderActionPopMx());
         } else if (s == u":pl") {
             renderList.emplace_back(new RenderActionParenLeft());
         } else if (s == u":pr") {
@@ -452,6 +458,15 @@ static void writeRenderList(XmlWriter& xml, const std::vector<RenderActionPtr>& 
             break;
         case RenderAction::RenderActionType::ACCIDENTAL:
             s += u":a";
+            break;
+        case RenderAction::RenderActionType::PUSH_ABS:
+            s += u":push_abs";
+            break;
+        case RenderAction::RenderActionType::POP_ABS:
+            s += u":pop_abs";
+            break;
+        case RenderAction::RenderActionType::POP_MX:
+            s += u":pop_mx";
             break;
         case RenderAction::RenderActionType::PAREN: {
             const RenderActionParenPtr paren = std::static_pointer_cast<RenderActionParen>(a);
@@ -1589,8 +1604,8 @@ double ChordList::position(const StringList& names, bool stackModifiers, bool su
             const double base = stackHeight / 2;                            // Baseline of bottom modifier in the stack
             yAdj += base - modifierIdx * modifierHeight * (1 + LINE_SPACING);
         }
-        Char c = name.isEmpty() ? name.at(0) : u'0';
-        if (c.isDigit() || c.isPunct()) {
+
+        if (!name.isEmpty()) {
             yAdj += m_madjust;
         }
         return yAdj;

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -47,14 +47,14 @@ class Segment;
 class Instrument;
 class RepeatList;
 
-class PlaybackModel : public muse::Injectable, public muse::async::Asyncable
+class PlaybackModel : public muse::Contextable, public muse::async::Asyncable
 {
 public:
-    muse::Inject<muse::mpe::IArticulationProfilesRepository> profilesRepository = { this };
+    muse::ContextInject<muse::mpe::IArticulationProfilesRepository> profilesRepository = { this };
 
 public:
     PlaybackModel(const muse::modularity::ContextPtr& iocCtx)
-        : muse::Injectable(iocCtx) {}
+        : muse::Contextable(iocCtx) {}
 
     void load(Score* score);
     void reload();
@@ -139,6 +139,8 @@ private:
                             ChangedTrackIdSet* trackChanges = nullptr);
     void collectChangesTracks(const InstrumentTrackId& trackId, ChangedTrackIdSet* result);
     void notifyAboutChanges(const InstrumentTrackIdSet& oldTracks, const InstrumentTrackIdSet& changedTracks);
+
+    void sendEvents(const InstrumentTrackId& trackId);
 
     void removeEventsFromRange(const track_idx_t trackFrom, const track_idx_t trackTo, const muse::mpe::timestamp_t timestampFrom = -1,
                                const muse::mpe::timestamp_t timestampTo = -1, ChangedTrackIdSet* trackChanges = nullptr);

@@ -146,18 +146,16 @@ async::Promise<IInteractive::Result> Interactive::openStandardAsync(const std::s
 {
     UriQuery q = makeQuery(type, contentTitle, text, buttons, defBtn, options, dialogTitle);
 
-    async::Promise<Val> promise = provider()->openAsync(q);
-
-    return async::make_promise<Result>([promise, this](auto resolve, auto reject) {
-        async::Promise<Val> mut = promise;
-        mut.onResolve(this, [this, resolve](const Val& val) {
-            (void)resolve(makeResult(val));
-        }).onReject(this, [resolve, reject](int code, const std::string& err) {
-            //! NOTE To simplify writing the handlers
-            (void)resolve(IInteractive::Result((int)IInteractive::Button::Cancel, false));
-            (void)reject(code, err);
-        });
-        return async::Promise<IInteractive::Result>::Result::unchecked();
+    return provider()->openAsync(q)
+           .then<IInteractive::Result>(
+        this,
+        [this](const Val& val, auto resolve, auto /*reject*/) {
+        return resolve(makeResult(val));
+    },
+        [](int code, const std::string& msg, auto resolve, auto reject) {
+        //! NOTE To simplify writing the handlers
+        (void)resolve(IInteractive::Result((int)IInteractive::Button::Cancel, false));
+        return reject(code, msg);
     });
 }
 
@@ -413,9 +411,9 @@ io::paths_t Interactive::selectMultipleDirectories(const std::string& title, con
     return io::pathsFromString(result.val.toString());
 }
 
-async::Promise<Color> Interactive::selectColor(const Color& color, const std::string& title)
+async::Promise<Color> Interactive::selectColor(const Color& color, const std::string& title, bool allowAlpha)
 {
-    return provider()->selectColor(color, title);
+    return provider()->selectColor(color, title, allowAlpha);
 }
 
 bool Interactive::isSelectColorOpened() const
@@ -453,19 +451,24 @@ void Interactive::raise(const UriQuery& uri)
     provider()->raise(uri);
 }
 
-void Interactive::close(const UriQuery& uri)
+async::Promise<Ret> Interactive::close(const UriQuery& uri)
 {
-    provider()->close(uri);
+    return provider()->close(uri);
 }
 
-void Interactive::close(const Uri& uri)
+async::Promise<Ret> Interactive::close(const Uri& uri)
 {
-    provider()->close(uri);
+    return provider()->close(uri);
 }
 
-void Interactive::closeAllDialogs()
+Ret Interactive::closeSync(const UriQuery& uri)
 {
-    provider()->closeAllDialogs();
+    return provider()->closeSync(uri);
+}
+
+Ret Interactive::closeAllDialogsSync()
+{
+    return provider()->closeAllDialogsSync();
 }
 
 ValCh<Uri> Interactive::currentUri() const

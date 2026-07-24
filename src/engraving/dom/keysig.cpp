@@ -1,11 +1,11 @@
-/*
+﻿/*
  * SPDX-License-Identifier: GPL-3.0-only
  * MuseScore-Studio-CLA-applies
  *
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,7 +30,11 @@
 #include "staff.h"
 #include "part.h"
 
+#include "editing/transpose.h"
+
 #include "log.h"
+
+#include "draw/painter.h" 
 
 using namespace mu;
 using namespace mu::engraving;
@@ -61,7 +65,7 @@ KeySig::KeySig(const KeySig& k)
 
 double KeySig::mag() const
 {
-    return staff() ? staff()->staffMag(tick()) : 1.0;
+    return staff() ? staff()->staffMag(this) : 1.0;
 }
 
 //---------------------------------------------------------
@@ -70,7 +74,7 @@ double KeySig::mag() const
 
 bool KeySig::acceptDrop(EditData& data) const
 {
-    return data.dropElement->type() == ElementType::KEYSIG;
+    return data.dropElement->isKeySig();
 }
 
 //---------------------------------------------------------
@@ -80,7 +84,7 @@ bool KeySig::acceptDrop(EditData& data) const
 EngravingItem* KeySig::drop(EditData& data)
 {
     KeySig* ks = toKeySig(data.dropElement);
-    if (ks->type() != ElementType::KEYSIG) {
+    if (!ks->isKeySig()) {
         delete ks;
         return 0;
     }
@@ -104,16 +108,16 @@ EngravingItem* KeySig::drop(EditData& data)
 //   setKey
 //---------------------------------------------------------
 
-void KeySig::setKey(Key cKey)
+void KeySig::setKey(Key concertKey)
 {
     KeySigEvent e;
-    e.setConcertKey(cKey);
+    e.setConcertKey(concertKey);
     if (staff() && !style().styleB(Sid::concertPitch)) {
         Interval v = staff()->part()->instrument(tick())->transpose();
         if (!v.isZero()) {
             v.flip();
-            Key tKey = transposeKey(cKey, v, staff()->part()->preferSharpFlat());
-            e.setKey(tKey);
+            Key transposedKey = Transpose::transposeKey(concertKey, v, staff()->part()->preferSharpFlat());
+            e.setKey(transposedKey);
         }
     }
     setKeySigEvent(e);
@@ -123,11 +127,11 @@ void KeySig::setKey(Key cKey)
 //   setKey
 //---------------------------------------------------------
 
-void KeySig::setKey(Key cKey, Key tKey)
+void KeySig::setKey(Key concertKey, Key transposedKey)
 {
     KeySigEvent e;
-    e.setConcertKey(cKey);
-    e.setKey(tKey);
+    e.setConcertKey(concertKey);
+    e.setKey(transposedKey);
     setKeySigEvent(e);
 }
 
@@ -166,24 +170,6 @@ void KeySig::changeKeySigEvent(const KeySigEvent& t)
         return;
     }
     setKeySigEvent(t);
-}
-
-//---------------------------------------------------------
-//   undoSetShowCourtesy
-//---------------------------------------------------------
-
-void KeySig::undoSetShowCourtesy(bool v)
-{
-    undoChangeProperty(Pid::SHOW_COURTESY, v);
-}
-
-//---------------------------------------------------------
-//   undoSetMode
-//---------------------------------------------------------
-
-void KeySig::undoSetMode(KeyMode v)
-{
-    undoChangeProperty(Pid::KEYSIG_MODE, v);
 }
 
 PointF KeySig::staffOffset() const
@@ -354,5 +340,75 @@ String KeySig::accessibleInfo() const
 muse::TranslatableString KeySig::subtypeUserName() const
 {
     return TConv::userName(key(), isAtonal(), isCustom());
+}
+
+//---------------------------------------------------------
+//   getCipherString
+//---------------------------------------------------------
+String KeySig::getCipherString(int key, int d) const {
+    QString CipherString[15][2] = {
+          {"Ces-Dur  a=♭7","as-Moll  a=♭7"},
+          {"Ges-Dur  a=♭3","es-Moll  a=♭3"},
+          {"Des-Dur  a=♯5","b-Moll  a=♯5"},
+          {"As-Dur  a=♯1","f-Moll  a=♯1"},
+          {"Es-Dur  a=♯4","c-Moll  a=♯4"},
+          {"B-Dur  a=7","g-Moll  a=7"},
+          {"F-Dur  a=3","d-moll  a=3"},
+          {"C-Dur  a=6","a-Moll  a=6"},
+          {"G-Dur  a=2","e-Moll  a=2"},
+          {"D-Dur  a=5","h-Moll  a=5"},
+          {"A-Dur  a=1","fis-Moll  a=1"},
+          {"E-Dur  a=4","cis-Moll  a=4"},
+          {"H-Dur  a=♭7","gis-Moll  a=♭7"},
+          {"Fis-Dur  a=♭3","dis-Moll  a=♭3"},
+          {"Cis-Dur  a=♯5","ais-Moll  a=♯5"}
+
+    };
+    return CipherString[key][d];
+}
+//---------------------------------------------------------
+//   cipherWidth
+//---------------------------------------------------------
+
+qreal KeySig::cipherGetWidth(StaffType* cipher, String string) const
+{
+    qreal val;
+    if (cipher) {
+        muse::draw::FontMetrics fm(cipherKeySigFont());
+        val = fm.width(string);
+    }
+    else
+        val = 5.0;
+    return val;
+}
+muse::draw::Font KeySig::cipherKeySigFont() const
+{
+    const MStyle& st = style();
+    muse::draw::Font f(st.styleSt(Sid::cipherKeySigFont), muse::draw::Font::Type::Text);
+    f.setPointSizeF(st.styleD(Sid::cipherFontSize) * st.styleD(Sid::cipherKeySigSize) * (spatium() / style().defaultSpatium()));
+    return f;
+}
+//---------------------------------------------------------
+//   drawSharp
+//---------------------------------------------------------
+
+void KeySig::drawSharp(muse::draw::Painter* painter, const muse::PointF& pos, const muse::draw::Font& font) const
+{
+    muse::draw::Font fontOld = painter->font();
+    painter->setFont(font);
+    painter->drawText(pos, u"♯");
+    painter->setFont(fontOld);
+}
+
+//---------------------------------------------------------
+//   drawFlat
+//---------------------------------------------------------
+
+void KeySig::drawFlat(muse::draw::Painter* painter, const muse::PointF& pos, const muse::draw::Font& font) const
+{
+    muse::draw::Font fontOld = painter->font();
+    painter->setFont(font);
+    painter->drawText(pos, u"♭");
+    painter->setFont(fontOld);
 }
 }

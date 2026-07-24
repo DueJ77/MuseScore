@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,37 +24,30 @@
 #include <array>
 #include <vector>
 
+#include "../dom/mscore.h"
 #include "global/types/string.h"
 
 #include "../types/propertyvalue.h"
 #include "../dom/property.h"
 
 namespace mu::engraving {
-// Needs to be duplicated here and in symid.h since moc doesn't handle macros from #include'd files
-#ifdef SCRIPT_INTERFACE
-#define BEGIN_QT_REGISTERED_ENUM(Name) \
-    class MSQE_##Name { \
-        Q_GADGET \
-    public:
-#define END_QT_REGISTERED_ENUM(Name) \
-    Q_ENUM(Name); \
-}; \
-    using Name = MSQE_##Name::Name;
-#else
-#define BEGIN_QT_REGISTERED_ENUM(Name)
-#define END_QT_REGISTERED_ENUM(Name)
-#endif
-
 //---------------------------------------------------------
 //   Sid
-///   Enumerates the list of score style settings
-//
-//    Keep in sync with styleTypes[] in styledef.cpp
+//   Enumerates the list of score style settings
+//   Keep in sync with styleTypes[] in styledef.cpp
 //---------------------------------------------------------
 
-BEGIN_QT_REGISTERED_ENUM(Sid)
+#ifndef ENGRAVING_NO_API
+namespace _Sid {
+Q_NAMESPACE;
+#endif
+
+/** APIDOC
+ * Enumerates the list of score style settings
+ * @memberof Engraving
+ * @enum
+ */
 enum class Sid : short {
-    ///.\{
     NOSTYLE = -1,
 
     pageWidth,
@@ -149,7 +142,6 @@ enum class Sid : short {
     lyricsEvenPosition,
 
     figuredBassFontFamily,
-    //      figuredBassFontSize,
     figuredBassYOffset,
     figuredBassLineHeight,
     figuredBassAlignment,
@@ -183,6 +175,10 @@ enum class Sid : short {
     dividerRightSym,
     dividerRightX,
     dividerRightY,
+    dividerLeftAlignToSystemBarline,
+    dividerRightAlignToSystemBarline,
+    dividerLeftSize,
+    dividerRightSize,
 
     clefLeftMargin,
     keysigLeftMargin,
@@ -230,7 +226,6 @@ enum class Sid : short {
     stemWidth,
     shortenStem,
     stemLength,
-    stemLengthSmall,
     shortStemStartLocation,
     shortestStem,
     combineVoice,
@@ -569,6 +564,10 @@ enum class Sid : short {
     arpeggioLineWidth,
     arpeggioHookLen,
     arpeggioHiddenInStdIfTab,
+
+    chordBracketNoteDistance,
+    chordBracketLineWidth,
+    chordBracketHookLen,
 
     slurEndWidth,
     slurMidWidth,
@@ -1546,8 +1545,15 @@ enum class Sid : short {
     guitarBendUseFull,
     guitarBendArrowWidth,
     guitarBendArrowHeight,
+
     useCueSizeFretForGraceBends,
     showFretOnFullBendRelease,
+    alignPreBendAndPreDiveToGraceNote,
+    useFractionCharacters,
+
+    guitarDivesAboveStaff,
+    guitarDiveLineWidth,
+    guitarDiveLineWidthTab,
 
     headerFontFace,
     headerFontSize,
@@ -1902,6 +1908,32 @@ enum class Sid : short {
     letRingEndHookType,
     letRingOffset,
 
+    whammyBarFontFace,
+    whammyBarFontSize,
+    whammyBarLineSpacing,
+    whammyBarFontSpatiumDependent,
+    whammyBarFontStyle,
+    whammyBarColor,
+    whammyBarTextAlign,
+    whammyBarHookHeight,
+    whammyBarPlacement,
+    whammyBarPosAbove,
+    whammyBarPosBelow,
+    whammyBarLineWidth,
+    whammyBarLineStyle,
+    whammyBarDashLineLen,
+    whammyBarDashGapLen,
+    whammyBarText,
+    whammyBarFrameType,
+    whammyBarFramePadding,
+    whammyBarFrameWidth,
+    whammyBarFrameRound,
+    whammyBarFrameFgColor,
+    whammyBarFrameBgColor,
+    whammyBarPosition,
+    whammyBarEndHookType,
+    whammyBarOffset,
+
     palmMuteFontFace,
     palmMuteFontSize,
     palmMuteLineSpacing,
@@ -1950,7 +1982,7 @@ enum class Sid : short {
     figuredBassMinDistance,
     tupletMinDistance,
 
-    /// Display options for tab elements (simple and common styles)
+    // Display options for tab elements (simple and common styles)
 
     slurShowTabSimple,
     slurShowTabCommon,
@@ -1990,6 +2022,82 @@ enum class Sid : short {
     chordlineThickness,
 
     dummyMusicalSymbolsScale,
+    dummyMusicalSymbolSize,
+
+    articulationMusicalSymbolSize,
+    bendMusicalSymbolSize,
+    chordSymbolAMusicalSymbolSize,
+    chordSymbolBMusicalSymbolSize,
+    composerMusicalSymbolSize,
+    copyrightMusicalSymbolSize,
+    defaultMusicalSymbolSize,
+    dynamicsMusicalSymbolSize,
+    expressionMusicalSymbolSize,
+    figuredBassMusicalSymbolSize,
+    fingeringMusicalSymbolSize,
+    footerMusicalSymbolSize,
+    frameMusicalSymbolSize,
+    fretDiagramFingeringMusicalSymbolSize,
+    fretDiagramFretNumberMusicalSymbolSize,
+    glissandoMusicalSymbolSize,
+    hairpinMusicalSymbolSize,
+    hammerOnPullOffTappingMusicalSymbolSize,
+    harpPedalDiagramMusicalSymbolSize,
+    harpPedalTextDiagramMusicalSymbolSize,
+    headerMusicalSymbolSize,
+    instrumentChangeMusicalSymbolSize,
+    letRingMusicalSymbolSize,
+    lhGuitarFingeringMusicalSymbolSize,
+    longInstrumentMusicalSymbolSize,
+    lyricistMusicalSymbolSize,
+    lyricsEvenMusicalSymbolSize,
+    lyricsOddMusicalSymbolSize,
+    measureNumberAlternateMusicalSymbolSize,
+    measureNumberMusicalSymbolSize,
+    metronomeMusicalSymbolSize,
+    mmRestRangeMusicalSymbolSize,
+    nashvilleNumberMusicalSymbolSize,
+    noteLineMusicalSymbolSize,
+    ottavaMusicalSymbolSize,
+    pageNumberMusicalSymbolSize,
+    whammyBarMusicalSymbolSize,
+    palmMuteMusicalSymbolSize,
+    partInstrumentMusicalSymbolSize,
+    pedalMusicalSymbolSize,
+    rehearsalMarkMusicalSymbolSize,
+    repeatLeftMusicalSymbolSize,
+    repeatPlayCountMusicalSymbolSize,
+    repeatRightMusicalSymbolSize,
+    rhGuitarFingeringMusicalSymbolSize,
+    romanNumeralMusicalSymbolSize,
+    shortInstrumentMusicalSymbolSize,
+    staffTextMusicalSymbolSize,
+    stickingMusicalSymbolSize,
+    stringNumberMusicalSymbolSize,
+    stringTuningsMusicalSymbolSize,
+    subTitleMusicalSymbolSize,
+    systemTextLineMusicalSymbolSize,
+    systemTextMusicalSymbolSize,
+    tabFretNumberMusicalSymbolSize,
+    tempoChangeMusicalSymbolSize,
+    tempoMusicalSymbolSize,
+    textLineMusicalSymbolSize,
+    titleMusicalSymbolSize,
+    translatorMusicalSymbolSize,
+    tupletMusicalSymbolSize,
+    user1MusicalSymbolSize,
+    user2MusicalSymbolSize,
+    user3MusicalSymbolSize,
+    user4MusicalSymbolSize,
+    user5MusicalSymbolSize,
+    user6MusicalSymbolSize,
+    user7MusicalSymbolSize,
+    user8MusicalSymbolSize,
+    user9MusicalSymbolSize,
+    user10MusicalSymbolSize,
+    user11MusicalSymbolSize,
+    user12MusicalSymbolSize,
+    voltaMusicalSymbolSize,
 
     autoplaceEnabled,
     defaultsVersion,
@@ -2014,16 +2122,132 @@ enum class Sid : short {
 
     smallParens,
 
+    harmonyParenUseSmuflSym,
+
     repeatPlayCountPreset,
     repeatPlayCountShow,
     repeatPlayCountShowSingleRepeats,
 
     systemObjectsBelowBottomStaff,
 
+    gradualTempoChangeBeginLineArrowHeight,
+    gradualTempoChangeBeginLineArrowWidth,
+    gradualTempoChangeEndLineArrowHeight,
+    gradualTempoChangeEndLineArrowWidth,
+    hairpinBeginLineArrowHeight,
+    hairpinBeginLineArrowWidth,
+    hairpinEndLineArrowHeight,
+    hairpinEndLineArrowWidth,
+    noteLineBeginLineArrowHeight,
+    noteLineBeginLineArrowWidth,
+    noteLineEndLineArrowHeight,
+    noteLineEndLineArrowWidth,
+    ottavaBeginLineArrowHeight,
+    ottavaBeginLineArrowWidth,
+    ottavaEndLineArrowHeight,
+    ottavaEndLineArrowWidth,
+    pedalBeginLineArrowHeight,
+    pedalBeginLineArrowWidth,
+    pedalEndLineArrowHeight,
+    pedalEndLineArrowWidth,
+    textLineBeginLineArrowHeight,
+    textLineBeginLineArrowWidth,
+    textLineEndLineArrowHeight,
+    textLineEndLineArrowWidth,
+    palmMuteBeginLineArrowHeight,
+    palmMuteBeginLineArrowWidth,
+    palmMuteEndLineArrowHeight,
+    palmMuteEndLineArrowWidth,
+
+    gradualTempoChangeBeginFilledArrowHeight,
+    gradualTempoChangeBeginFilledArrowWidth,
+    gradualTempoChangeEndFilledArrowHeight,
+    gradualTempoChangeEndFilledArrowWidth,
+    hairpinBeginFilledArrowHeight,
+    hairpinBeginFilledArrowWidth,
+    hairpinEndFilledArrowHeight,
+    hairpinEndFilledArrowWidth,
+    noteLineBeginFilledArrowHeight,
+    noteLineBeginFilledArrowWidth,
+    noteLineEndFilledArrowHeight,
+    noteLineEndFilledArrowWidth,
+    ottavaBeginFilledArrowHeight,
+    ottavaBeginFilledArrowWidth,
+    ottavaEndFilledArrowHeight,
+    ottavaEndFilledArrowWidth,
+    pedalBeginFilledArrowHeight,
+    pedalBeginFilledArrowWidth,
+    pedalEndFilledArrowHeight,
+    pedalEndFilledArrowWidth,
+    textLineBeginFilledArrowHeight,
+    textLineBeginFilledArrowWidth,
+    textLineEndFilledArrowHeight,
+    textLineEndFilledArrowWidth,
+    palmMuteBeginFilledArrowHeight,
+    palmMuteBeginFilledArrowWidth,
+    palmMuteEndFilledArrowHeight,
+    palmMuteEndFilledArrowWidth,
+
+    cipherHeightDisplacement,
+    cipherDistanceOctave,
+    cipherHeigthLine,
+    cipherOffsetLine,
+    cipherDistanceBetweenLines,
+    cipherWideLine,
+    cipherThickLine,
+    cipherSizeSignSharp,
+    cipherSizeSignFlat,
+    cipherDistanceSignSharp,
+    cipherDistanceSignFlat,
+    cipherHeigthSignSharp,
+    cipherHeigthSignFlat,
+    cipherFont,
+    cipherbracket,
+    cipherAlternativSize,
+    cipherAlternativSpace,
+    cipherSlurEckenform,
+    cipherSlurThick,
+    cipherSlurHeigth,
+    cipherSlurUberhang,
+    cipherSlurShift,
+    cipherLedgerlineThick,
+    cipherLedgerlineLength,
+    cipherLedgerlineShift,
+    cipherStaffDistans,
+    cipherTimeSigSize,
+    cipherTimeSigDistance,
+    cipherTimeSigLineThick,
+    cipherTimeSigLineSize,
+    cipherTimeSigFont,
+    cipherKeySigFont,
+    cipherKeySigSize,
+    cipherKeySigHorizontalShift,
+    cipherKeySigHigth,
+    cipherKeysigNoteDistancLeft,
+    cipherKeysigNoteDistancReigth,
+    cipherBarlineLength,
+    cipherFontSize,
+    cipherRestDistanc,
+    cipherNoteDistanc,
+    cipherAccidentalFont,
+    cipherTupletSlurEcke,
+    cipherTupletSlurhigth,
+    cipherTupletSlurdistans,
+    cipherTupletSlurshift,
+    cipherTupletSluruberhang,
+    cipherTupletNummerHigth,
+    cipherTupletSlurThickness,
+    cipherTupletNummerFontSize,
+    cipherTupletNummerFont,
+
     STYLES
-    ///\}
 };
-END_QT_REGISTERED_ENUM(Sid)
+
+#ifndef ENGRAVING_NO_API
+Q_ENUM_NS(Sid)
+}
+using _Sid::Sid;
+#endif
 
 using StyleIdSet = std::unordered_set<Sid>;
 
@@ -2044,24 +2268,27 @@ typedef std::vector<StyledProperty> ElementStyle;
 //---------------------------------------------------------
 struct StyleDef
 {
-private:
+public:
+    struct StyleValue
+    {
+        Sid sid { Sid::NOSTYLE };
+        muse::AsciiStringView xmlName;
+        PropertyValue defaultValue;
 
-    friend class MStyle;
-    friend class EngravingStyleModel;
+        inline size_t idx() const { return size_t(sid); }
 
-    struct StyleValue {
-        Sid _idx;
-        muse::AsciiStringView _name;         // xml name for read()/write()
-        PropertyValue _defaultValue;
-
-    public:
-        Sid  styleIdx() const { return _idx; }
-        int idx() const { return int(_idx); }
-        const muse::AsciiStringView& name() const { return _name; }
-        P_TYPE valueType() const { return _defaultValue.type(); }
-        const PropertyValue& defaultValue() const { return _defaultValue; }
+        inline P_TYPE valueType() const { return defaultValue.type(); }
     };
 
     static const std::array<StyleValue, size_t(Sid::STYLES)> styleValues;
+
+    static double DEFAULT_SMUFL_POINT_SIZE()
+    {
+        const double DEFAULT_SPATIUM = styleValues[static_cast<size_t>(Sid::spatium)].defaultValue.toDouble();
+        const double DEFAULT_SPATIUM_IN_POINT_UNITS = DEFAULT_SPATIUM / mu::engraving::DPI * mu::engraving::PPI;
+        const double DEFAULT_SMUFL_POINT_SIZE = 4 * DEFAULT_SPATIUM_IN_POINT_UNITS; // By Smufl spec the spatium is 1/4 of the em
+
+        return DEFAULT_SMUFL_POINT_SIZE;
+    }
 };
 }

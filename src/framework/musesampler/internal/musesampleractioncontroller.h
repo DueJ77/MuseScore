@@ -32,15 +32,15 @@
 #include "imusesamplerconfiguration.h"
 
 namespace muse::musesampler {
-class MuseSamplerActionController : public Injectable, public actions::Actionable, public async::Asyncable
+class MuseSamplerActionController : public Contextable, public actions::Actionable, public async::Asyncable
 {
-    Inject<actions::IActionsDispatcher> dispatcher = { this };
-    Inject<IInteractive> interactive = { this };
-    Inject<IMuseSamplerConfiguration> configuration = { this };
+    GlobalInject<IMuseSamplerConfiguration> configuration;
+    ContextInject<actions::IActionsDispatcher> dispatcher = { this };
+    ContextInject<IInteractive> interactive = { this };
 
 public:
     MuseSamplerActionController(const modularity::ContextPtr& iocCtx)
-        : Injectable(iocCtx) {}
+        : Contextable(iocCtx) {}
 
     void init(std::weak_ptr<MuseSamplerResolver> resolver);
 

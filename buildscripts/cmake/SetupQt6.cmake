@@ -4,7 +4,7 @@
 # MuseScore Studio
 # Music Composition & Notation
 #
-# Copyright (C) 2024 MuseScore Limited
+# Copyright (C) 2024 MuseScore Limited and others
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -76,13 +76,6 @@ if (QT_ADD_LINGUISTTOOLS)
     list(APPEND qt_components LinguistTools)
 endif()
 
-if (QT_ADD_STATEMACHINE)
-    # Note: only used in ExampleView class.
-    # When that class is removed, don't forget to remove this dependency.
-    list(APPEND qt_components StateMachine)
-    list(APPEND QT_LIBRARIES Qt::StateMachine)
-endif()
-
 if(QT_ADD_WEBSOCKET)
     list(APPEND qt_components WebSockets)
     list(APPEND QT_LIBRARIES Qt::WebSockets)
@@ -98,7 +91,7 @@ include(QtInstallPaths)
 
 message(STATUS "Qt version: ${Qt6_VERSION}")
 
-qt_standard_project_setup(REQUIRES 6.8 SUPPORTS_UP_TO 6.9)
+qt_standard_project_setup(REQUIRES 6.8 SUPPORTS_UP_TO 6.10)
 
 if (QT_IS_STATIC)
     qt_add_library(all_qml_plugins STATIC)

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,8 @@
 #include "voiceallocator.h"
 
 namespace mu::iex::tabledit {
+class MeasureHandler;
+
 // offsets into the file header
 static const uint8_t OFFSET_TBED = 0x38;
 static const uint8_t OFFSET_CONTENTS = 0x3C;
@@ -54,6 +56,15 @@ enum class Voice : uint8_t {
     LOWER = 3       // lower set
 };
 
+struct TefMeasure {
+    int flag { 0 };
+    bool isPickup { false };
+    int key { 0 };
+    int size { 0 };
+    int numerator { 0 };
+    int denominator { 0 };
+};
+
 struct TefNote {
     int position { 0 };
     int string { 0 };
@@ -68,6 +79,14 @@ struct TefNote {
     bool hasGrace { false };
     int graceEffect{ -1 };  // invalid
     int graceFret { -1 };   // invalid
+    int fingeringLH { 0 };
+    int fingeringRH { 0 };
+};
+
+struct TefReadingListItem {
+    int firstMeasure { 0 };
+    int lastMeasure { 0 };
+    std::string label;
 };
 
 class TablEdit
@@ -120,19 +139,6 @@ class TablEdit
         std::string name;
     };
 
-    struct TefMeasure {
-        int flag { 0 };
-        int key { 0 };
-        int size { 0 };
-        int numerator { 0 };
-        int denominator { 0 };
-    };
-
-    struct TefReadingListItem {
-        int firstMeasure { 0 };
-        int lastMeasure { 0 };
-    };
-
     struct TefTextMarker {
         int position { 0 };
         int string { 0 };
@@ -140,9 +146,9 @@ class TablEdit
     };
 
     void allocateVoices(std::vector<VoiceAllocator>& allocator);
-    void createContents();
+    void createContents(const MeasureHandler& measureHandler);
     void createLinkedTabs();
-    void createMeasures();
+    void createMeasures(const MeasureHandler& measureHandler);
     void createNotesFrame();
     void createParts();
     void createProperties();

@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@
 
 #include "containers.h"
 
+#include "actionicon.h"
 #include "accidental.h"
 #include "arpeggio.h"
 #include "chord.h"
@@ -42,6 +43,7 @@
 #include "keysig.h"
 #include "measure.h"
 #include "measurenumber.h"
+#include "measurerepeat.h"
 #include "note.h"
 #include "page.h"
 #include "part.h"
@@ -51,6 +53,7 @@
 #include "rest.h"
 #include "score.h"
 #include "segment.h"
+#include "select.h"
 #include "sig.h"
 #include "staff.h"
 #include "system.h"
@@ -332,14 +335,14 @@ Note* nextChordNote(Note* note)
     // TODO : limit to same instrument, not simply to same staff!
     Segment* seg   = note->chord()->segment()->nextCR(track, true);
     while (seg) {
-        EngravingItem* targetElement = seg->elementAt(track);
+        EngravingItem* targetElement = seg->element(track);
         // if a chord exists in the same track, return its top note
         if (targetElement && targetElement->isChord()) {
             return toChord(targetElement)->upNote();
         }
         // if not, return topmost chord in track range
         for (track_idx_t i = fromTrack; i < toTrack; i++) {
-            targetElement = seg->elementAt(i);
+            targetElement = seg->element(i);
             if (targetElement && targetElement->isChord()) {
                 return toChord(targetElement)->upNote();
             }
@@ -358,14 +361,14 @@ Note* prevChordNote(Note* note)
     Segment* seg   = note->chord()->segment()->prev1();
     while (seg) {
         if (seg->segmentType() == SegmentType::ChordRest) {
-            EngravingItem* targetElement = seg->elementAt(track);
+            EngravingItem* targetElement = seg->element(track);
             // if a chord exists in the same track, return its top note
             if (targetElement && targetElement->isChord()) {
                 return toChord(targetElement)->upNote();
             }
             // if not, return topmost chord in track range
             for (track_idx_t i = fromTrack; i < toTrack; i++) {
-                targetElement = seg->elementAt(i);
+                targetElement = seg->element(i);
                 if (targetElement && targetElement->isChord()) {
                     return toChord(targetElement)->upNote();
                 }
@@ -591,7 +594,7 @@ Note* searchTieNote(const Note* note, const Segment* nextSegment, const bool dis
         return nullptr;
     }
 
-    if (disableOverRepeats && !segmentsAreAdjacentInRepeatStructure(seg, nextSegment)) {
+    if (disableOverRepeats && !segmentsAreAdjacent(seg, nextSegment)) {
         return nullptr;
     }
 
@@ -839,7 +842,7 @@ int chromaticPitchSteps(const Note* noteL, const Note* noteR, const int nominalD
     bool done = false;
     for (track_idx_t track = startTrack; track < endTrack; ++track) {
         EngravingItem* e = segment->element(track);
-        if (!e || e->type() != ElementType::CHORD) {
+        if (!e || !e->isChord()) {
             continue;
         }
         Chord* chord = toChord(e);
@@ -981,8 +984,10 @@ SymIdList timeSigSymIdsFromString(const String& string, TimeSigStyle timeSigStyl
         { 59666,  SymId::mensuralProlation3 },
         { 59667,  SymId::mensuralProlation4 },
         { 59668,  SymId::mensuralProlation5 },
+        { 59669,  SymId::mensuralProlation6 },
         { 59670,  SymId::mensuralProlation7 },
         { 59671,  SymId::mensuralProlation8 },
+        { 59672,  SymId::mensuralProlation9 },
         { 59673,  SymId::mensuralProlation10 },
         { 59674,  SymId::mensuralProlation11 },
     };
@@ -1202,7 +1207,7 @@ void collectChordsAndRest(Segment* segment, staff_idx_t staffIdx, std::vector<Ch
     track_idx_t endTrack = startTrack + VOICES;
 
     for (track_idx_t track = startTrack; track < endTrack; ++track) {
-        EngravingItem* e = segment->elementAt(track);
+        EngravingItem* e = segment->element(track);
         if (!e) {
             continue;
         }
@@ -1224,7 +1229,7 @@ void collectChordsOverlappingRests(Segment* segment, staff_idx_t staffIdx, std::
 
     std::set<track_idx_t> tracksToCheck;
     for (track_idx_t track = startTrack; track < endTrack; ++track) {
-        EngravingItem* item = segment->elementAt(track);
+        EngravingItem* item = segment->element(track);
         if (!item || !item->isRest()) {
             tracksToCheck.insert(track);
         }
@@ -1237,7 +1242,7 @@ void collectChordsOverlappingRests(Segment* segment, staff_idx_t staffIdx, std::
         }
         Fraction prevSegTick = prevSeg->rtick();
         for (track_idx_t track : tracksToCheck) {
-            EngravingItem* e = prevSeg->elementAt(track);
+            EngravingItem* e = prevSeg->element(track);
             if (!e || !e->isChord()) {
                 continue;
             }
@@ -1350,8 +1355,18 @@ std::unordered_set<EngravingItem*> collectElementsAnchoredToChordRest(const Chor
     for (Articulation* art : chord->articulations()) {
         elems.emplace(art);
     }
+    // Chord brackets and chord lines
+    for (EngravingItem* e : chord->el()) {
+        elems.emplace(e);
+    }
     for (Chord* grace : chord->graceNotes()) {
         elems.emplace(grace);
+        for (Articulation* gArt : grace->articulations()) {
+            elems.emplace(gArt);
+        }
+        if (TremoloSingleChord* gTremSing = grace->tremoloSingleChord()) {
+            elems.emplace(gTremSing);
+        }
     }
     return elems;
 }
@@ -1402,6 +1417,11 @@ std::unordered_set<EngravingItem*> collectElementsAnchoredToNote(const Note* not
             elems.emplace(sp);
         }
     }
+    const NoteParenthesisInfo* noteParenInfo = note->parenthesisInfo();
+    if (noteParenInfo && noteParenInfo->notes().size()) {
+        elems.emplace(noteParenInfo->leftParen());
+        elems.emplace(noteParenInfo->rightParen());
+    }
     return elems;
 }
 
@@ -1450,22 +1470,41 @@ bool isFirstSystemKeySig(const KeySig* ks)
     return ks->tick() == sys->firstMeasure()->tick();
 }
 
-String bendAmountToString(int fulls, int quarts)
+String bendAmountToString(int fulls, int quarts, bool useFractions)
 {
-    String string = (fulls != 0 || quarts == 0) ? String::number(fulls) : String();
+    String string = fulls != 0 ? String::number(fulls) : String();
 
-    switch (quarts) {
-    case 1:
-        string += u"\u00BC";
-        break;
-    case 2:
-        string += u"\u00BD";
-        break;
-    case 3:
-        string += u"\u00BE";
-        break;
-    default:
-        break;
+    if (useFractions) {
+        switch (std::abs(quarts)) {
+        case 1:
+            string += u"\u00BC";
+            break;
+        case 2:
+            string += u"\u00BD";
+            break;
+        case 3:
+            string += u"\u00BE";
+            break;
+        default:
+            break;
+        }
+    } else {
+        if (!string.empty() && quarts != 0) {
+            string += u" ";
+        }
+        switch (std::abs(quarts)) {
+        case 1:
+            string += u"1/4";
+            break;
+        case 2:
+            string += u"1/2";
+            break;
+        case 3:
+            string += u"3/4";
+            break;
+        default:
+            break;
+        }
     }
 
     return string;
@@ -1529,6 +1568,10 @@ std::vector<Measure*> findPreviousRepeatMeasures(const Measure* measure)
 
     std::vector<Measure*> measures;
 
+    if (repeatList.empty()) {
+        return measures;
+    }
+
     for (auto it = repeatList.begin() + 1; it != repeatList.end(); it++) {
         const RepeatSegment* rs = *it;
         const auto prevSegIt = std::prev(it);
@@ -1568,7 +1611,7 @@ bool repeatHasPartialLyricLine(const Measure* endRepeatMeasure)
     return false;
 }
 
-bool segmentsAreAdjacentInRepeatStructure(const Segment* firstSeg, const Segment* secondSeg)
+bool segmentsAreAdjacent(const Segment* firstSeg, const Segment* secondSeg)
 {
     if (!firstSeg || !secondSeg) {
         return false;
@@ -1591,12 +1634,20 @@ bool segmentsAreAdjacentInRepeatStructure(const Segment* firstSeg, const Segment
 
     std::vector<const Measure*> measures;
 
+    bool firstMeasureSegmentFound = false;
+    bool secondMeasureSegmentFound = false;
+
     for (auto it = repeatList.begin(); it != repeatList.end(); it++) {
         const RepeatSegment* rs = *it;
         const auto nextSegIt = std::next(it);
 
         // Check if measures are in the same repeat segment
-        if (rs->containsMeasure(firstMasterMeasure) && rs->containsMeasure(secondMasterMeasure)) {
+        bool containsFirstMeasure = rs->containsMeasure(firstMasterMeasure);
+        bool containsSecondMeasure = rs->containsMeasure(secondMasterMeasure);
+        firstMeasureSegmentFound |= containsFirstMeasure;
+        secondMeasureSegmentFound |= containsSecondMeasure;
+
+        if (containsFirstMeasure && containsSecondMeasure) {
             return true;
         }
 
@@ -1620,6 +1671,11 @@ bool segmentsAreAdjacentInRepeatStructure(const Segment* firstSeg, const Segment
         if (m == secondMasterMeasure) {
             return true;
         }
+    }
+
+    if (!firstMeasureSegmentFound && !secondMeasureSegmentFound) {
+        // The measures are outside of the (invalid) repeat structure
+        return firstMasterMeasure->nextMeasure() == secondMasterMeasure;
     }
 
     return false;
@@ -1701,6 +1757,23 @@ bool isValidBarLineForRepeatSection(const Segment* firstSeg, const Segment* seco
     return segEndsWithBl && adjacentAndSecondShareSegment;
 }
 
+PartialLyricsLine* findPrevPartialLyricsLineDash(Lyrics* lyrics)
+{
+    Score* score = lyrics->score();
+    for (auto sp : score->spannerMap().findOverlapping(lyrics->tick().ticks(), lyrics->tick().ticks())) {
+        if (!sp.value->isPartialLyricsLine() || sp.value->track() != lyrics->track()) {
+            continue;
+        }
+        PartialLyricsLine* partialLine = toPartialLyricsLine(sp.value);
+        if (partialLine->isEndMelisma() || partialLine->verse() != lyrics->verse() || partialLine->placement() != lyrics->placement()) {
+            continue;
+        }
+        return partialLine;
+    }
+
+    return nullptr;
+}
+
 MeasureBeat findBeat(const Score* score, int tick)
 {
     MeasureBeat measureBeat;
@@ -1730,5 +1803,196 @@ bool isElementInFretBox(const EngravingItem* item)
         return toFretDiagram(item)->isInFretBox();
     }
     return false;
+}
+
+std::vector<EngravingItem*> filterTargetElements(const Selection& sel, EngravingItem* dropElement, bool& unique)
+{
+    bool uniqueMeasures =  false;
+    bool uniqueStaves = false;
+
+    switch (dropElement->type()) {
+    // Brackets have a special logic for range selections.
+    // For other selections add only one to each staff:
+    case ElementType::BRACKET:
+        if (sel.isRange()) {
+            unique = true;
+            return { sel.startSegment()->firstElementForNavigation(sel.staffStart()) };
+        }
+        uniqueStaves = true;
+        break;
+
+    // Barlines are only added to measures in range selections:
+    case ElementType::BAR_LINE:
+        uniqueMeasures = sel.isRange();
+        break;
+
+    // For multi-measure measure repeats, avoid overlap by adding only one per staff:
+    case ElementType::MEASURE_REPEAT:
+        uniqueStaves = true;
+        uniqueMeasures = toMeasureRepeat(dropElement)->numMeasures() == 1;
+        break;
+
+    // Add these elements once per measure in list selections, else once total:
+    case ElementType::MARKER:
+    case ElementType::JUMP:
+    case ElementType::SPACER:  //! HACK - these should be applied "per staff" in range selections (see issue #33486)
+    case ElementType::STAFFTYPE_CHANGE:  //! HACK - these should be applied "per staff" in range selections (see issue #33486)
+    case ElementType::VBOX:
+    case ElementType::HBOX:
+    case ElementType::TBOX:
+    case ElementType::FBOX:
+    case ElementType::MEASURE:
+        if (sel.isRange()) {
+            unique = true;
+            return { sel.startSegment()->firstElementForNavigation(sel.staffStart()) };
+        }
+        uniqueMeasures = true;
+        break;
+
+    // Add these elements once per measure, always:
+    case ElementType::MEASURE_NUMBER:
+        uniqueMeasures = true;
+        break;
+
+    case ElementType::ACTION_ICON: {
+        const ActionIconType actionType = toActionIcon(dropElement)->actionType();
+        switch (actionType) {
+        case ActionIconType::STAFF_TYPE_CHANGE: //! HACK - these should be applied "per staff" in range selections (see issue #33486)
+        case ActionIconType::VFRAME:
+        case ActionIconType::HFRAME:
+        case ActionIconType::TFRAME:
+        case ActionIconType::FFRAME:
+        case ActionIconType::MEASURE:
+            if (sel.isRange()) {
+                unique = true;
+                return { sel.startSegment()->firstElementForNavigation(sel.staffStart()) };
+            }
+            break;
+        default: break;
+        }
+        break;
+    }
+    default: break;
+    }
+
+    unique = uniqueStaves || uniqueMeasures;
+    if (!unique) {
+        return sel.elements();
+    }
+
+    std::vector<EngravingItem*> result;
+    if (uniqueStaves && uniqueMeasures) {
+        std::vector<MStaff*> foundMStaves;
+        for (EngravingItem* e : sel.elements()) {
+            if (Measure* m = e->findMeasure()) {
+                if (!muse::contains(foundMStaves, m->mstaves().at(e->staffIdx()))) {
+                    result.emplace_back(e);
+                    foundMStaves.emplace_back(m->mstaves().at(e->staffIdx()));
+                }
+            }
+        }
+    } else if (uniqueStaves) {
+        std::vector<staff_idx_t> foundStaves;
+        for (EngravingItem* e : sel.elements()) {
+            if (!muse::contains(foundStaves, e->staffIdx())) {
+                result.emplace_back(e);
+                foundStaves.emplace_back(e->staffIdx());
+            }
+        }
+    } else {
+        std::vector<MeasureBase*> foundMeasures;
+        for (EngravingItem* e : sel.elements()) {
+            if (MeasureBase* mb = e->findMeasureBase()) {
+                if (!muse::contains(foundMeasures, mb)) {
+                    result.emplace_back(e);
+                    foundMeasures.emplace_back(mb);
+                }
+            }
+        }
+    }
+    return result;
+}
+
+Lyrics* searchNextLyrics(Segment* s, staff_idx_t staffIdx, int verse, PlacementV p)
+{
+    Lyrics* l = nullptr;
+    const Segment* originalSeg = s;
+    while ((s = s->next1(SegmentType::ChordRest))) {
+        if (!segmentsAreAdjacent(originalSeg, s)) {
+            return nullptr;
+        }
+
+        track_idx_t strack = staffIdx * VOICES;
+        track_idx_t etrack = strack + VOICES;
+        // search through all tracks of current staff looking for a lyric in specified verse
+        for (track_idx_t track = strack; track < etrack; ++track) {
+            ChordRest* cr = toChordRest(s->element(track));
+            if (cr) {
+                // cr with lyrics found, but does it have a syllable in specified verse?
+                l = cr->lyrics(verse, p);
+                if (l) {
+                    break;
+                }
+            }
+        }
+        if (l) {
+            break;
+        }
+    }
+    return l;
+}
+
+bool noteIsBefore(const Note* n1, const Note* n2)
+{
+    const int l1 = n1->line();
+    const int l2 = n2->line();
+    if (l1 != l2) {
+        return l1 > l2;
+    }
+
+    const int p1 = n1->pitch();
+    const int p2 = n2->pitch();
+    if (p1 != p2) {
+        return p1 < p2;
+    }
+
+    if (n1->tieBack()) {
+        if (n2->tieBack() && !n2->incomingPartialTie()) {
+            const Note* sn1 = n1->tieBack()->startNote();
+            const Note* sn2 = n2->tieBack()->startNote();
+            if (sn1->chord() == sn2->chord()) {
+                return sn1->unisonIndex() < sn2->unisonIndex();
+            }
+            return sn1->chord()->isBefore(sn2->chord());
+        } else {
+            return true;       // place tied notes before
+        }
+    }
+
+    return false;
+}
+
+void updatePercussionNotes(Chord* c, const Drumset* drumset)
+{
+    TRACEFUNC;
+    for (Chord* ch : c->graceNotes()) {
+        updatePercussionNotes(ch, drumset);
+    }
+    std::vector<Note*> lnotes(c->notes());    // we need a copy!
+    for (Note* note : lnotes) {
+        if (!drumset) {
+            note->setLine(0);
+        } else {
+            int pitch = note->pitch();
+            if (!drumset->isValid(pitch)) {
+                note->setLine(0);
+                //! NOTE May be called too often
+                //LOGW("unmapped drum note %d", pitch);
+            } else if (!note->fixed()) {
+                note->undoChangeProperty(Pid::HEAD_GROUP, drumset->noteHead(pitch));
+                note->setLine(drumset->line(pitch));
+            }
+        }
+    }
 }
 }

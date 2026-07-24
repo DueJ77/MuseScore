@@ -16,6 +16,8 @@ build.tooldata
 build.qtc
 build-*
 build
+muse
+muse_deps
 win32build
 win32install
 win64build
@@ -82,3 +84,10 @@ __pycache__/
 
 # CMake User presets
 CMakeUserPresets.json
+
+# Compile commands json
+compile_commands.json
+.cache
+
+# QML language server
+**/.qmlls.ini

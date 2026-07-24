@@ -28,18 +28,18 @@
 #include "workspacefile.h"
 
 #include "modularity/ioc.h"
-#include "multiinstances/imultiinstancesprovider.h"
+#include "multiwindows/imultiwindowsprovider.h"
 #include "global/iapplication.h"
 #include "io/ifilesystem.h"
 #include "iworkspaceconfiguration.h"
 
 namespace muse::workspace {
-class Workspace : public IWorkspace, public Injectable, public async::Asyncable
+class Workspace : public IWorkspace, public Contextable, public async::Asyncable
 {
-    Inject<mi::IMultiInstancesProvider> multiInstancesProvider = { this };
-    Inject<IApplication> application = { this };
-    Inject<io::IFileSystem> fileSystem = { this };
-    Inject<IWorkspaceConfiguration> configuration = { this };
+    GlobalInject<mi::IMultiWindowsProvider> multiwindowsProvider;
+    GlobalInject<io::IFileSystem> fileSystem;
+    GlobalInject<IWorkspaceConfiguration> configuration;
+    ContextInject<IApplication> application = { this };
 
 public:
     Workspace(const io::path_t& filePath, const modularity::ContextPtr& iocCtx);

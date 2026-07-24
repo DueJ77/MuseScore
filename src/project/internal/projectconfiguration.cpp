@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@
 #include "settings.h"
 
 #include "engraving/infrastructure/mscio.h"
+#include "project/internal/notationproject.h"
 
 #include "log.h"
 
@@ -67,6 +68,11 @@ static const Settings::Key CREATE_BACKUP_BEFORE_SAVING(module_name, "project/cre
 
 static const std::string DEFAULT_FILE_SUFFIX(".mscz");
 static const std::string DEFAULT_FILE_FILTER("*.mscz");
+
+ProjectConfiguration::ProjectConfiguration(const muse::modularity::ContextPtr& iocCtx)
+    : muse::Contextable(iocCtx)
+{
+}
 
 void ProjectConfiguration::init()
 {
@@ -303,6 +309,7 @@ muse::io::path_t ProjectConfiguration::defaultSavingFilePath(INotationProjectPtr
     muse::io::path_t folderPath;
     muse::io::path_t filename;
     std::string theSuffix = suffix;
+    std::string theFilenameAddition = filenameAddition;
 
     muse::io::path_t projectPath = project->path();
     bool isLocalProject = !project->isCloudProject();
@@ -350,9 +357,29 @@ muse::io::path_t ProjectConfiguration::defaultSavingFilePath(INotationProjectPtr
         theSuffix = DEFAULT_FILE_SUFFIX;
     }
 
+    if (project->isNewlyCreated() && filename.toQString() == NotationProject::scoreDefaultTitle()) {
+        theFilenameAddition += uniqueFileNameAddition(filename + theFilenameAddition, folderPath, theSuffix);
+    }
+
     return folderPath
-           .appendingComponent(filename + filenameAddition)
+           .appendingComponent(filename + theFilenameAddition)
            .appendingSuffix(theSuffix);
+}
+
+std::string ProjectConfiguration::uniqueFileNameAddition(const io::path_t& filename, const io::path_t& folderPath,
+                                                         const std::string& suffix) const
+{
+    // Return a filename addition which would make filename unique if it wasn't already
+    const std::string theSuffix = suffix.empty() ? DEFAULT_FILE_SUFFIX : suffix;
+    std::string addition;
+    int id = 1;
+    while (fileSystem()->exists(folderPath
+                                .appendingComponent(filename + addition)
+                                .appendingSuffix(theSuffix))) {
+        addition = " (" + std::to_string(id) + ")";
+        id++;
+    }
+    return addition;
 }
 
 SaveLocationType ProjectConfiguration::lastUsedSaveLocationType() const
@@ -619,6 +646,12 @@ QUrl ProjectConfiguration::supportForumUrl() const
     // The general forum page, where the support forum is linked at the top
     // (except in English; there you have the Announcements forum)
     return QUrl("https://musescore.org/forum");
+}
+
+QUrl ProjectConfiguration::dotComBugReportUrl() const
+{
+    // The general .com bug report page
+    return QUrl("https://musescore.com/groups/bug-reports");
 }
 
 bool ProjectConfiguration::openDetailedProjectUploadedDialog() const

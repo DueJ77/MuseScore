@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,8 @@
  */
 
 #include <gtest/gtest.h>
+
+#include "io/fileinfo.h"
 
 #include "engraving/dom/breath.h"
 #include "engraving/dom/chord.h"
@@ -165,9 +167,21 @@ void Engraving_PartsTests::testPartCreation(const String& test)
 {
     MasterScore* score = ScoreRW::readScore(PARTS_DATA_DIR + test + u".mscx");
     ASSERT_TRUE(score);
-    EXPECT_TRUE(ScoreComp::saveCompareScore(score, test + u"-1.mscx", PARTS_DATA_DIR + test + u".mscx"));
+
+    if (muse::io::FileInfo(ScoreRW::rootPath() + u"/" + PARTS_DATA_DIR + test + u"-ref.mscx").exists()) {
+        EXPECT_TRUE(ScoreComp::saveCompareScore(score, test + u"-1.mscx", PARTS_DATA_DIR + test + u"-ref.mscx"));
+    } else {
+        EXPECT_TRUE(ScoreComp::saveCompareScore(score, test + u"-1.mscx", PARTS_DATA_DIR + test + u".mscx"));
+    }
+
     TestUtils::createParts(score, 2);
-    EXPECT_TRUE(ScoreComp::saveCompareScore(score, test + u"-parts.mscx", PARTS_DATA_DIR + test + u"-parts.mscx"));
+
+    if (muse::io::FileInfo(ScoreRW::rootPath() + u"/" + PARTS_DATA_DIR + test + u"-parts-ref.mscx").exists()) {
+        EXPECT_TRUE(ScoreComp::saveCompareScore(score, test + u"-parts.mscx", PARTS_DATA_DIR + test + u"-parts-ref.mscx"));
+    } else {
+        EXPECT_TRUE(ScoreComp::saveCompareScore(score, test + u"-parts.mscx", PARTS_DATA_DIR + test + u"-parts.mscx"));
+    }
+
     delete score;
 }
 
@@ -293,6 +307,30 @@ TEST_F(Engraving_PartsTests, styleScoreDefault)
 TEST_F(Engraving_PartsTests, createPart1)
 {
     testPartCreation(u"part-empty");
+}
+
+TEST_F(Engraving_PartsTests, createEmptyPart)
+{
+    String sourceFileName = u"part-empty";
+    MasterScore* score = ScoreRW::readScore(PARTS_DATA_DIR + sourceFileName + u".mscx");
+    ASSERT_TRUE(score);
+    EXPECT_TRUE(ScoreComp::saveCompareScore(score, sourceFileName + u"-1.mscx", PARTS_DATA_DIR + sourceFileName + u".mscx"));
+
+    TestUtils::createEmptyPart(score);
+
+    // Check that measures have correct ticks set
+    for (Excerpt* excerpt : score->excerpts()) {
+        Score* excerptScore = excerpt->excerptScore();
+        EXPECT_TRUE(excerptScore);
+        for (MeasureBase* mb = excerptScore->first(); mb; mb = mb->next()) {
+            if (mb->isMeasure()) {
+                EXPECT_GT(mb->ticks(), Fraction(0, 1));
+            }
+            if (mb->prev()) {
+                EXPECT_EQ(mb->prev()->endTick(), mb->tick());
+            }
+        }
+    }
 }
 
 TEST_F(Engraving_PartsTests, createPart2)
@@ -522,7 +560,7 @@ MasterScore* Engraving_PartsTests::doRemoveFingering()
     Note* note   = chord->upNote();
     EngravingItem* fingering = 0;
     for (EngravingItem* e : note->el()) {
-        if (e->type() == ElementType::FINGERING) {
+        if (e->isFingering()) {
             fingering = e;
             break;
         }
@@ -656,7 +694,7 @@ MasterScore* Engraving_PartsTests::doRemoveSymbol()
     Note* note   = chord->upNote();
     EngravingItem* se = 0;
     for (EngravingItem* e : note->el()) {
-        if (e->type() == ElementType::SYMBOL) {
+        if (e->isSymbol()) {
             se = e;
             break;
         }
@@ -790,7 +828,7 @@ MasterScore* Engraving_PartsTests::doRemoveChordline()
 
     EngravingItem* se = 0;
     for (EngravingItem* e : chord->el()) {
-        if (e->type() == ElementType::CHORDLINE) {
+        if (e->isChordLine()) {
             se = e;
             break;
         }
@@ -989,7 +1027,7 @@ MasterScore* Engraving_PartsTests::doAddImage()
     Note* note   = chord->upNote();
     EditData dd(0);
     Image* b = Factory::createImage(note);
-    b->load(PARTS_DATA_DIR + u"schnee.png");
+    b->loadFromFile(PARTS_DATA_DIR + u"schnee.png");
     dd.dropElement = b;
 
     score->startCmd(TranslatableString::untranslatable("Engraving parts tests"));
@@ -1049,7 +1087,7 @@ MasterScore* Engraving_PartsTests::doRemoveImage()
     Note* note   = chord->upNote();
     EngravingItem* fingering = 0;
     for (EngravingItem* e : note->el()) {
-        if (e->type() == ElementType::IMAGE) {
+        if (e->isImage()) {
             fingering = e;
             break;
         }
@@ -1128,7 +1166,7 @@ TEST_F(Engraving_PartsTests, partExclusion)
             continue;
         }
         for (Segment& segment : toMeasure(mb)->segments()) {
-            EngravingItem* item = segment.elementAt(0);
+            EngravingItem* item = segment.element(0);
             if (item && item->isClef() && !item->generated()) {
                 itemsToExclude.push_back(item);
             }
@@ -1194,7 +1232,7 @@ TEST_F(Engraving_PartsTests, partPropertyLinking)
     EXPECT_TRUE(testItem);
 
     testItem->undoChangeProperty(Pid::PLACEMENT, PropertyValue::fromValue(PlacementV::ABOVE), PropertyFlags::NOSTYLE);
-    testItem->undoChangeProperty(Pid::DYNAMICS_SIZE, PropertyValue::fromValue(1.2), PropertyFlags::NOSTYLE);
+    testItem->undoChangeProperty(Pid::MUSICAL_SYMBOLS_SCALE, PropertyValue::fromValue(1.2), PropertyFlags::NOSTYLE);
     EXPECT_FALSE(testItem->isPositionLinkedToMaster());
     EXPECT_FALSE(testItem->isAppearanceLinkedToMaster());
 
@@ -1288,7 +1326,7 @@ TEST_F(Engraving_PartsTests, inputFromParts) {
     flutePart->setNoteRest(partSegment, voice, NoteVal(60), Fraction(1, 1));
     Segment* scoreSegment = score->tick2segment(partSegment->tick(), true, SegmentType::ChordRest);
     EXPECT_TRUE(scoreSegment);
-    Chord* chord = toChord(scoreSegment->elementAt(staff2track(fluteStaff) + voice));
+    Chord* chord = toChord(scoreSegment->element(staff2track(fluteStaff) + voice));
     EXPECT_TRUE(chord);
 
     voice = 2;
@@ -1297,7 +1335,7 @@ TEST_F(Engraving_PartsTests, inputFromParts) {
     oboePart->setNoteRest(partSegment, voice, NoteVal(60), Fraction(1, 1));
     scoreSegment = score->tick2segment(partSegment->tick(), true, SegmentType::ChordRest);
     EXPECT_TRUE(scoreSegment);
-    chord = toChord(scoreSegment->elementAt(staff2track(oboeStaff) + voice));
+    chord = toChord(scoreSegment->element(staff2track(oboeStaff) + voice));
     EXPECT_TRUE(chord);
 
     voice = 1;
@@ -1306,7 +1344,7 @@ TEST_F(Engraving_PartsTests, inputFromParts) {
     clarinetPart->setNoteRest(partSegment, voice, NoteVal(60), Fraction(1, 1));
     scoreSegment = score->tick2segment(partSegment->tick(), true, SegmentType::ChordRest);
     EXPECT_TRUE(scoreSegment);
-    chord = toChord(scoreSegment->elementAt(staff2track(clarinetStaff) + voice));
+    chord = toChord(scoreSegment->element(staff2track(clarinetStaff) + voice));
     EXPECT_TRUE(chord);
 
     voice = 0;
@@ -1316,7 +1354,7 @@ TEST_F(Engraving_PartsTests, inputFromParts) {
     bassoonPart->setNoteRest(partSegment, voice, NoteVal(60), Fraction(1, 1));
     scoreSegment = score->tick2segment(partSegment->tick(), true, SegmentType::ChordRest);
     EXPECT_TRUE(scoreSegment);
-    chord = toChord(scoreSegment->elementAt(staff2track(bassoonStaff) + voice));
+    chord = toChord(scoreSegment->element(staff2track(bassoonStaff) + voice));
     EXPECT_TRUE(chord);
 }
 

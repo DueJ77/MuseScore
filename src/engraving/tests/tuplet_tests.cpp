@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -131,7 +131,7 @@ void Engraving_TupletTests::split(const char16_t* p1, const char16_t* p2)
     dd.dropElement = ts;
     dd.modifiers = {};
     dd.dragOffset = QPointF();
-    dd.pos = m->pagePos();
+    dd.track = 0;
     m->drop(dd);
     score->endCmd();
 

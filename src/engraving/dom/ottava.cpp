@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -55,6 +55,12 @@ static const ElementStyle ottavaStyle {
     { Sid::ottavaFontStyle,                    Pid::BEGIN_FONT_STYLE },
     { Sid::ottavaFontStyle,                    Pid::CONTINUE_FONT_STYLE },
     { Sid::ottavaFontStyle,                    Pid::END_FONT_STYLE },
+    { Sid::ottavaMusicalSymbolsScale,          Pid::BEGIN_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::ottavaMusicalSymbolsScale,          Pid::CONTINUE_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::ottavaMusicalSymbolsScale,          Pid::END_TEXT_MUSICAL_SYMBOLS_SCALE },
+    { Sid::dummyMusicalSymbolSize,             Pid::BEGIN_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::dummyMusicalSymbolSize,             Pid::CONTINUE_TEXT_MUSIC_SYMBOLS_SIZE },
+    { Sid::dummyMusicalSymbolSize,             Pid::END_TEXT_MUSIC_SYMBOLS_SIZE },
     { Sid::ottavaTextAlignAbove,               Pid::BEGIN_TEXT_ALIGN },
     { Sid::ottavaTextAlignAbove,               Pid::CONTINUE_TEXT_ALIGN },
     { Sid::ottavaTextAlignAbove,               Pid::END_TEXT_ALIGN },
@@ -67,6 +73,14 @@ static const ElementStyle ottavaStyle {
     { Sid::ottavaDashGapLen,                   Pid::DASH_GAP_LEN },
     { Sid::ottavaPosAbove,                     Pid::OFFSET },
     { Sid::ottavaFontSpatiumDependent,         Pid::TEXT_SIZE_SPATIUM_DEPENDENT },
+    { Sid::ottavaEndLineArrowHeight,           Pid::END_LINE_ARROW_HEIGHT },
+    { Sid::ottavaEndLineArrowWidth,            Pid::END_LINE_ARROW_WIDTH },
+    { Sid::ottavaBeginLineArrowHeight,         Pid::BEGIN_LINE_ARROW_HEIGHT },
+    { Sid::ottavaBeginLineArrowWidth,          Pid::BEGIN_LINE_ARROW_WIDTH },
+    { Sid::ottavaEndFilledArrowHeight,         Pid::END_FILLED_ARROW_HEIGHT },
+    { Sid::ottavaEndFilledArrowWidth,          Pid::END_FILLED_ARROW_WIDTH },
+    { Sid::ottavaBeginFilledArrowHeight,       Pid::BEGIN_FILLED_ARROW_HEIGHT },
+    { Sid::ottavaBeginFilledArrowWidth,        Pid::BEGIN_FILLED_ARROW_WIDTH },
 };
 
 OttavaSegment::OttavaSegment(Ottava* sp, System* parent)

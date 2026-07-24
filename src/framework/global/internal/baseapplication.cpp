@@ -27,6 +27,9 @@
 
 #ifndef NO_QT_SUPPORT
 #include <QApplication>
+#endif
+
+#ifdef QT_QPROCESS_SUPPORTED
 #include <QProcess>
 #endif
 
@@ -112,7 +115,7 @@ String BaseApplication::appRevision()
 }
 
 BaseApplication::BaseApplication(const modularity::ContextPtr& ctx)
-    : m_iocContext(ctx)
+    : muse::Contextable(ctx), m_iocContext(ctx)
 {
 }
 
@@ -156,19 +159,24 @@ Qt::KeyboardModifiers BaseApplication::keyboardModifiers() const
 
 void BaseApplication::restart()
 {
-#ifdef QT_QPROCESS_SUPPORTED
-    QString program = qApp->arguments()[0];
-
-    // NOTE: remove the first argument - the program name
-    QStringList arguments = qApp->arguments().mid(1);
-
+    m_finishMode = FinishMode::Restart;
     QCoreApplication::exit();
+}
 
-    QProcess::startDetached(program, arguments);
+void BaseApplication::finish()
+{
+    if (m_finishMode == IApplication::FinishMode::Restart) {
+#ifdef QT_QPROCESS_SUPPORTED
+        QString program = qApp->arguments()[0];
 
+        // NOTE: remove the first argument - the program name
+        QStringList arguments = qApp->arguments().mid(1);
+
+        QProcess::startDetached(program, arguments);
 #else
-    NOT_SUPPORTED;
+        NOT_SUPPORTED;
 #endif
+    }
 }
 
 const modularity::ContextPtr BaseApplication::iocContext() const
@@ -178,12 +186,11 @@ const modularity::ContextPtr BaseApplication::iocContext() const
 
 modularity::ModulesIoC* BaseApplication::ioc() const
 {
-    return modularity::_ioc(m_iocContext);
+    return modularity::ioc(m_iocContext);
 }
 
 void BaseApplication::removeIoC()
 {
-    modularity::_ioc(m_iocContext)->reset();
     modularity::removeIoC(m_iocContext);
 }
 

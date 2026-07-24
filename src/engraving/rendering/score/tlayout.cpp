@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -86,6 +86,7 @@
 #include "dom/ledgerline.h"
 #include "dom/letring.h"
 #include "dom/line.h"
+#include "dom/linkedobjects.h"
 #include "dom/lyrics.h"
 
 #include "dom/marker.h"
@@ -154,7 +155,10 @@
 
 #include "dom/factory.h"
 
+#include "editing/editchord.h"
+
 #include "accidentalslayout.h"
+#include "arpeggiolayout.h"
 #include "autoplace.h"
 #include "beamlayout.h"
 #include "boxlayout.h"
@@ -202,6 +206,9 @@ void TLayout::layoutItem(EngravingItem* item, LayoutContext& ctx)
         break;
     case ElementType::ARPEGGIO:
         layoutArpeggio(item_cast<const Arpeggio*>(item), static_cast<Arpeggio::LayoutData*>(ldata), ctx.conf());
+        break;
+    case ElementType::CHORD_BRACKET:
+        layoutChordBracket(item_cast<const ChordBracket*>(item), static_cast<ChordBracket::LayoutData*>(ldata), ctx.conf());
         break;
     case ElementType::ARTICULATION:
         layoutArticulation(item_cast<Articulation*>(item), static_cast<Articulation::LayoutData*>(ldata));
@@ -460,7 +467,7 @@ void TLayout::layoutItem(EngravingItem* item, LayoutContext& ctx)
     case ElementType::TIE:              layoutTie(item_cast<Tie*>(item), ctx);
         break;
     case ElementType::TIMESIG:
-        layoutTimeSig(item_cast<const TimeSig*>(item), static_cast<TimeSig::LayoutData*>(ldata), ctx);
+        layoutTimeSig(item_cast<TimeSig*>(item), static_cast<TimeSig::LayoutData*>(ldata), ctx);
         break;
     case ElementType::TIME_TICK_ANCHOR: layoutTimeTickAnchor(static_cast<TimeTickAnchor*>(item), ctx);
         break;
@@ -488,6 +495,8 @@ void TLayout::layoutItem(EngravingItem* item, LayoutContext& ctx)
         break;
     case ElementType::VOLTA_SEGMENT:    layoutVoltaSegment(item_cast<VoltaSegment*>(item), ctx);
         break;
+    case ElementType::WHAMMY_BAR:       layoutLine(item_cast<WhammyBar*>(item), ctx);
+        break;
     case ElementType::WHAMMY_BAR_SEGMENT: layoutWhammyBarSegment(item_cast<WhammyBarSegment*>(item), ctx);
         break;
     default:
@@ -504,12 +513,14 @@ void TLayout::layoutAccidental(const Accidental* item, Accidental::LayoutData* l
     if (ldata->isValid()) {
         return;
     }
-
+    if (item->staff()->isCipherStaff(item->rtick())) {
+        return;
+    }
     ldata->syms.clear();
 
     // TODO: remove Accidental in layout
-    // don't show accidentals for tab or slash notation
-    if (item->onTabStaff() || (item->note() && item->note()->fixed())) {
+    // don't show accidentals for tab, cipher, or slash notation
+    if (item->onTabStaff() || item->onCipherStaff() || (item->note() && item->note()->fixed())) {
         ldata->setIsSkipDraw(true);
         return;
     }
@@ -751,11 +762,9 @@ void TLayout::layoutAmbitus(const Ambitus* item, Ambitus::LayoutData* ldata, con
     }
 }
 
-void TLayout::layoutArpeggio(const Arpeggio* item, Arpeggio::LayoutData* ldata, const LayoutConfiguration& conf,
-                             bool includeCrossStaffHeight)
+void TLayout::layoutArpeggio(const Arpeggio* item, Arpeggio::LayoutData* ldata, const LayoutConfiguration& conf)
 {
     LAYOUT_CALL_ITEM(item);
-    UNUSED(includeCrossStaffHeight);
 
     //! NOTE Can be edited and relayout,
     //! in this case the reset layout data has not yet been done
@@ -786,73 +795,6 @@ void TLayout::layoutArpeggio(const Arpeggio* item, Arpeggio::LayoutData* ldata, 
     LD_CONDITION(parentChord->upNote()->ldata()->isSetPos());
     LD_CONDITION(parentChord->downNote()->ldata()->isSetPos());
 
-    auto computeHeight = [](const Arpeggio* item) -> double
-    {
-        Chord* chord = item->chord();
-        double y = chord->upNote()->pagePos().y() - chord->upNote()->headHeight() * .5;
-
-        Note* downNote = chord->downNote();
-        EngravingItem* e = chord->segment()->element(item->track() + item->span() - 1);
-        if (e && e->isChord()) {
-            downNote = toChord(e)->downNote();
-        }
-        double h = downNote->pagePos().y() + downNote->headHeight() * .5 - y;
-        return h;
-    };
-
-    auto calcTop = [](const Arpeggio* item, const LayoutConfiguration& conf) -> double
-    {
-        double top = -item->userLen1();
-        switch (item->arpeggioType()) {
-        case ArpeggioType::BRACKET: {
-            double lineWidth = conf.styleMM(Sid::arpeggioLineWidth);
-            return top - lineWidth / 2.0;
-        }
-        case ArpeggioType::NORMAL:
-        case ArpeggioType::UP:
-        case ArpeggioType::DOWN: {
-            // if the top is in the staff on a space, move it up
-            // if the bottom note is on a line, the distance is 0.25 spaces
-            // if the bottom note is on a space, the distance is 0.5 spaces
-            int topNoteLine = item->chord()->upNote()->line();
-            int lines = item->staff()->lines(item->tick());
-            int bottomLine = (lines - 1) * 2;
-            if (topNoteLine <= 0 || topNoteLine % 2 == 0 || topNoteLine >= bottomLine) {
-                return top;
-            }
-            int downNoteLine = item->chord()->downNote()->line();
-            if (downNoteLine % 2 == 1 && downNoteLine < bottomLine) {
-                return top - 0.4 * item->spatium();
-            }
-            return top - 0.25 * item->spatium();
-        }
-        default: {
-            return top - item->spatium() / 4;
-        }
-        }
-    };
-
-    auto calcBottom = [](const Arpeggio* item, double arpeggioHeight, const LayoutConfiguration& conf) -> double
-    {
-        double top = -item->userLen1();
-        double bottom = arpeggioHeight + item->userLen2();
-
-        switch (item->arpeggioType()) {
-        case ArpeggioType::BRACKET: {
-            double lineWidth = conf.styleMM(Sid::arpeggioLineWidth);
-            return bottom - top + lineWidth;
-        }
-        case ArpeggioType::NORMAL:
-        case ArpeggioType::UP:
-        case ArpeggioType::DOWN: {
-            return bottom;
-        }
-        default: {
-            return bottom - top + item->spatium() / 2;
-        }
-        }
-    };
-
     auto symbolLine = [](const std::shared_ptr<const IEngravingFont>& f, Arpeggio::LayoutData* data, SymId end, SymId fill)
     {
         data->symbols.clear();
@@ -867,9 +809,9 @@ void TLayout::layoutArpeggio(const Arpeggio* item, Arpeggio::LayoutData* ldata, 
         data->symbols.push_back(end);
     };
 
-    ldata->arpeggioHeight = computeHeight(item);
-    ldata->top = calcTop(item, conf);
-    ldata->bottom = calcBottom(item, ldata->arpeggioHeight, conf);
+    ldata->arpeggioHeight = ArpeggioLayout::computeHeight(item);
+    ldata->top = ArpeggioLayout::calcTop(item, conf);
+    ldata->bottom = ArpeggioLayout::calcBottom(item, ldata->arpeggioHeight, conf);
 
     ldata->setMag(item->staff() ? item->staff()->staffMag(item->tick()) : item->mag());
     ldata->magS = conf.magS(ldata->mag());
@@ -915,6 +857,55 @@ void TLayout::layoutArpeggio(const Arpeggio* item, Arpeggio::LayoutData* ldata, 
         double w  = conf.styleS(Sid::arpeggioHookLen).val() * item->spatium();
         ldata->setBbox(RectF(0.0, ldata->top, w, ldata->bottom));
     } break;
+    }
+
+    // Loop through staves spanned & regenerate chord shape
+    // This makes sure the arpeggio's shape is added to the shape of each chord it spans
+    Chord* chord = item->chord();
+    Segment* seg = chord->segment();
+    staff_idx_t staveSpan = (item->track() + item->span() - 1) / VOICES;
+    for (staff_idx_t staffIdx = item->staffIdx(); staffIdx <= staveSpan; staffIdx++) {
+        seg->createShape(staffIdx);
+    }
+}
+
+void TLayout::layoutChordBracket(const ChordBracket* item, Arpeggio::LayoutData* ldata, const LayoutConfiguration& conf)
+{
+    double spatium = item->spatium();
+    ldata->arpeggioHeight = ArpeggioLayout::computeHeight(item);
+    ldata->top = ArpeggioLayout::calcTop(item, conf) - 0.25 * spatium;
+    ldata->bottom = ArpeggioLayout::calcBottom(item, ldata->arpeggioHeight, conf) + 0.5 * spatium;
+
+    const double minLen = 2 * item->spatium();
+    double diff = minLen - std::abs(ldata->bottom);
+    if (diff > 0) {
+        ldata->bottom += diff;
+        if (item->hookPos() == DirectionV::DOWN) {
+            ldata->top -= diff;
+        } else if (item->hookPos() == DirectionV::AUTO) {
+            ldata->top -= 0.5 * diff;
+        }
+    }
+
+    ldata->setMag(item->staff() ? item->staff()->staffMag(item->tick()) : item->mag());
+    ldata->magS = conf.magS(ldata->mag());
+
+    ldata->setShape(Shape(RectF(0.0, ldata->top, item->hookLength().toMM(spatium), ldata->bottom), item));
+
+    const Note* upnote = item->chord()->upNote();
+    ldata->setPosY(upnote->y() + upnote->ldata()->bbox().top());
+
+    Shape chordShape = item->chord()->shape();
+    chordShape.removeTypes({ ElementType::CHORD_BRACKET, ElementType::ARPEGGIO });
+    Shape itemShape = item->shape().translated(PointF(0.0, item->ldata()->pos().y()));
+    if (item->rightSide()) {
+        double x = HorizontalSpacing::minHorizontalDistance(chordShape, itemShape, spatium);
+        x = std::max(x, 0.0);
+        ldata->setPosX(x);
+    } else {
+        double x = HorizontalSpacing::minHorizontalDistance(itemShape, chordShape, spatium);
+        x = std::max(x, 0.0);
+        ldata->setPosX(-x);
     }
 
     // Loop through staves spanned & regenerate chord shape
@@ -1035,7 +1026,7 @@ static double barLineWidth(const BarLine* item, const MStyle& style, double dotW
 void TLayout::layoutBarLine(const BarLine* item, BarLine::LayoutData* ldata, const LayoutContext& ctx)
 {
     LAYOUT_CALL_ITEM(item);
-
+        
     // barlines hidden on this staff
     if (item->staff() && item->segment()) {
         if ((!item->staff()->staffTypeForElement(item)->showBarlines() && item->segment()->segmentType() == SegmentType::EndBarLine)
@@ -1237,12 +1228,21 @@ void TLayout::layoutBarLine2(BarLine* item, LayoutContext& ctx)
             bbox.unite(item->symBbox(SymId::bracketTop).translated(0, ldata->y1));
             bbox.unite(item->symBbox(SymId::bracketBottom).translated(0, ldata->y2));
             break;
-        }
+        } 
         default:
             break;
         }
     }
 
+    // Insert in TLayout::layoutBarLine2(BarLine* item, LayoutContext& ctx)
+    // ... existing code that computes ldata and sets its X pos ...
+
+    // Special case: reverse end barline on a cipher staff -> shift left by cipher width
+    if (item->barLineType() == BarLineType::REVERSE_END && item->staff()
+        && item->staff()->isCipherStaff(item->rtick())) {
+        ldata->setPosX(0.0);
+        ldata->moveX(-ldata->bbox().width());
+    }
     ldata->setBbox(bbox);
 }
 
@@ -1307,9 +1307,7 @@ void TLayout::layoutBend(const Bend* item, Bend::LayoutData* ldata)
 
             int idx = (pitch + 12) / 25;
             const char* l = Bend::label[idx];
-            bb.unite(fm.boundingRect(RectF(x2, y2, 0, 0),
-                                     muse::draw::AlignHCenter | muse::draw::AlignBottom | muse::draw::TextDontClip,
-                                     String::fromAscii(l)));
+            bb.unite(fm.boundingRect(String::fromAscii(l)));
             y = y2;
         }
         if (pitch == item->points().at(pt + 1).pitch) {
@@ -1334,9 +1332,7 @@ void TLayout::layoutBend(const Bend* item, Bend::LayoutData* ldata)
 
             int idx = (item->points().at(pt + 1).pitch + 12) / 25;
             const char* l = Bend::label[idx];
-            bb.unite(fm.boundingRect(RectF(x2, y2, 0, 0),
-                                     muse::draw::AlignHCenter | muse::draw::AlignBottom | muse::draw::TextDontClip,
-                                     String::fromAscii(l)));
+            bb.unite(fm.boundingRect(String::fromAscii(l)));
         } else {
             // down
             x2 = x + spatium * .5;
@@ -1498,14 +1494,23 @@ void TLayout::layoutBreath(const Breath* item, Breath::LayoutData* ldata, const 
 
     const double voiceOffset = item->placeBelow() ? item->staff()->staffHeight(item->tick()) : 0.0;
     if (item->isCaesura()) {
-        ldata->setPosY(item->spatium() + voiceOffset);
+        if (item->symId() == SymId::chantCaesura) {
+            // special handling for chant caesura, which is higher than the normal one
+            ldata->setPosY(1.5 * item->spatium() + voiceOffset);
+        } else {
+            ldata->setPosY(item->symHeight(item->symId()) / 2 + voiceOffset);
+        }
     } else if ((conf.styleSt(Sid::musicalSymbolFont) == "Emmentaler") && (item->symId() == SymId::breathMarkComma)) {
-        ldata->setPosY(0.5 * item->spatium() + voiceOffset);
+        const double shift = item->placeBelow() ? -0.5 * item->spatium() + item->symHeight(item->symId()) : 0.5 * item->spatium();
+        ldata->setPosY(shift + voiceOffset);
     } else {
-        ldata->setPosY(-0.5 * item->spatium() + voiceOffset);
+        const double shift = item->placeBelow() ? 0.5 * item->spatium() + item->symHeight(item->symId()) : -0.5 * item->spatium();
+        ldata->setPosY(shift + voiceOffset);
     }
 
     ldata->setBbox(item->symBbox(item->symId()));
+
+    ldata->setPosX(-ldata->bbox().right());
 }
 
 void TLayout::layoutChord(Chord* item, LayoutContext& ctx)
@@ -1640,10 +1645,6 @@ void TLayout::layoutClef(const Clef* item, Clef::LayoutData* ldata, const Layout
     LAYOUT_CALL_ITEM(item);
     LD_INDEPENDENT;
 
-    if (ldata->isValid()) {
-        return;
-    }
-
     // determine current number of lines and line distance
     int lines = 5;
     double lineDist = 1.0;
@@ -1654,16 +1655,20 @@ void TLayout::layoutClef(const Clef* item, Clef::LayoutData* ldata, const Layout
 
     // check clef visibility and type compatibility
     if (clefSeg && item->staff()) {
-        const Fraction tick = clefSeg->tick();
+        StaffType* stVisibility = item->staff()->staffType(item->tick());
+        bool show = stVisibility->genClef();            // check staff type allows clef display
+
+        const bool endOfMeasureClef = clefSeg->rtick() == clefSeg->measure()->ticks();
+        const Fraction tick = endOfMeasureClef && !item->isTrailer() ? item->tick() : clefSeg->measure()->tick();
+
         const Fraction tickPrev = tick - Fraction::eps();
         const StaffType* st = item->staff()->staffType(tick);
         const StaffType* stPrev = !tickPrev.negative() ? item->staff()->staffType(tickPrev) : nullptr;
-        bool show = st->genClef();            // check staff type allows clef display
         StaffGroup staffGroup = st->group();
         const bool hideClef = st->isTabStaff() ? conf.styleB(Sid::hideTabClefAfterFirst) : !conf.styleB(Sid::genClef);
 
-        // if not tab, use instrument->useDrumset to set staffGroup (to allow pitched to unpitched in same staff)
-        if (staffGroup != StaffGroup::TAB) {
+        // if not tab or cipher, use instrument->useDrumset to set staffGroup (to allow pitched to unpitched in same staff)
+        if (staffGroup != StaffGroup::TAB && staffGroup != StaffGroup::CIPHER) {
             staffGroup = item->staff()->part()->instrument(item->tick())->useDrumset() ? StaffGroup::PERCUSSION : StaffGroup::STANDARD;
         }
 
@@ -1838,7 +1843,7 @@ void TLayout::layoutExpression(const Expression* item, Expression::LayoutData* l
         track_idx_t startTrack = track2staff(item->staffIdx());
         track_idx_t endTrack = startTrack + VOICES;
         for (track_idx_t track = startTrack; track < endTrack; ++track) {
-            EngravingItem* e = segment->elementAt(track);
+            EngravingItem* e = segment->element(track);
             if (e && e->isChord()) {
                 chordToAlign = toChord(e);
                 break;
@@ -1987,7 +1992,7 @@ void TLayout::layoutFiguredBassItem(const FiguredBassItem* item, FiguredBassItem
 
     // font size in pixels, scaled according to spatium()
     // (use the same font selection as used in draw() below)
-    double m = ctx.conf().styleD(Sid::figuredBassFontSize) * item->spatium() / SPATIUM20;
+    double m = ctx.conf().styleD(Sid::figuredBassFontSize) * item->spatium() / item->defaultSpatium();
     f.setPointSizeF(m);
     FontMetrics fm(f);
 
@@ -2646,6 +2651,24 @@ void TLayout::layoutGlissandoSegment(GlissandoSegment* item, LayoutContext&)
 
 void TLayout::layoutGraceNotesGroup(GraceNotesGroup* item, LayoutContext& ctx)
 {
+    const StaffType* staffType = item->parent()->staffType();
+    if (staffType->isTabStaff() && !item->empty()) {
+        const Staff* staff = item->parent()->staff();
+        if (staff->links()) {
+            for (EngravingObject* linkedSt : *staff->links()) {
+                Staff* linkedStaff = toStaff(linkedSt);
+                if (linkedStaff->score() == staff->score() && !linkedStaff->staffType()->isTabStaff()
+                    && linkedStaff->idx() < staff->idx()) {
+                    // HACK: align grace notes in TAB to their linked notation staff.
+                    // CAUTION: Works only if notation staff is above the TAB.
+                    // TODO: refactor grace notes to allow doing this properly.
+                    alignTabGraceNotesToMainStave(item, linkedStaff);
+                    return;
+                }
+            }
+        }
+    }
+
     LAYOUT_CALL_ITEM(item);
     Shape _shape;
     for (size_t i = item->size() - 1; i != muse::nidx; --i) {
@@ -2708,11 +2731,6 @@ void TLayout::layoutGraceNotesGroup(GraceNotesGroup* item, LayoutContext& ctx)
     // Safety net in case the shape checks don't succeed
     xPos = std::min(xPos, -double(ctx.conf().styleMM(Sid::graceToMainNoteDist) + firstGN->notes().front()->headWidth() / 2));
 
-    // Exceptions for bends in TAB staves
-    if (firstGN->preOrGraceBendSpacingExceptionInTab()) {
-        xPos = 0.0;
-    }
-
     item->setPos(xPos, 0.0);
 
     if (isTabStaff) {
@@ -2734,6 +2752,21 @@ void TLayout::layoutGraceNotesGroup2(const GraceNotesGroup* item, GraceNotesGrou
         shape.add(grace->shape(LD_ACCESS::PASS).translate(grace->pos() - item->pos()));
     }
     ldata->setShape(shape);
+}
+
+void TLayout::alignTabGraceNotesToMainStave(GraceNotesGroup* graceNotes, const Staff* notationStaff)
+{
+    // HACK: align grace notes in TAB to their linked notation staff.
+    // CAUTION: Works only if notation staff is above the TAB.
+    // TODO: refactor grace notes to allow doing this properly.
+
+    for (Chord* grace : *graceNotes) {
+        Chord* linkedGrace = toChord(grace->findLinkedInStaff(notationStaff));
+        PointF linkedGracePos = linkedGrace->ldata()->pos();
+        if (linkedGrace) {
+            grace->setPos(linkedGracePos);
+        }
+    }
 }
 
 void TLayout::manageTempoChangeSnapping(GradualTempoChangeSegment* item, LayoutContext& ctx)
@@ -2792,14 +2825,11 @@ void TLayout::doLayoutGradualTempoChangeSegment(GradualTempoChangeSegment* item,
         extendLineToSnappedItemAfter(tempoChangeSegmentSnappedAfter);
     }
 
-    mu::engraving::rendering::score::TLayout::layoutTextLineBaseSegment(item, ctx);
+    layoutTextLineBaseSegment(item, ctx);
 
     if (item->isStyled(Pid::OFFSET)) {
         item->roffset() = item->tempoChange()->propertyDefault(Pid::OFFSET).value<PointF>();
     }
-
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
 
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
@@ -2826,18 +2856,15 @@ void TLayout::layoutGuitarBend(GuitarBend* item, LayoutContext& ctx)
 
     GuitarBendLayout::updateSegmentsAndLayout(item, ctx);
 
-    if (item->staffType()->isTabStaff()) {
-        item->updateHoldLine();
-        if (item->holdLine()) {
-            GuitarBendLayout::updateSegmentsAndLayout(item->holdLine(), ctx);
-        }
+    item->updateHoldLine();
+    if (item->holdLine()) {
+        GuitarBendLayout::updateSegmentsAndLayout(item->holdLine(), ctx);
     }
 }
 
 void TLayout::layoutGuitarBendSegment(GuitarBendSegment* item, LayoutContext& ctx)
 {
     LAYOUT_CALL_ITEM(item);
-    GuitarBendSegment::LayoutData* ldata = item->mutldata();
     bool tabStaff = item->staffType()->isTabStaff();
     if (tabStaff) {
         GuitarBendLayout::layoutTabStaff(item, ctx);
@@ -2850,7 +2877,7 @@ void TLayout::layoutGuitarBendSegment(GuitarBendSegment* item, LayoutContext& ct
     SkylineLine& skylineLine = tabStaff ? skyline.north() : (item->guitarBend()->ldata()->up() ? skyline.north() : skyline.south());
     skylineLine.add(item->shape().translate(item->pos()));
 
-    fillGuitarBendSegmentShape(item, ldata);
+    fillGuitarBendSegmentShape(item, item->mutldata());
 }
 
 void TLayout::fillGuitarBendSegmentShape(const GuitarBendSegment* item, GuitarBendSegment::LayoutData* ldata)
@@ -2976,18 +3003,18 @@ void TLayout::layoutHairpinSegment(HairpinSegment* item, LayoutContext& ctx)
             item->setCircledTip(t.map(item->circledTip()));
         }
 
-        item->pointsRef()[0] = l1.p1();
-        item->pointsRef()[1] = l1.p2();
-        item->pointsRef()[2] = l2.p1();
-        item->pointsRef()[3] = l2.p2();
-        item->npointsRef()   = 4;
+        ldata->points[0] = l1.p1();
+        ldata->points[1] = l1.p2();
+        ldata->points[2] = l2.p1();
+        ldata->points[3] = l2.p2();
+        ldata->npoints   = 4;
 
-        item->joinedHairpinRef().clear();
+        ldata->joinedHairpin.clear();
         if (item->spannerSegmentType() != SpannerSegmentType::MIDDLE) {
             if (type == HairpinType::DIM_HAIRPIN && item->spannerSegmentType() != SpannerSegmentType::BEGIN) {
-                item->joinedHairpinRef() << item->pointsRef()[0] << item->pointsRef()[1] << item->pointsRef()[2]; // [top-left, joint, bottom-left]
+                ldata->joinedHairpin << ldata->points[0] << ldata->points[1] << ldata->points[2]; // [top-left, joint, bottom-left]
             } else if (type == HairpinType::CRESC_HAIRPIN && item->spannerSegmentType() != SpannerSegmentType::END) {
-                item->joinedHairpinRef() << item->pointsRef()[1] << item->pointsRef()[0] << item->pointsRef()[3]; // [top-right, joint, bottom-right]
+                ldata->joinedHairpin << ldata->points[1] << ldata->points[0] << ldata->points[3]; // [top-right, joint, bottom-right]
             }
         }
 
@@ -3101,7 +3128,7 @@ void TLayout::layoutHairpin(Hairpin* item, LayoutContext& ctx)
 
 void TLayout::layoutHammerOnPullOff(HammerOnPullOff* item, LayoutContext& ctx)
 {
-    layoutSlur(static_cast<Slur*>(item), ctx);
+    layoutSlur(toSlur(item), ctx);
 }
 
 void TLayout::layoutHammerOnPullOffSegment(HammerOnPullOffSegment* item, LayoutContext& ctx)
@@ -3176,24 +3203,6 @@ void TLayout::layoutHammerOnPullOffText(HammerOnPullOffText* item, LayoutContext
     TextLayout::layoutBaseTextBase(item, ctx);
 }
 
-void TLayout::fillHairpinSegmentShape(const HairpinSegment* item, HairpinSegment::LayoutData* ldata)
-{
-    LAYOUT_CALL_ITEM(item);
-    Shape sh;
-    switch (item->hairpin()->hairpinType()) {
-    case HairpinType::CRESC_HAIRPIN:
-    case HairpinType::DIM_HAIRPIN:
-        sh = Shape(item->ldata()->bbox(), item);
-        break;
-    case HairpinType::DIM_LINE:
-    case HairpinType::CRESC_LINE:
-    default:
-        sh = textLineBaseSegmentShape(item);
-    }
-
-    ldata->setShape(sh);
-}
-
 void TLayout::layoutHarpPedalDiagram(const HarpPedalDiagram* item, HarpPedalDiagram::LayoutData* ldata)
 {
     LAYOUT_CALL_ITEM(item);
@@ -3228,9 +3237,6 @@ void TLayout::layoutHarmonicMarkSegment(HarmonicMarkSegment* item, LayoutContext
 
     layoutTextLineBaseSegment(item, ctx);
 
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
-
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
 
@@ -3248,6 +3254,25 @@ void TLayout::layoutHook(const Hook* item, Hook::LayoutData* ldata)
     LD_INDEPENDENT;
 
     if (ldata->isValid()) {
+        return;
+    }
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+
+        const_cast<Hook*>(item)->set_cipherLineThick(item->get_cipherHeigth() * item->style().styleD(Sid::cipherThickLine));
+        const_cast<Hook*>(item)->set_cipherLineSpace(item->get_cipherHeigth() * (item->style().styleD(Sid::cipherDistanceBetweenLines) * -1));
+        const_cast<Hook*>(item)->set_cipherHeigthLine(item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeightDisplacement) - item->get_cipherHeigth() - item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeigthLine));
+        qreal linienlaenge = item->get_cipherHeigth() * item->style().styleD(Sid::cipherWideLine);
+        const_cast<Hook*>(item)->set_cipherLineWidth(linienlaenge);
+        qreal x = item->chord()->notes()[0]->get_cipherTextPos().x();
+        x += item->chord()->notes()[0]->get_cipherWidth()/2;
+        const_cast<Hook*>(item)->set_cipherLine(LineF(x+item->style().styleD(Sid::cipherOffsetLine) - (item->get_cipherLineWidth() / 2),
+            item->get_cipherHeigthLine(),
+            x+item->style().styleD(Sid::cipherOffsetLine) - (item->get_cipherLineWidth() / 2) + item->get_cipherLineWidth(),
+            item->get_cipherHeigthLine()));
+        RectF hookbox = RectF(item->get_cipherLine().x1(),
+            item->get_cipherHeigthLine() + ((qAbs(item->hookType()) - 1) * item->get_cipherLineSpace()) - item->get_cipherLineThick(), linienlaenge,
+            (item->get_cipherHeigthLine() + ((qAbs(item->hookType()) - 1) * item->get_cipherLineSpace()) - item->get_cipherLineThick()) * -1 - item->get_cipherHeigthLine() * -1);
+        ldata->setBbox(hookbox);
         return;
     }
 
@@ -3343,19 +3368,19 @@ void TLayout::layoutJump(const Jump* item, Jump::LayoutData* ldata)
     if (avoidBarline) {
         bool startRepeat = measure->repeatStart();
         bool endRepeat = measure->repeatEnd();
-        staff_idx_t blIdx = item->staffIdx() - 1;
+        staff_idx_t blAboveIdx = item->staffIdx() - 1;
 
         const double fontSizeScaleFactor = item->size() / 10.0;
         double padding = (startRepeat || endRepeat) ? 0.0 : 0.5 * item->spatium() * fontSizeScaleFactor;
 
         if (position == AlignH::LEFT) {
-            const BarLine* bl = startRepeat || !measure->prevMeasure()
-                                ? measure->startBarLine(blIdx) : measure->prevMeasure()->endBarLine(blIdx);
-            double blWidth = startRepeat ? bl->width() : 0.0;
+            const BarLine* blAbove = startRepeat || !measure->prevMeasure()
+                                     ? measure->startBarLine(blAboveIdx) : measure->prevMeasure()->endBarLine(blAboveIdx);
+            double blWidth = startRepeat ? blAbove->width() : 0.0;
             xAdj += padding + blWidth;
         } else if (position == AlignH::RIGHT) {
-            const BarLine* bl = measure->endBarLine(blIdx);
-            xAdj -= bl->width() + padding;
+            const BarLine* blAbove = measure->endBarLine(blAboveIdx);
+            xAdj -= blAbove->width() + padding;
         }
     }
     ldata->moveX(xAdj);
@@ -3414,10 +3439,13 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
     ldata->setBbox(RectF());
     ldata->keySymbols.clear();
 
-    const StaffType* st = item->staffType();
-    if (st && !st->genKeysig()) {
+    const Staff* staff = item->staff();
+    const StaffType* stVisibility = staff ? staff->staffType(item->tick()) : nullptr;
+    if (stVisibility && !stVisibility->genKeysig()) {
         return;
     }
+
+    const StaffType* st = item->staffType();
     const Segment* s = item->segment();
     track_idx_t track = item->track();
     double spatium = item->spatium();
@@ -3529,11 +3557,13 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
         // AND we're not force hiding naturals (continuous mode)
         // AND key sig is CMaj/Amin OR style says they are on
         const Measure* pm = item->measure() ? item->measure()->prevMeasureMM() : nullptr;
+        const bool isCourtesy = s && (s->isType(SegmentType::CourtesyKeySigType) || !s->rtick().isZero());
+        const bool prevTrailerCourtesy = pm && !pm->sectionBreak() && (!pm->trailer() || !pm->hasCourtesyKeySig());
         if (!item->hideNaturals() && track != muse::nidx
             && (conf.styleI(Sid::keySigNaturals) != int(KeySigNatural::NONE) || (t1 == 0))
-            && ((s && (s->isType(SegmentType::CourtesyKeySigType) || !s->rtick().isZero()))
-                || (pm && !pm->sectionBreak() && !pm->hasCourtesyKeySig()))) {
-            int t2 = item->staff() ? int(item->staff()->key(item->tick() - Fraction::eps())) : 0;
+            && (isCourtesy || prevTrailerCourtesy)) {
+            KeySigEvent prevKsEvent = item->staff() ? item->staff()->keySigEvent(item->tick() - Fraction::eps()) : KeySigEvent();
+            int t2 = int(prevKsEvent.key());
 
             // Handle naturals in continuation courtesy
             if (pm && s && s->isType(SegmentType::KeySigStartRepeatAnnounce)) {
@@ -3583,8 +3613,147 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
                     layoutSharpsFlats();
                     layoutNaturals();
                 }
+            } else if (prevKsEvent.custom()) {
+                Fraction prevKeyTick = Fraction::fromTicks(item->staff()->keyList()->currentKeyTick(
+                                                               (item->tick() - Fraction::eps()).ticks()));
+                Segment* prevKsSeg = item->score()->tick2segment(prevKeyTick, true, SegmentType::KeySig);
+                if (prevKsSeg) {
+                    KeySig* prevCustomKeySig = toKeySig(prevKsSeg->element(item->track()));
+                    if (prevCustomKeySig) {
+                        for (KeySym keySym : prevCustomKeySig->ldata()->keySymbols) {
+                            if (keySym.sym != SymId::accidentalNatural) {
+                                keySigAddLayout(item, conf, SymId::accidentalNatural, keySym.line, ldata);
+                            }
+                        }
+                    }
+                }
             }
         }
+
+        if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+            qreal wds = 0.0;
+            StaffType* cipher = item->staff()->staffType(item->tick());
+            const_cast<KeySig*>(item)->set_cipherHeigth(cipher->fretBoxH() * item->magS() * item->style().styleD(Sid::cipherKeySigSize));
+            int staffindex = item->staff()->idx();
+            bool isZero = item->tick().isZero();
+            bool wechsel = item->staff()->key(item->tick() - Fraction::fromTicks(1)) != item->keySigEvent().key();
+            if (!item->segment()->isKeySigAnnounceType()) {
+                //rxpos() = 0.0;
+                if ((isZero || wechsel) && item->staff() && staffindex < 1) {
+                    const_cast<KeySig*>(item)->set_cipherEnable(item->enabled());
+                    const_cast<KeySig*>(item)->setEnabled(false);
+
+                    int sigMode = int(item->keySigEvent().mode()) - 1;
+                    if (sigMode < 0 || sigMode > 2)
+                        sigMode = 0;
+                    const_cast<KeySig*>(item)->set_cipherString(item->getCipherString(int(item->keySigEvent().key()) + 7,sigMode));
+                    const_cast<KeySig*>(item)->set_cipherLeftAdjust(item->get_cipherHeigth() * -item->style().styleD(Sid::cipherKeySigHorizontalShift));
+                    const_cast<KeySig*>(item)->set_cipherPoint(PointF(item->get_cipherLeftAdjust(), item->get_cipherHeigth() * -item->style().styleD(Sid::cipherKeySigHigth)));
+                    wds = item->cipherGetWidth(cipher, item->get_cipherString());
+                    RectF denRect = RectF(item->get_cipherPoint().x(), item->get_cipherPoint().y() - item->get_cipherHeigth(), wds, item->get_cipherHeigth());
+                    //ldata->setBbox(denRect);
+                    ldata->cipherTextRect= denRect;
+                    ldata->setBbox(RectF());
+                }
+                else {
+
+                    ldata->setBbox(RectF());
+                }
+            }
+            const_cast<KeySig*>(item)->set_cipherDrawNote(!isZero && wechsel && item->showCourtesy());
+            if (item->get_cipherDrawNote()) {
+                if (item->segment()->isKeySigType()) {
+                    Segment* seg = item->segment()->next();
+                    while (seg && !seg->isChordRestType()) {
+                        seg = seg->next();
+                    }
+                    if (seg && seg->element(item->track())->isChord()) {
+                        Chord* cd = toChord(seg->element(item->track()));
+                        if (cd && cd->upNote()) {
+                            cd->upNote()->cipher_setKeysigNote(const_cast<KeySig*>(item));
+                        }
+                    }
+                }
+                if (item->segment()->isKeySigAnnounceType()) {
+
+                    if (item->measure() && item->measure()->nextMeasure()) {
+                        Segment* seg = item->measure()->nextMeasure()->first();
+                        while (seg && !seg->isChordRestType()) {
+                            seg = seg->next();
+                        }
+                        if (seg && seg->element(item->track())->isChord()) {
+                            Chord* cd = toChord(seg->element(item->track()));
+                            if (cd) {
+                                cd->upNote()->cipher_setKeysigNote(const_cast<KeySig*>(item));
+                            }
+                        }
+                    }
+                }
+                //item->measure()->system()->firstMeasure() != item->measure()
+                if (item->measure()&&item->measure()->system()&&item->measure()->system()->firstMeasure() == item->measure()) const_cast<KeySig*>(item)->set_cipherNoteString((String)"");
+                if (item->get_cipherNoteString() != "") {
+
+                    const_cast<KeySig*>(item)->set_cipherNotePoint(PointF((item->cipherGetWidth(cipher, item->get_cipherNoteString()))/2,
+                        item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeightDisplacement) - item->get_cipherNoteShift()));
+                    const_cast<KeySig*>(item)->set_cipherNoteString(item->get_cipherNoteString()+(String)")");
+                    const_cast<KeySig*>(item)->set_cipherNoteRecht(RectF(item->get_cipherNotePoint().x(), item->get_cipherNotePoint().y() - item->get_cipherHeigth(), item->cipherGetWidth(cipher,
+                        item->get_cipherNoteString()), item->get_cipherHeigth()));
+                    ldata->setBbox(item->get_cipherNoteRecht());
+                    qreal wd = item->cipherGetWidth(cipher, (String)"(");
+                    Font fontAccidental;
+                    fontAccidental = item->cipherKeySigFont();
+                    qreal ShapSize = item->cipherKeySigFont().pointSizeF() * item->style().styleD(Sid::cipherSizeSignSharp);
+                    qreal FlatSize = item->cipherKeySigFont().pointSizeF() * item->style().styleD(Sid::cipherSizeSignFlat);
+                    if (item->get_cipherAccidentalShift() != 0) {
+                        if (item->get_cipherAccidentalShift() == 1) {
+                            const_cast<KeySig*>(item)->set_cipherAccidentalPoint(PointF(item->get_cipherHeigth() * -item->style().styleD(Sid::cipherDistanceSignSharp) * 0.7,
+                                (item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeigthSignSharp)) - item->get_cipherNoteShift()));
+                            fontAccidental.setPointSizeF(ShapSize);
+                            FontMetrics fm2(fontAccidental);
+                            ldata->addBbox(fm2.tightBoundingRect((String)u"♯").translated(item->get_cipherAccidentalPoint()));
+                        }
+                        if (item->get_cipherAccidentalShift() == -1) {
+                            const_cast<KeySig*>(item)->set_cipherAccidentalPoint(PointF(item->get_cipherHeigth() * -item->style().styleD(Sid::cipherDistanceSignFlat) * 0.7,
+                                (item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeigthSignFlat)) - item->get_cipherNoteShift()));
+                            fontAccidental.setPointSizeF(FlatSize);
+                            FontMetrics fm2(fontAccidental);
+                            ldata->addBbox(fm2.tightBoundingRect((String)u"♭").translated(item->get_cipherAccidentalPoint()));
+                        }
+                        const_cast<KeySig*>(item)->set_cipherNoteKlammerPoint(PointF(item->get_cipherAccidentalPoint().x() - wd, item->get_cipherNotePoint().y()));
+                    }
+                    else {
+                        const_cast<KeySig*>(item)->set_cipherNoteKlammerPoint(PointF(item->get_cipherNotePoint().x() - wd, item->get_cipherNotePoint().y()));
+
+                    }
+                    const_cast<KeySig*>(item)->set_cipherNoteKlammerRecht(RectF(item->get_cipherNoteKlammerPoint().x(), item->get_cipherNoteKlammerPoint().y() - item->get_cipherHeigth(), wd, item->get_cipherHeigth()));
+                    ldata->addBbox(item->get_cipherNoteKlammerRecht());
+                    const_cast<KeySig*>(item)->set_cipherShape(RectF(item->get_cipherNoteKlammerPoint().x() - item->get_cipherHeigth() * item->style().styleD(Sid::cipherKeysigNoteDistancLeft),
+                        item->get_cipherNoteKlammerPoint().y() - item->get_cipherHeigth(),
+                        item->get_cipherNotePoint().x() - item->get_cipherNoteKlammerPoint().x() + item->get_cipherNoteRecht().width() +
+                        item->get_cipherHeigth() * item->style().styleD(Sid::cipherKeysigNoteDistancLeft) +
+                        item->get_cipherHeigth() * item->style().styleD(Sid::cipherKeysigNoteDistancReigth), item->get_cipherHeigth()));
+                    const_cast<KeySig*>(item)->set_cipherReigthAdjust(wds - item->get_cipherShape().width());
+                    ldata->addBbox(item->get_cipherShape());
+                    if (item->get_cipherReigthAdjust() < 0.0) {
+                        const_cast<KeySig*>(item)->set_cipherReigthAdjust(0.0);
+                    }
+                }
+                else {
+                    const_cast<KeySig*>(item)->set_cipherShape(RectF());
+                    const_cast<KeySig*>(item)->set_cipherReigthAdjust(wds);
+                    const_cast<KeySig*>(item)->set_cipherDrawNote(false);
+                    //rxpos()=get_cipherXpos() + _cipherHigth*-score()->styleD(Sid::cipherKeySigHorizontalShift);
+                }
+            }
+            else {
+
+                const_cast<KeySig*>(item)->set_cipherShape(RectF());
+                const_cast<KeySig*>(item)->set_cipherReigthAdjust(item->get_cipherHeigth() * item->style().styleD(Sid::cipherNoteDistanc));
+            }
+            //const_cast<KeySig*>(item)->setAutoplace(false);
+            return;
+        }
+
 
         // No naturals were added, so just create a regular keysig
         if (ldata->keySymbols.empty()) {
@@ -3601,6 +3770,15 @@ void TLayout::layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const 
         keySigShape.add(item->symBbox(ks.sym).translated(x, y), item);
     }
     ldata->setShape(keySigShape);
+}
+void TLayout::layoutKeySig2(KeySig* item, KeySig::LayoutData* ldata)
+{
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        ldata->setPosY(0.0);
+        item->setEnabled(item->get_cipherEnable());
+        ldata->addBbox(ldata->cipherTextRect);
+
+    }
 }
 
 void TLayout::layoutLaissezVib(LaissezVib* item)
@@ -3690,15 +3868,18 @@ void TLayout::layoutIndicatorIcon(const IndicatorIcon* item, IndicatorIcon::Layo
 static void _layoutLedgerLine(const LedgerLine* item, const LayoutContext& ctx, LedgerLine::LayoutData* ldata)
 {
     double chordMag = item->chord()->mag();
+    if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        const_cast<LedgerLine*>(item)->setColor(item->staff()->staffType(item->tick())->color());
+        qreal w2 = item->get_width() * .5;
+        ldata->setBbox(-w2, -w2, item->len() + item->get_width(), item->get_width());
+        return;
+    }
     ldata->setMag(chordMag);
     ldata->lineWidth = ctx.conf().styleMM(Sid::ledgerLineWidth) * chordMag;
     if (item->staff()) {
         const_cast<LedgerLine*>(item)->setColor(item->staff()->staffType(item->tick())->color());
     }
     double w2 = ldata->lineWidth * .5;
-
-    //Adjust Y position to staffType offset
-    ldata->moveY(item->staffOffsetY());
 
     if (item->vertical()) {
         ldata->setBbox(-w2, 0, w2, item->len());
@@ -3734,9 +3915,6 @@ void TLayout::layoutLetRingSegment(LetRingSegment* item, LayoutContext& ctx)
 
     layoutTextLineBaseSegment(item, ctx);
 
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
-
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
 
@@ -3752,10 +3930,10 @@ void TLayout::layoutLyrics(Lyrics* item, LayoutContext& ctx)
     LyricsLayout::layout(item, ctx);
 }
 
-void TLayout::layoutLyricsLine(LyricsLine* item, LayoutContext& ctx)
+void TLayout::layoutLyricsLine(LyricsLine* item)
 {
     LAYOUT_CALL_ITEM(item);
-    LyricsLayout::layout(item, ctx);
+    LyricsLayout::layout(item);
 }
 
 void TLayout::layoutLyricsLineSegment(LyricsLineSegment* item, LayoutContext& ctx)
@@ -4053,7 +4231,7 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
         } else {
             const_cast<Note*>(item)->setFretString(tab->fretString(std::fabs(item->fret()), item->string(), item->deadNote()));
 
-            if (item->negativeFretUsed()) {
+            if (item->negativeFretUsed() && !item->deadNote()) {
                 const_cast<Note*>(item)->setFretString(u"-" + item->fretString());
             }
 
@@ -4064,38 +4242,66 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
             }
         }
 
-        if (item->ghost()) {
-            const_cast<Note*>(item)->setParenthesesMode(ParenthesesMode::BOTH, /* addToLinked= */ false, /* generated= */ true);
-        } else {
-            const_cast<Note*>(item)->setParenthesesMode(ParenthesesMode::NONE, /*addToLinked=*/ false, /* generated= */ true);
-        }
-
         double w = item->tabHeadWidth(tab);
         double mags = item->magS();
         double y = item->deadNote() ? tab->deadFretBoxY() : tab->fretBoxY();
         double height = item->deadNote() ? tab->deadFretBoxH() : tab->fretBoxH();
 
         noteBBox = RectF(0, y * mags, w, height * mags);
-    } else {
+    } else if (item->staff() && item->staff()->isCipherStaff(item->chord()->tick())) {
+        //StaffType* cipher = item->staff()->staffType(item->tick());
+
+        int accidentalshift = 0;
+        const_cast<Note*>(item)->set_drawFlat(false);
+        const_cast<Note*>(item)->set_drawSharp(false);
+        int numtransposeInterval = item->part()->instrument(item->chord()->tick())->transpose().chromatic;
+        int step = tpc2stepByKey(item->tpc(), item->staff()->key(item->tick()), accidentalshift);
+        //qWarning().nospace() << "step" << step << "acci" << accidentalshift;
+        if (accidentalshift > 1 || accidentalshift < -1)accidentalshift = 0;
+        if (accidentalshift == 1) {
+            const_cast<Note*>(item)->set_drawSharp(true);
+        }
+        else if (accidentalshift == -1) {
+            const_cast<Note*>(item)->set_drawFlat(true);
+        }
+
+        int clefshift = item->get_cipherOktave();
+        int grundtonverschibung = item->get_cipherTrans(item->staff()->key(item->tick()));
+        int zifferkomatik = ((item->pitch() - accidentalshift + grundtonverschibung + numtransposeInterval) % 12) + 1;
+        const_cast<Note*>(item)->set_trackthick(1.0);
+        if (item->track() % 4 > 0) {
+            const_cast<Note*>(item)->set_trackthick(item->style().styleD(Sid::cipherAlternativSize));
+        }
+        FontMetrics fm2(item->get_cipherFont());
+        qreal height = fm2.tightBoundingRect((String)"1234567890").height();
+        const_cast<Note*>(item)->set_cipherHeigth(height);
+        const_cast<Note*>(item)->set_fretString(const_cast<Note*>(item)->get_cipherString(zifferkomatik));
+        const_cast<Note*>(item)->set_cipherWidth(fm2.tightBoundingRect(item->fretString()).width());
+        const_cast<Note*>(item)->set_fretString(item->fretString() +
+            item->get_cipherDuration(int(item->chord()->durationType().type())) +
+            item->get_cipherDurationDot(int(item->chord()->durationType().dots())));
+        const_cast<Note*>(item)->set_cipherWidth2(fm2.tightBoundingRect(item->fretString()).width());
+        const_cast<Note*>(item)->set_cipherLedgerline(((item->pitch() + grundtonverschibung - accidentalshift + numtransposeInterval) / 12 - 5 - clefshift) / 2 );
+        const_cast<Note*>(item)->set_fretStringYShift(((item->pitch() + grundtonverschibung - accidentalshift + numtransposeInterval) / 12 - 5 - clefshift) * height *
+            item->style().styleD(Sid::cipherDistanceOctave));
+        ldata->setPosY( -item->fretStringYShift());
+        qreal w = item->get_cipherWidth(); // !! use _fretString
+        RectF stringbox = RectF(0.0, item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeightDisplacement),
+            w, item->get_cipherHeigth());
+        ldata->setBbox(stringbox);
+        const_cast<Note*>(item)->staff()->set_cipherHeight(item->get_cipherHeigth());
+
+        fillNoteShape(item, ldata);
+        return;
+    }
+    else {
         if (item->deadNote()) {
             const_cast<Note*>(item)->setHeadGroup(NoteHeadGroup::HEAD_CROSS);
         } else if (item->harmonic()) {
             const_cast<Note*>(item)->setHeadGroup(NoteHeadGroup::HEAD_DIAMOND);
         }
 
-        if (item->configuration()->shouldAddParenthesisOnStandardStaff()) {
-            if (item->ghost()) {
-                const_cast<Note*>(item)->setParenthesesMode(ParenthesesMode::BOTH, /* addToLinked= */ false, /* generated= */ true);
-            } else {
-                const_cast<Note*>(item)->setParenthesesMode(ParenthesesMode::NONE, /* addToLinked= */ false, /* generated= */ true);
-            }
-        }
-
         SymId nh = item->noteHead();
-        if (item->configuration()->crossNoteHeadAlwaysBlack() && ((nh == SymId::noteheadXHalf) || (nh == SymId::noteheadXWhole))) {
-            nh = SymId::noteheadXBlack;
-        }
-
         ldata->cachedNoteheadSym.set_value(nh);
 
         if (item->isNoteName()) {
@@ -4115,6 +4321,100 @@ void TLayout::layoutNote(const Note* item, Note::LayoutData* ldata)
     ldata->setBbox(noteBBox);
 
     fillNoteShape(item, ldata);
+}
+
+void TLayout::layoutNoteCipherAccidental(Note* item, Note::LayoutData* ldata) {
+
+
+    if (item->staff()->isCipherStaff(item->chord()->tick())) {
+        FontMetrics fm2(item->get_cipherFont());
+        qreal w = fm2.tightBoundingRect(item->fretString()).width(); // !! use _fretString
+        qreal y = item->get_cipherHeigth() * -1 + item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeightDisplacement);
+        qreal x = -item->get_cipherWidth()/2;
+        if (item->track() % 4 == 0) {
+            EngravingItem* e = item->chord()->segment()->element(item->track() + 1);
+            if (e && e->isChord() && toChord(e)->notes()[0] && false) {
+                qreal x2 = (item->get_cipherWidth2() + toChord(e)->notes()[0]->get_cipherWidth2()) / 2 + item->get_cipherHeigth() * item->style().styleD(Sid::cipherAlternativSpace);
+                x -= x2;
+                //toChord(e)->notes()[0]->set_cipherTextPos(PointF(item->get_cipherTextPos().x() + x2, item->get_cipherTextPos().y()));
+                //toChord(e)->notes()[0]->set_cipherAccidentalPos(PointF(item->get_cipherAccidentalPos().x() + x2, item->get_cipherAccidentalPos().y()));
+            }
+        }
+        else {
+
+            EngravingItem* e = item->chord()->segment()->element(item->track() - 1);
+            if (e && e->isChord() && toChord(e)->notes()[0]) {
+                Note* n = toChord(e)->notes()[0];
+                qreal x2 = (item->get_cipherWidth2() + toChord(e)->notes()[0]->get_cipherWidth2()) / 2 + item->get_cipherHeigth() * item->style().styleD(Sid::cipherAlternativSpace);
+                x += x2;
+                n->set_cipherTextPos(PointF(n->get_cipherTextPos().x() - x2, n->get_cipherTextPos().y()));
+                n->set_cipherAccidentalPos(PointF(n->get_cipherAccidentalPos().x() - x2, n->get_cipherAccidentalPos().y()));
+                n->mutldata()->setBbox(RectF(n->mutldata()->bbox().x() - x2, n->mutldata()->bbox().y(),
+                    n->mutldata()->bbox().width(), n->mutldata()->bbox().height()));
+                if (n->chord()->hook()) {
+                    Hook* hook = n->chord()->hook();
+                    qreal xh = n->get_cipherTextPos().x();
+                    xh += n->get_cipherWidth() / 2;
+                    hook->set_cipherLine(LineF(xh + hook->style().styleD(Sid::cipherOffsetLine) - (hook->get_cipherLineWidth() / 2),
+                        hook->get_cipherHeigthLine(),
+                        xh + hook->style().styleD(Sid::cipherOffsetLine) - (hook->get_cipherLineWidth() / 2) + hook->get_cipherLineWidth(),
+                        hook->get_cipherHeigthLine()));
+                    RectF hookbox = RectF(hook->get_cipherLine().x1(),
+                        hook->get_cipherHeigthLine() + ((qAbs(hook->hookType()) - 1) * hook->get_cipherLineSpace()) - hook->get_cipherLineThick(), hook->get_cipherLineWidth(),
+                        (hook->get_cipherHeigthLine() + ((qAbs(hook->hookType()) - 1) * hook->get_cipherLineSpace()) - hook->get_cipherLineThick()) * -1 - hook->get_cipherHeigthLine() * -1);
+                    hook->mutldata()->setBbox(hookbox);
+                }
+            }
+        }
+
+        RectF stringbox = RectF(x, y,
+            w, item->get_cipherHeigth());
+        ldata->setBbox(stringbox);
+        item->set_cipherTextPos(PointF(x, item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeightDisplacement)));
+        qreal ShapSize = item->get_cipherFont().pointSizeF() * item->style().styleD(Sid::cipherSizeSignSharp);
+        qreal FlatSize = item->get_cipherFont().pointSizeF() * item->style().styleD(Sid::cipherSizeSignFlat);
+        Font fontAccidental;
+        fontAccidental = item->get_cipherAccidentalFont();
+        qreal xK = item->get_cipherTextPos().x();
+        qreal AccidentalWidth = 0.0;
+        if (item->accidental() || item->get_drawFlat() || item->get_drawSharp()) {
+            if ((item->accidental() && (item->accidental()->accidentalType() == AccidentalType::SHARP)) || item->get_drawSharp()) {
+                AccidentalWidth = item->get_cipherHeigth() * item->style().styleD(Sid::cipherDistanceSignSharp);
+                xK -= AccidentalWidth;
+                item->set_cipherAccidentalPos(PointF(xK, (item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeigthSignSharp))));
+                fontAccidental.setPointSizeF(ShapSize);
+                FontMetrics fm2(fontAccidental);
+                ldata->addBbox(fm2.tightBoundingRect((String)u"♯").translated(item->get_cipherAccidentalPos()));
+            }
+            if ((item->accidental() && (item->accidental()->accidentalType() == AccidentalType::FLAT)) || item->get_drawFlat()) {
+                AccidentalWidth = item->get_cipherHeigth() * item->style().styleD(Sid::cipherDistanceSignFlat);
+                xK -= AccidentalWidth;
+                item->set_cipherAccidentalPos(PointF(xK, (item->get_cipherHeigth() * item->style().styleD(Sid::cipherHeigthSignFlat))));
+                fontAccidental.setPointSizeF(FlatSize);
+                FontMetrics fm2(fontAccidental);
+                ldata->addBbox(fm2.tightBoundingRect((String)u"♭").translated(item->get_cipherAccidentalPos()));
+            }
+        }
+        if (item->get_trackthick()!=1.0) {
+            if (item->style().styleB(Sid::cipherbracket)) {
+                FontMetrics fm2(item->get_cipherFont());
+                qreal wr = fm2.tightBoundingRect((String)"(").width();
+                item->set_cipherKlammerPos(PointF(xK + AccidentalWidth, item->get_cipherTextPos().y()));
+                item->set_cipherTextPos(PointF(item->get_cipherTextPos().x() + wr + AccidentalWidth, item->get_cipherTextPos().y()));
+                item->set_cipherAccidentalPos(PointF(item->get_cipherAccidentalPos().x() + wr + AccidentalWidth, item->get_cipherAccidentalPos().y()));
+                ldata->setBbox(RectF(ldata->bbox().x() + AccidentalWidth, ldata->bbox().y(), ldata->bbox().width(), ldata->bbox().height()));
+                ldata->addBbox(RectF(xK + AccidentalWidth, y, wr, item->get_cipherHeigth()));
+                ldata->addBbox(RectF(item->get_cipherTextPos().x() + item->get_cipherWidth2(), y, wr, item->get_cipherHeigth()));
+            }
+            else {
+                item->set_cipherTextPos(PointF(item->get_cipherTextPos().x() + AccidentalWidth, item->get_cipherTextPos().y()));
+                item->set_cipherAccidentalPos(PointF(item->get_cipherAccidentalPos().x() + AccidentalWidth, item->get_cipherAccidentalPos().y()));
+                ldata->setBbox(RectF(ldata->bbox().x() + AccidentalWidth, ldata->bbox().y(), ldata->bbox().width(), ldata->bbox().height()));
+
+            }
+        }
+
+    }
 }
 
 void TLayout::fillNoteShape(const Note* item, Note::LayoutData* ldata)
@@ -4152,26 +4452,23 @@ void TLayout::fillNoteShape(const Note* item, Note::LayoutData* ldata)
         }
     }
 
-    const Parenthesis* leftParen = item->leftParen();
-    if (leftParen && leftParen->addToSkyline()) {
-        shape.add(leftParen->ldata()->shape().translated(leftParen->pos()));
-    }
-    const Parenthesis* rightParen = item->rightParen();
-    if (rightParen && rightParen->addToSkyline()) {
-        shape.add(rightParen->ldata()->shape().translated(rightParen->pos()));
-    }
-
     // This method is also called from SingleLayout, where `part` may be nullptr
     Part* part = item->part();
     if (part && part->instrument()->hasStrings()) {
         GuitarBend* bend = item->bendFor();
-        if (bend && bend->addToSkyline() && bend->type() == GuitarBendType::SLIGHT_BEND && !bend->segmentsEmpty()) {
+        if (bend && bend->addToSkyline() && bend->bendType() == GuitarBendType::SLIGHT_BEND && !bend->segmentsEmpty()) {
             GuitarBendSegment* bendSeg = toGuitarBendSegment(bend->frontSegment());
             // Semi-hack: the relative position of note and bend
             // isn't fully known yet, so we use an approximation
             double sp = item->spatium();
             PointF approxRelPos(noteBBox.width() + 0.25 * sp, -0.25 * sp);
             shape.add(bendSeg->shape().translate(approxRelPos));
+        }
+        GuitarBend* bendBack = item->bendBack();
+        if (bendBack && bendBack->bendType() == GuitarBendType::SCOOP && !bendBack->segmentsEmpty()
+            && item->findAncestor(ElementType::SYSTEM)) {
+            GuitarBendSegment* seg = toGuitarBendSegment(bendBack->frontSegment());
+            shape.add(seg->shape().translated(seg->pos() - item->systemPos()));
         }
     }
 
@@ -4273,7 +4570,7 @@ void TLayout::layoutOrnamentCueNote(Ornament* item, LayoutContext& ctx)
     staff_idx_t startStaff = staff2track(parentChord->staffIdx());
     for (staff_idx_t staff = startStaff; staff < startStaff + VOICES; ++staff) {
         Segment* segment = parentChord->segment();
-        ChordRest* cr = segment->elementAt(staff) ? toChordRest(segment->elementAt(staff)) : nullptr;
+        ChordRest* cr = segment->element(staff) ? toChordRest(segment->element(staff)) : nullptr;
         if (cr) {
             minDist = std::max(minDist, HorizontalSpacing::minHorizontalDistance(cr->shape(), noteShape, cr->spatium()));
         }
@@ -4291,9 +4588,9 @@ void TLayout::layoutOttavaSegment(OttavaSegment* item, LayoutContext& ctx)
 {
     LAYOUT_CALL_ITEM(item);
     OttavaSegment::LayoutData* ldata = item->mutldata();
+
     layoutTextLineBaseSegment(item, ctx);
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
+
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
 
@@ -4317,9 +4614,6 @@ void TLayout::layoutPalmMuteSegment(PalmMuteSegment* item, LayoutContext& ctx)
     ldata->setIsSkipDraw(false);
 
     layoutTextLineBaseSegment(item, ctx);
-
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
 
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
@@ -4346,7 +4640,7 @@ void TLayout::layoutPedalSegment(PedalSegment* item, LayoutContext& ctx)
     }
 
     Text* endText = item->endText();
-    if (endText && !endText->empty()) { // Rosette
+    if (endText && !endText->empty() && ldata->npoints > 0) { // Rosette
         PointF endPoint = item->pos2();
         double endTextWidth = endText->ldata()->bbox().width();
         double xEndText = endPoint.x() - endTextWidth;
@@ -4356,12 +4650,13 @@ void TLayout::layoutPedalSegment(PedalSegment* item, LayoutContext& ctx)
         endText->mutldata()->setPosX(xEndText);
 
         double lineTextGap = item->getProperty(Pid::GAP_BETWEEN_TEXT_AND_LINE).value<Spatium>().toMM(item->spatium());
-        PointF& endOfLine = item->pointsRef()[1];
+        PointF& endOfLine = ldata->points.at(ldata->npoints - 1);
         endOfLine.setX(xEndText - lineTextGap);
-    }
 
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
+        // Recalculate shape after moving end text
+        Shape sh = recalculateTextLineBaseSegmentShape(item);
+        ldata->setShape(sh);
+    }
 
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
@@ -4384,7 +4679,7 @@ void TLayout::layoutPlayCountText(PlayCountText* item, TextBase::LayoutData* lda
 
     // Avoid incoming barlines from above
     double xAdj = 0.0;
-    BarLine* blAbove = item->staffIdx() != 0 ? toBarLine(seg->elementAt(staff2track(item->staffIdx() - 1))) : nullptr;
+    BarLine* blAbove = item->staffIdx() != 0 ? toBarLine(seg->element(staff2track(item->staffIdx() - 1))) : nullptr;
     if (blAbove && blAbove->spanStaff()) {
         xAdj = blAbove->width();
     }
@@ -4444,9 +4739,6 @@ void TLayout::layoutRasgueadoSegment(RasgueadoSegment* item, LayoutContext& ctx)
     ldata->setIsSkipDraw(false);
 
     layoutTextLineBaseSegment(item, ctx);
-
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
 
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
@@ -4741,7 +5033,7 @@ void TLayout::layoutLine(SLine* item, LayoutContext& ctx)
             double len = p2.x() - p1.x();
             // enforcing a minimum length would be possible but inadvisable
             // the line length calculations are tuned well enough that this should not be needed
-            //if (anchor() == Anchor::SEGMENT && type() != ElementType::PEDAL)
+            //if (anchor() == Anchor::SEGMENT && !isPedal())
             //      len = std::max(1.0 * spatium(), len);
             lineSegm->setPos(p1);
             lineSegm->setPos2(PointF(len, p2.y() - p1.y()));
@@ -4957,8 +5249,6 @@ void TLayout::layoutNoteLineSegment(NoteLineSegment* item, LayoutContext& ctx)
     if (item->staff()) {
         ldata->setMag(item->staff()->staffMag(item->tick()));
     }
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
 }
 
 void TLayout::layoutSlur(Slur* item, LayoutContext& ctx)
@@ -5061,10 +5351,6 @@ void TLayout::layoutForWidth(StaffLines* item, double w, LayoutContext& ctx)
         y += dist;
     }
     item->setLines(ll);
-
-    if (s && s->staffType(item->measure()->tick())->isTabStaff()) {
-        MaskLayout::maskTABStringLinesForFrets(item, ctx);
-    }
 }
 
 void TLayout::layoutStaffState(const StaffState* item, StaffState::LayoutData* ldata)
@@ -5167,6 +5453,9 @@ void TLayout::layoutStaffTypeChange(const StaffTypeChange* item, StaffTypeChange
 void TLayout::layoutStem(const Stem* item, Stem::LayoutData* ldata, const LayoutConfiguration& conf)
 {
     LAYOUT_CALL_ITEM(item);
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        return;
+    }
 
     const bool up = item->up();
     const double _up = up ? -1.0 : 1.0;
@@ -5241,6 +5530,9 @@ void TLayout::layoutStemSlash(const StemSlash* item, StemSlash::LayoutData* ldat
     IF_ASSERT_FAILED(item->explicitParent()) {
         return;
     }
+    if (item->staff() && item->staff()->isCipherStaff(item->tick())) {
+        return;
+    }
 
     const Chord* c = item->chord();
     const Stem* stem = c->stem();
@@ -5312,27 +5604,6 @@ void TLayout::layoutSticking(const Sticking* item, Sticking::LayoutData* ldata)
     LAYOUT_CALL_ITEM(item);
     TextLayout::layoutBaseTextBase(item, ldata);
 
-    AlignH itemPosition =  item->position();
-    if (itemPosition != AlignH::LEFT) {
-        const Segment* seg = item->segment();
-        const Chord* chord = nullptr;
-        track_idx_t sTrack = trackZeroVoice(item->track());
-        track_idx_t eTrack = sTrack + VOICES;
-        for (track_idx_t track = sTrack; track < eTrack; ++track) {
-            EngravingItem* el = seg->element(track);
-            if (el && el->isChord()) {
-                chord = toChord(el);
-                break;
-            }
-        }
-
-        if (chord) {
-            const Note* refNote = item->placeAbove() ? chord->upNote() : chord->downNote();
-            double noteWidth = refNote->ldata()->bbox().width();
-            ldata->moveX(itemPosition == AlignH::HCENTER ? 0.5 * noteWidth : noteWidth);
-        }
-    }
-
     if (item->autoplace() && item->explicitParent()) {
         const Segment* s = toSegment(item->explicitParent());
         const Measure* m = s->measure();
@@ -5351,13 +5622,14 @@ void TLayout::layoutStringTunings(StringTunings* item, LayoutContext& ctx)
 
     TextLayout::layoutBaseTextBase(item, ctx);
 
+    double spatium = item->spatium();
+
     if (item->noStringVisible()) {
-        double spatium = item->spatium();
         Font font(item->font());
 
         RectF rect;
-        rect.setTopLeft({ 0, item->ldata()->bbox().y() - font.weight() - spatium * .15 });
-        rect.setSize({ font.weight() - spatium, (font.weight() - spatium * .35) * 1.5 });
+        rect.setTopLeft({ 0, item->ldata()->bbox().y() - 2.5 * spatium });
+        rect.setSize({ spatium, 2.5 * spatium });
 
         item->setbbox(rect);
     }
@@ -5368,7 +5640,7 @@ void TLayout::layoutStringTunings(StringTunings* item, LayoutContext& ctx)
             if (font.type() == Font::Type::MusicSymbol) {
                 // HACK: the music symbol doesn't have a good baseline
                 // to go with text so we correct it here
-                const double baselineAdjustment = 0.35 * font.pointSizeF();
+                const double baselineAdjustment = 0.35 * spatium * item->symbolScale();
                 fragment.pos.setY(fragment.pos.y() + baselineAdjustment);
             }
         }
@@ -5643,9 +5915,10 @@ void TLayout::layoutTempoText(const TempoText* item, TempoText::LayoutData* ldat
     Autoplace::autoplaceSegmentElement(item, ldata);
 }
 
-Shape TLayout::textLineBaseSegmentShape(const TextLineBaseSegment* item)
+Shape TLayout::recalculateTextLineBaseSegmentShape(const TextLineBaseSegment* item)
 {
     LAYOUT_CALL_ITEM(item);
+    const TextLineBaseSegment::LayoutData* ldata = item->ldata();
     Shape shape;
     if (!item->text()->empty()) {
         shape.add(item->text()->ldata()->bbox().translated(item->text()->pos()), item->text());
@@ -5656,11 +5929,11 @@ Shape TLayout::textLineBaseSegmentShape(const TextLineBaseSegment* item)
     double lw2 = 0.5 * item->absoluteFromSpatium(item->lineWidth());
     bool isDottedLine = item->textLineBase()->lineStyle() == LineType::DOTTED;
     if (item->twoLines()) {     // hairpins
-        shape.add(item->boundingBoxOfLine(item->points()[0], item->points()[1], lw2, isDottedLine), item);
-        shape.add(item->boundingBoxOfLine(item->points()[2], item->points()[3], lw2, isDottedLine), item);
+        shape.add(TextLineBaseSegment::boundingBoxOfLine(ldata->points[0], ldata->points[1], lw2, isDottedLine), item);
+        shape.add(TextLineBaseSegment::boundingBoxOfLine(ldata->points[2], ldata->points[3], lw2, isDottedLine), item);
     } else {
-        for (int i = 0; i < item->npoints() - 1; ++i) {
-            shape.add(item->boundingBoxOfLine(item->points()[i], item->points()[i + 1], lw2, isDottedLine), item,
+        for (int i = 0; i < ldata->npoints - 1; ++i) {
+            shape.add(TextLineBaseSegment::boundingBoxOfLine(ldata->points[i], ldata->points[i + 1], lw2, isDottedLine), item,
                       !item->textLineBase()->lineVisible());
         }
     }
@@ -5692,9 +5965,6 @@ void TLayout::layoutTextLineSegment(TextLineSegment* item, LayoutContext& ctx)
         item->roffset() = item->textLine()->propertyDefault(Pid::OFFSET).value<PointF>();
     }
 
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
-
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
 
@@ -5721,6 +5991,58 @@ static inline void extendLines(const PointF& l1p1, PointF& l1p2, PointF& l2p1, c
     l2p1 += l2UnitVector * addedLength;
 }
 
+static PolygonF createArrow(bool start, bool filled, PointF& startPoint, PointF& endPoint, const TextLineBase* tl)
+{
+    double arrowWidth = 0.0;
+    double arrowHeight = 0.0;
+    if (filled) {
+        arrowWidth = tl->absoluteFromSpatium(start ? tl->beginFilledArrowWidth() : tl->endFilledArrowWidth());
+        arrowHeight = tl->absoluteFromSpatium(start ? tl->beginFilledArrowHeight() : tl->endFilledArrowHeight());
+    } else {
+        arrowWidth = tl->absoluteFromSpatium(start ? tl->beginLineArrowWidth() : tl->endLineArrowWidth());
+        arrowHeight = tl->absoluteFromSpatium(start ? tl->beginLineArrowHeight() : tl->endLineArrowHeight());
+    }
+
+    PolygonF arrow;
+    if (start) {
+        arrow << PointF(0.0, -arrowHeight / 2) << PointF(-arrowWidth, 0.0) << PointF(0.0, arrowHeight / 2);  // left
+    } else {
+        arrow << PointF(0.0, -arrowHeight / 2) << PointF(arrowWidth, 0.0) << PointF(0.0, arrowHeight / 2);  // right
+    }
+
+    PointF arrowAdjust = PointF(arrowWidth, 0.0);
+    arrowAdjust = (start ? 1.0 : -1.0) * arrowAdjust;
+    arrow.translate(arrowAdjust);
+
+    const double yDiff = endPoint.y() - startPoint.y();
+    const double xDiff = endPoint.x() - startPoint.x();
+    const double rotate = atan(yDiff / xDiff) + (endPoint.x() < startPoint.x() ? M_PI : 0.0);
+
+    Transform t;
+    t.rotateRadians(rotate);
+
+    for (PointF& p : arrow) {
+        p = t.map(p);
+    }
+
+    if (start) {
+        arrow.translate(startPoint);
+    } else {
+        arrow.translate(endPoint);
+    }
+
+    const PointF lineVector = endPoint - startPoint;
+    const PointF unitVector = lineVector.normalized();
+    const double reduction = filled ? arrowWidth : tl->absoluteFromSpatium(tl->lineWidth()) / 2;
+    if (start) {
+        startPoint += reduction * unitVector;
+    } else {
+        endPoint -= reduction * unitVector;
+    }
+
+    return arrow;
+}
+
 void TLayout::layoutTextLineBase(TextLineBase* item, LayoutContext& ctx)
 {
     layoutLine(item, ctx);
@@ -5729,10 +6051,13 @@ void TLayout::layoutTextLineBase(TextLineBase* item, LayoutContext& ctx)
 void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext& ctx)
 {
     TextLineBaseSegment::LayoutData* ldata = item->mutldata();
-    item->npointsRef() = 0;
-    TextLineBase* tl = item->textLineBase();
-    const double _spatium = tl->spatium();
+    ldata->npoints = 0;
+    const TextLineBase* tl = item->textLineBase();
+    const double spatium = tl->spatium();
     const bool isSingleOrBegin = item->isSingleBeginType();
+    const bool isSingleOrEnd = item->isSingleEndType();
+    const bool isDottedLine = tl->lineStyle() == LineType::DOTTED;
+    const double lineWidth = tl->absoluteFromSpatium(tl->lineWidth());
 
     if (item->spanner()->placeBelow()) {
         ldata->setPosY(item->staff() ? item->staff()->staffHeight(item->tick()) : 0.0);
@@ -5745,8 +6070,8 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
         item->setUserYoffset2(0);
     }
 
-    auto alignBaseLine = [tl](Text* text, PointF& pp1, PointF& pp2) {
-        PointF widthCorrection(0.0, tl->absoluteFromSpatium(tl->lineWidth()) / 2);
+    auto alignBaseLine = [lineWidth](Text* text, PointF& pp1, PointF& pp2) {
+        PointF widthCorrection(0.0, lineWidth / 2);
         switch (text->align().vertical) {
         case AlignV::TOP:
             pp1 += widthCorrection;
@@ -5769,6 +6094,8 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
         item->text()->setXmlText(tl->beginText());
         item->text()->setFamily(tl->beginFontFamily());
         item->text()->setSize(tl->beginFontSize());
+        item->text()->setSymbolScale(tl->beginTextMusicalSymbolsScale());
+        item->text()->setSymbolSize(tl->beginTextMusicSymbolsSize());
         item->text()->setOffset(tl->beginTextOffset() * item->mag());
         item->text()->setAlign(tl->beginTextAlign());
         item->text()->setPosition(tl->beginTextPosition());
@@ -5777,6 +6104,8 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
         item->text()->setXmlText(tl->continueText());
         item->text()->setFamily(tl->continueFontFamily());
         item->text()->setSize(tl->continueFontSize());
+        item->text()->setSymbolScale(tl->continueTextMusicalSymbolsScale());
+        item->text()->setSymbolSize(tl->continueTextMusicSymbolsSize());
         item->text()->setOffset(tl->continueTextOffset() * item->mag());
         item->text()->setAlign(tl->continueTextAlign());
         item->text()->setPosition(tl->continueTextPosition());
@@ -5787,11 +6116,13 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
     item->text()->setColor(tl->lineColor());
     layoutText(item->text(), item->text()->mutldata());
 
-    if ((item->isSingleType() || item->isEndType())) {
+    if (isSingleOrEnd) {
         item->endText()->setXmlText(tl->endText());
         item->endText()->setFamily(tl->endFontFamily());
         item->endText()->setSize(tl->endFontSize());
-        item->endText()->setOffset(tl->endTextOffset());
+        item->endText()->setSymbolScale(tl->endTextMusicalSymbolsScale());
+        item->endText()->setSymbolSize(tl->endTextMusicSymbolsSize());
+        item->endText()->setOffset(tl->endTextOffset() * item->mag());
         item->endText()->setAlign(tl->endTextAlign());
         item->endText()->setPosition(tl->endTextPosition());
         item->endText()->setFontStyle(tl->endFontStyle());
@@ -5804,8 +6135,8 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
     }
 
     if (!item->textLineBase()->textSizeSpatiumDependent()) {
-        item->text()->setSize(item->text()->size() * SPATIUM20 / item->spatium());
-        item->endText()->setSize(item->endText()->size() * SPATIUM20 / item->spatium());
+        item->text()->setSize(item->text()->size() * item->defaultSpatium() / item->spatium());
+        item->endText()->setSize(item->endText()->size() * item->defaultSpatium() / item->spatium());
     }
 
     PointF pp1;
@@ -5814,35 +6145,28 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
     // line with no text or hooks - just use the basic rectangle for line
     if (item->text()->empty() && item->endText()->empty()
         && (!isSingleOrBegin || tl->beginHookType() == HookType::NONE)
-        && (!item->isSingleEndType() || tl->endHookType() == HookType::NONE)) {
-        item->npointsRef() = 2;
-        item->pointsRef()[0] = pp1;
-        item->pointsRef()[1] = pp2;
-        item->setLineLength(sqrt(PointF::dotProduct(pp2 - pp1, pp2 - pp1)));
+        && (!isSingleOrEnd || tl->endHookType() == HookType::NONE)) {
+        ldata->npoints = 2;
+        ldata->points[0] = pp1;
+        ldata->points[1] = pp2;
+        ldata->lineLength = sqrt(PointF::dotProduct(pp2 - pp1, pp2 - pp1));
 
-        item->setbbox(TextLineBaseSegment::boundingBoxOfLine(pp1, pp2, tl->absoluteFromSpatium(tl->lineWidth()) / 2,
-                                                             tl->lineStyle() == LineType::DOTTED));
+        item->setbbox(TextLineBaseSegment::boundingBoxOfLine(pp1, pp2, lineWidth / 2, isDottedLine));
         return;
     }
 
-    // line has text or hooks or is not diagonal - calculate reasonable bbox
-
-    double x1 = std::min(0.0, pp2.x());
-    double x2 = std::max(0.0, pp2.x());
-    const double y0 = -tl->absoluteFromSpatium(tl->lineWidth());
-    double y1 = std::min(0.0, pp2.y()) + y0;
-    double y2 = std::max(0.0, pp2.y()) - y0;
-
     double l1 = 0.0;
     double l2 = 0.0;
-    const double gapBetweenTextAndLine = _spatium * tl->gapBetweenTextAndLine().val();
+    const double gapBetweenTextAndLine = spatium * tl->gapBetweenTextAndLine().val();
 
     const bool alignBeginText = tl->beginTextPlace() == TextPlace::LEFT || tl->beginTextPlace() == TextPlace::AUTO;
     const bool alignContinueText = tl->continueTextPlace() == TextPlace::LEFT || tl->continueTextPlace() == TextPlace::AUTO;
     const bool alignEndText = tl->endTextPlace() == TextPlace::LEFT || tl->endTextPlace() == TextPlace::AUTO;
     const bool hasBeginText = !item->text()->empty() && isSingleOrBegin;
     const bool hasContinueText = !item->text()->empty() && !isSingleOrBegin;
-    const bool hasEndText = !item->endText()->empty() && item->isSingleEndType();
+    const bool hasEndText = !item->endText()->empty() && isSingleOrEnd;
+
+    Shape shape;
 
     if (!item->text()->empty()) {
         if ((isSingleOrBegin && alignBeginText) || (!isSingleOrBegin && alignContinueText)) {
@@ -5858,41 +6182,7 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
                 break;
             }
         }
-        double h = item->text()->height();
-        if (tl->beginTextPlace() == TextPlace::ABOVE) {
-            y1 = std::min(y1, -h);
-        } else if (tl->beginTextPlace() == TextPlace::BELOW) {
-            y2 = std::max(y2, h);
-        } else {
-            y1 = std::min(y1, -h * .5);
-            y2 = std::max(y2, h * .5);
-        }
-        x2 = std::max(x2, item->text()->width());
-    }
-
-    double beginHookHeight = (tl->placeBelow() ? -1.0 : 1.0) * tl->beginHookHeight().val() * _spatium;
-    double endHookHeight = (tl->placeBelow() ? -1.0 : 1.0) * tl->endHookHeight().val() * _spatium;
-
-    if (tl->endHookType() != HookType::NONE) {
-        double h = pp2.y() + endHookHeight;
-        if (h > y2) {
-            y2 = h;
-        } else if (h < y1) {
-            y1 = h;
-        }
-    }
-
-    if (tl->beginHookType() != HookType::NONE) {
-        double h = beginHookHeight;
-        if (h > y2) {
-            y2 = h;
-        } else if (h < y1) {
-            y1 = h;
-        }
-    }
-    ldata->setBbox(x1, y1, x2 - x1, y2 - y1);
-    if (!item->text()->empty()) {
-        ldata->addBbox(item->text()->ldata()->bbox().translated(item->text()->pos()));      // DEBUG
+        shape.add(item->text()->ldata()->bbox().translated(item->text()->pos()), item);
     }
     // set end text position and extend bbox
     if (!item->endText()->empty()) {
@@ -5909,12 +6199,16 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
                 break;
             }
         }
-        item->endText()->mutldata()->moveX(ldata->bbox().right());
-        ldata->addBbox(item->endText()->ldata()->bbox().translated(item->endText()->pos()));
+        const double endTextX = std::max(pp2.x(), shape.bbox().right() + l2); // prevent end text from overlapping begin text
+        item->endText()->mutldata()->setPosX(endTextX);
+        shape.add(item->endText()->ldata()->bbox().translated(item->endText()->pos()), item);
     }
 
+    bool beginHookDrawnSeparately = false;
+    bool endHookDrawnSeparately = false;
+
     if (tl->lineVisible() || !ctx.conf().isPrintingMode()) {
-        pp1 = PointF(l1, 0.0);
+        pp1.rx() += l1;
         pp2.rx() -= l2;
 
         // Make sure baseline of text and line are properly aligned (accounting for line thickness)
@@ -5923,6 +6217,9 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
         } else if (hasEndText && alignEndText) {
             alignBaseLine(item->endText(), pp1, pp2);
         }
+
+        const double beginHookHeight = (tl->placeBelow() ? -1.0 : 1.0) * tl->beginHookHeight().val() * spatium;
+        const double endHookHeight = (tl->placeBelow() ? -1.0 : 1.0) * tl->endHookHeight().val() * spatium;
 
         double beginHookWidth = 0.0;
         double endHookWidth = 0.0;
@@ -5939,58 +6236,120 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
 
         // don't draw backwards lines (or hooks) if text is longer than nominal line length
         if (!item->text()->empty() && pp1.x() > pp2.x() && !tl->diagonal()) {
+            ldata->setShape(shape);
             return;
         }
 
-        if (isSingleOrBegin && tl->beginHookType() != HookType::NONE) {
-            // We use the term "endpoint" for the point that does not touch the main line.
-            const PointF& beginHookEndpoint = item->pointsRef()[item->npointsRef()++]
-                                                  = PointF(pp1.x() - beginHookWidth, pp1.y() + beginHookHeight);
+        const bool beginArrow = isSingleOrBegin
+                                && (tl->beginHookType() == HookType::ARROW_FILLED || tl->beginHookType() == HookType::ARROW);
+        const bool endArrow = isSingleOrEnd && (tl->endHookType() == HookType::ARROW_FILLED || tl->endHookType() == HookType::ARROW);
 
+        if (beginArrow) {
+            const bool filled = tl->beginHookType() == HookType::ARROW_FILLED;
+            ldata->beginArrow = createArrow(true, filled, pp1, pp2, tl);
+            shape.add(ldata->beginArrow.boundingRect(), item);
+        }
+        if (endArrow) {
+            const bool filled = tl->endHookType() == HookType::ARROW_FILLED;
+            ldata->endArrow = createArrow(false, filled, pp1, pp2, tl);
+            shape.add(ldata->endArrow.boundingRect(), item);
+        }
+
+        auto hasHook = [](HookType type) -> bool {
+            switch (type) {
+            case HookType::HOOK_45:
+            case HookType::HOOK_90:
+            case HookType::HOOK_90T:
+                return true;
+            case HookType::NONE:
+            case HookType::ARROW:
+            case HookType::ARROW_FILLED:
+            case HookType::ROSETTE:
+                return false;
+            default:
+                break;
+            }
+            return false;
+        };
+
+        const bool beginHook = isSingleOrBegin && hasHook(tl->beginHookType());
+        const bool endHook = isSingleOrEnd && hasHook(tl->endHookType());
+
+        if (beginHook) {
+            // We use the term "endpoint" for the point that does not touch the main line.
+            const PointF& beginHookEndpoint = ldata->points[ldata->npoints++]
+                                                  = PointF(pp1.x() - beginHookWidth, pp1.y() + beginHookHeight);
             if (tl->beginHookType() == HookType::HOOK_90T) {
                 // A T-hook needs to be drawn separately, so we add an extra point
-                item->pointsRef()[item->npointsRef()++] = PointF(pp1.x() - beginHookWidth, pp1.y() - beginHookHeight);
+                beginHookDrawnSeparately = true;
+                ldata->points[ldata->npoints++] = PointF(pp1.x() - beginHookWidth, pp1.y() - beginHookHeight);
             } else if (tl->lineStyle() != LineType::SOLID) {
                 // For non-solid lines, we also draw the hook separately,
                 // so that we can distribute the dashes/dots for each linepiece individually
-                PointF& beginHookStartpoint = item->pointsRef()[item->npointsRef()++] = pp1;
+                beginHookDrawnSeparately = true;
+                PointF& beginHookStartpoint = ldata->points[ldata->npoints++] = pp1;
 
                 if (tl->lineStyle() == LineType::DASHED) {
                     // For dashes lines, we extend the lines somewhat,
                     // so that the corner between them gets filled
                     bool checkAngle = tl->beginHookType() == HookType::HOOK_45 || tl->diagonal();
-                    extendLines(beginHookEndpoint, beginHookStartpoint, pp1, pp2, tl->absoluteFromSpatium(tl->lineWidth()), checkAngle);
+                    extendLines(beginHookEndpoint, beginHookStartpoint, pp1, pp2, lineWidth, checkAngle);
                 }
             }
         }
 
-        item->pointsRef()[item->npointsRef()++] = pp1;
-        PointF& pp22 = item->pointsRef()[item->npointsRef()++] = pp2; // Keep a reference so that we can modify later
+        ldata->points[ldata->npoints++] = pp1;
+        PointF& pp22 = ldata->points[ldata->npoints++] = pp2; // Keep a reference so that we can modify later
 
-        if (item->isSingleEndType() && tl->endHookType() != HookType::NONE) {
+        if (endHook) {
             const PointF endHookEndpoint = PointF(pp2.x() + endHookWidth, pp2.y() + endHookHeight);
-
             if (tl->endHookType() == HookType::HOOK_90T) {
                 // A T-hook needs to be drawn separately, so we add an extra point
-                item->pointsRef()[item->npointsRef()++] = PointF(pp2.x() + endHookWidth, pp2.y() - endHookHeight);
+                endHookDrawnSeparately = true;
+                ldata->points[ldata->npoints++] = PointF(pp2.x() + endHookWidth, pp2.y() - endHookHeight);
             } else if (tl->lineStyle() != LineType::SOLID) {
                 // For non-solid lines, we also draw the hook separately,
                 // so that we can distribute the dashes/dots for each linepiece individually
-                PointF& endHookStartpoint = item->pointsRef()[item->npointsRef()++] = pp2;
+                endHookDrawnSeparately = true;
+                PointF& endHookStartpoint = ldata->points[ldata->npoints++] = pp2;
 
                 if (tl->lineStyle() == LineType::DASHED) {
                     // For dashes lines, we extend the lines somewhat,
                     // so that the corner between them gets filled
                     bool checkAngle = tl->endHookType() == HookType::HOOK_45 || tl->diagonal();
-                    extendLines(pp1, pp22, endHookStartpoint, endHookEndpoint, tl->absoluteFromSpatium(tl->lineWidth()), checkAngle);
+                    extendLines(pp1, pp22, endHookStartpoint, endHookEndpoint, lineWidth, checkAngle);
                 }
             }
 
-            item->pointsRef()[item->npointsRef()++] = endHookEndpoint;
+            ldata->points[ldata->npoints++] = endHookEndpoint;
         }
 
-        item->setLineLength(sqrt(PointF::dotProduct(pp22 - pp1, pp22 - pp1)));
+        ldata->lineLength = sqrt(PointF::dotProduct(pp22 - pp1, pp22 - pp1));
     }
+
+    // Calculate shape of line
+    {
+        int start = 0;
+        if (beginHookDrawnSeparately) {
+            PointF& p1 = ldata->points[start++];
+            PointF& p2 = ldata->points[start++];
+            shape.add(TextLineBaseSegment::boundingBoxOfLine(p1, p2, lineWidth / 2, isDottedLine), item);
+        }
+
+        int end = ldata->npoints;
+        if (endHookDrawnSeparately) {
+            PointF& p1 = ldata->points[--end];
+            PointF& p2 = ldata->points[--end];
+            shape.add(TextLineBaseSegment::boundingBoxOfLine(p1, p2, lineWidth / 2, isDottedLine), item);
+        }
+
+        for (int i = start; i < end - 1; ++i) {
+            shape.add(TextLineBaseSegment::boundingBoxOfLine(ldata->points[i], ldata->points[i + 1], lineWidth / 2,
+                                                             isDottedLine), item, !tl->lineVisible());
+        }
+    }
+
+    ldata->setShape(shape);
 }
 
 void TLayout::layoutTie(Tie* item, LayoutContext&)
@@ -5998,7 +6357,7 @@ void TLayout::layoutTie(Tie* item, LayoutContext&)
     UNUSED(item);
 }
 
-void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, const LayoutContext& ctx)
+void TLayout::layoutTimeSig(TimeSig* item, TimeSig::LayoutData* ldata, const LayoutContext& ctx)
 {
     LAYOUT_CALL_ITEM(item);
     LD_INDEPENDENT;
@@ -6031,7 +6390,8 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
 
     if (staff) {
         // if staff is without time sig, format as if no text at all
-        if (!staff->staffTypeForElement(item)->genTimesig()) {
+        const StaffType* stVisibility = staff->staffType(item->tick());
+        if (!stVisibility->genTimesig()) {
             // reset position and box sizes to 0
             // LOGD("staff: no time sig");
             ldata->pointLargeLeftParen.rx() = 0.0;
@@ -6056,6 +6416,10 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
     // determine middle staff position:
 
     double yoff = spatium * (numOfLines - 1) * .5 * lineDist;
+    if (staff && staff->isCipherStaff(tick)) {
+        if (item->timeSigType() == TimeSigType::FOUR_FOUR || item->timeSigType() == TimeSigType::ALLA_BREVE) item->set_timeSigType(TimeSigType::NORMAL);
+        sigType = item->timeSigType();
+    }
 
     // C and Ccut are placed at the middle of the staff: use yoff directly
     IEngravingFontPtr font = ctx.engravingFont();
@@ -6106,7 +6470,76 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
         ldata->ns.clear();
         ldata->ns.push_back(sym);
         ldata->ds.clear();
-    } else {
+    } else if (staff && staff->isCipherStaff(tick)) {
+        if (item->segment()->isTimeSigAnnounceType()) {
+            ldata->cipherVisible=false;
+
+            ldata->setBbox(RectF());
+            return;
+        }
+        if (item->timeSigType() == TimeSigType::FOUR_FOUR || item->timeSigType() == TimeSigType::ALLA_BREVE) item->set_timeSigType(TimeSigType::NORMAL);
+        item->setEnabled(false);
+
+        const StaffType* cipher = staff->staffTypeForElement(item);
+        Font fontcipher(item->cipherTimeSigFont());
+        FontMetrics fm2(fontcipher);
+        ldata->cipher_ds = item->numeratorString().isEmpty() ? String::number(item->sig().numerator()) : item->numeratorString();//toTimeSigString(_numeratorString.isEmpty()   ? QString::number(_sig.numerator())   : _numeratorString);
+        ldata->cipher_ns = item->denominatorString().isEmpty() ? String::number(item->sig().denominator()) : item->denominatorString();//toTimeSigString(_denominatorString.isEmpty() ? QString::number(_sig.denominator()) : _denominatorString);
+
+        ldata->ns = timeSigSymIdsFromString(item->numeratorString().isEmpty() ? String::number(item->sig().numerator()) : item->numeratorString());
+        ldata->ds = timeSigSymIdsFromString(item->denominatorString().isEmpty() ? String::number(item->sig().denominator()) : item->denominatorString());
+
+        qreal px = -0.0;
+        ldata->cipherHeigthds = fm2.tightBoundingRect(ldata->cipher_ds).height();
+        ldata->cipherHeigthns = fm2.tightBoundingRect(ldata->cipher_ns).height();
+        qreal wn = fm2.width(ldata->cipher_ns);
+        qreal wd = fm2.width(ldata->cipher_ds);
+        RectF numRect = RectF(px, 0.0, wn, ldata->cipherHeigthns);
+        RectF denRect = RectF(px, 0.0, wd, ldata->cipherHeigthds);
+        qreal displ = numRect.height() * style.styleD(Sid::cipherTimeSigLineThick) * 1.5;
+
+        //align on the wider
+        qreal pzY = yoff + displ + numRect.height();
+        qreal pnY = yoff - displ;
+        qreal cipherLineWidth = denRect.width();
+        qreal boxwidth = 0.0;
+
+
+        if (numRect.width() >= denRect.width()) {
+            // numerator: one space above centre line, unless denomin. is empty (if so, directly centre in the middle)
+            ldata->pz = PointF(px, pzY);
+            // denominator: horiz: centred around centre of numerator | vert: one space below centre line
+            ldata->pn = PointF((numRect.width() - denRect.width()) * .5 + px, pnY);
+            cipherLineWidth = numRect.width();
+            //px +=(numRect.width() - denRect.width())*.5;
+            boxwidth = numRect.width();
+        }
+        else {
+            // numerator: one space above centre line, unless denomin. is empty (if so, directly centre in the middle)
+            ldata->pz = PointF((denRect.width() - numRect.width()) * .5 + px, pzY);
+            // denominator: horiz: centred around centre of numerator | vert: one space below centre line
+            ldata->pn = PointF(px, pnY);
+            cipherLineWidth = denRect.width();
+            //px +=(numRect.width() - denRect.width())*.5;
+            boxwidth = denRect.width();
+        }
+        px -= cipherLineWidth * (style.styleD(Sid::cipherTimeSigLineSize) - 1.0) * 0.5;
+        ldata->cipherBbox = RectF(px, (pnY - numRect.height()), boxwidth, (numRect.height() * 2 + displ * 2));;
+        ldata->cipherLine = LineF(px, 0, cipherLineWidth * style.styleD(Sid::cipherTimeSigLineSize) + px, 0);
+        ldata->cipherWidth = boxwidth;
+        ldata->cipherLineThick = numRect.height() * style.styleD(Sid::cipherTimeSigLineThick);
+        ldata->cipherBegin = meas && meas->system() ? meas == meas->system()->firstMeasure():true;
+        if (!ldata->cipherBegin) {
+            RectF timeSigRect = RectF(px, (pnY - numRect.height()) * 0.5, 
+                boxwidth + ldata->cipherHeigthds * style.styleD(Sid::cipherTimeSigDistance), (numRect.height() * 2 + displ * 2) * 0.5);
+            ldata->setBbox(timeSigRect);
+        }
+        ldata->ns.clear();
+        ldata->ns.push_back(SymId::timeSigCutCommon);
+        ldata->ds.clear();
+        return;
+    }
+    else {
         if (item->numeratorString().isEmpty()) {
             ldata->ns = timeSigSymIdsFromString(item->numeratorString().isEmpty()
                                                 ? String::number(item->sig().numerator())
@@ -6175,6 +6608,34 @@ void TLayout::layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, con
     ldata->moveY(item->yPos());
 }
 
+void TLayout::layoutTimeSig2(TimeSig* item, TimeSig::LayoutData* ldata, const LayoutContext& ctx) 
+{
+    TimeSigType sigType = item->timeSigType();
+    const Staff* staff = item->staff();
+    const Segment* seg = item->segment();
+    const Measure* meas = seg ? seg->measure() : nullptr;
+    const Fraction tick = meas ? meas->tick() : item->tick();
+    const MStyle& style = item->style();
+    if (staff && staff->isCipherStaff(tick)) {
+        if (seg->isTimeSigAnnounceType()) {
+            return;
+        }
+        ldata->cipherBegin = meas && meas->system() ? meas == meas->system()->firstMeasure() : true;
+        if (ldata->cipherBegin) {
+            ldata->setPosX(ldata->cipherXpos - ldata->cipherWidth - ldata->cipherHeigthds * style.styleD(Sid::cipherTimeSigDistance));
+            ldata->setBbox(ldata->cipherBbox);
+        }
+        else {
+            ldata->setPosX(ldata->cipherXpos + ldata->cipherHeigthds * style.styleD(Sid::cipherTimeSigDistance));
+            qreal x = ldata->cipherWidth + ldata->cipherHeigthds * style.styleD(Sid::cipherTimeSigDistance);
+            ldata->cipherBarLine = LineF(x, -ldata->cipherBarLinelenght / 2, x, ldata->cipherBarLinelenght / 2);
+            qreal lw = style.styleMM(Sid::barWidth) * item->mag();
+            ldata->addBbox(RectF(x, -ldata->cipherBarLinelenght / 2, lw, ldata->cipherBarLinelenght));
+        }
+        item->setEnabled(true);
+    }
+
+}
 void TLayout::layoutTimeTickAnchor(TimeTickAnchor* item, LayoutContext&)
 {
     TimeTickAnchor::LayoutData* ldata = item->mutldata();
@@ -6420,6 +6881,8 @@ void TLayout::layoutVibratoSegment(VibratoSegment* item, LayoutContext& ctx)
     case VibratoType::VIBRATO_SAWTOOTH_WIDE:
         item->symbolLine(SymId::wiggleSawtoothWide, SymId::wiggleSawtoothWide);
         break;
+    default:
+        break;
     }
 
     if (item->isStyled(Pid::OFFSET)) {
@@ -6465,9 +6928,10 @@ void TLayout::layoutVoltaSegment(VoltaSegment* item, LayoutContext& ctx)
             offset.setY(-offset.y() + endText->ldata()->bbox().height());
             endText->setOffset(offset);
         }
+        // recalculate shape after moving texts
+        Shape sh = recalculateTextLineBaseSegmentShape(item);
+        ldata->setShape(sh);
     }
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
 
@@ -6476,9 +6940,6 @@ void TLayout::layoutWhammyBarSegment(WhammyBarSegment* item, LayoutContext& ctx)
     LAYOUT_CALL_ITEM(item);
     WhammyBarSegment::LayoutData* ldata = item->mutldata();
     layoutTextLineBaseSegment(item, ctx);
-
-    Shape sh = textLineBaseSegmentShape(item);
-    ldata->setShape(sh);
 
     Autoplace::autoplaceSpannerSegment(item, ldata, ctx.conf().spatium());
 }
@@ -6574,7 +7035,8 @@ SpannerSegment* TLayout::layoutSystemSLine(SLine* line, System* system, LayoutCo
         if (line->hasVoiceAssignmentProperties()) {
             line->setPlacementBasedOnVoiceAssignment(ctx.conf().styleV(Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>());
         }
-    } else if (line->tick() < stick && line->tick2() > etick) {
+    } else if (line->tick() < stick
+               && (line->tick2() > etick || (line->tick2() == etick && line->isPedal() && toPedal(line)->connect45HookToNext()))) {
         sst = SpannerSegmentType::MIDDLE;
     } else {
         //
@@ -6653,7 +7115,7 @@ double TLayout::voltaMidEndSegmentStartX(Volta* volta, System* system, LayoutCon
     }
 
     KeySig* keySig = toKeySig(refSeg->element(volta->track()));
-    if (keySig->ldata()->keySymbols.empty()) {
+    if (!keySig || keySig->ldata()->keySymbols.empty()) {
         return 0.0;
     }
 
@@ -6678,7 +7140,7 @@ SpannerSegment* TLayout::layoutSystem(LyricsLine* line, System* system, LayoutCo
 
     SpannerSegmentType sst;
     if (line->tick() >= stick) {
-        TLayout::layoutLyricsLine(line, ctx);
+        TLayout::layoutLyricsLine(line);
         if (line->ticks().isZero() && line->isEndMelisma()) {
             return nullptr;
         }

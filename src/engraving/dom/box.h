@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -250,12 +250,8 @@ public:
     ~TBox() override;
 
     Text* text() const { return m_text; }
-    void resetText(Text* text);
 
-    // Score Tree functions
-    EngravingObject* scanParent() const override;
-    EngravingObjectList scanChildren() const override;
-    void scanElements(void* data, void (* func)(void*, EngravingItem*), bool all = true) override;
+    void scanElements(std::function<void(EngravingItem*)> func) override;
 
     TBox* clone() const override { return new TBox(*this); }
 

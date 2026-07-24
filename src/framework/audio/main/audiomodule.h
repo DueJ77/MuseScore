@@ -19,8 +19,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MUSE_AUDIO_AUDIOMODULE_H
-#define MUSE_AUDIO_AUDIOMODULE_H
+
+#pragma once
 
 #include <memory>
 
@@ -35,8 +35,8 @@ class IRpcChannel;
 namespace muse::audio {
 class AudioConfiguration;
 class AudioActionsController;
+class TransportEventsController;
 class StartAudioController;
-class AudioOutputDeviceController;
 class Playback;
 class ISoundFontController;
 class AudioDriverController;
@@ -48,8 +48,6 @@ public:
     std::string moduleName() const override;
 
     void registerExports() override;
-    void registerResources() override;
-    void registerUiTypes() override;
     void resolveImports() override;
     void onInit(const IApplication::RunMode& mode) override;
     void onDeinit() override;
@@ -57,8 +55,8 @@ public:
 private:
     std::shared_ptr<AudioConfiguration> m_configuration;
     std::shared_ptr<AudioActionsController> m_actionsController;
+    std::shared_ptr<TransportEventsController> m_transportEventsController;
     std::shared_ptr<StartAudioController> m_startAudioController;
-    std::shared_ptr<AudioOutputDeviceController> m_audioOutputController;
     std::shared_ptr<Playback> m_mainPlayback;
     std::shared_ptr<ISoundFontController> m_soundFontController;
 
@@ -66,7 +64,7 @@ private:
     std::shared_ptr<rpc::IRpcChannel> m_rpcChannel;
 
     std::shared_ptr<AudioDriverController> m_audioDriverController;
+
+    bool m_audioInited = false;
 };
 }
-
-#endif // MUSE_AUDIO_AUDIOMODULE_H

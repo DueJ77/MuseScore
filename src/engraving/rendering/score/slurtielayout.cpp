@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -41,6 +41,8 @@
 #include "dom/laissezvib.h"
 #include "dom/parenthesis.h"
 #include "dom/partialtie.h"
+
+#include "editing/editchord.h"
 
 #include "tlayout.h"
 #include "chordlayout.h"
@@ -404,6 +406,20 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
         note2 = item->up() ? ec->upNote() : ec->downNote();
     }
 
+    if (note1->staff() && note1->staff()->isCipherStaff(note1->tick())) {
+
+        sp->p1 = scr->pos() + scr->segment()->pos() + scr->measure()->pos();
+        sp->p2 = ecr->pos() + ecr->segment()->pos() + ecr->measure()->pos();
+        item->set_cipherHeigth(note1->get_cipherHeigth());
+        sp->p1.rx() += note1->get_cipherTextPos().x() - note1->get_cipherHeigth() * ctx.conf().styleD(Sid::cipherSlurUberhang);
+        sp->p1.ry() = note1->y() + note1->get_cipherHeigth() * 0.5 + note1->get_cipherHeigth() * ctx.conf().styleD(Sid::cipherSlurShift);
+        ///------p2
+
+        sp->p2.rx() += note2->get_cipherTextPos().x()+note2->get_cipherWidth() + note1->get_cipherHeigth() * item->style().styleD(Sid::cipherSlurUberhang);
+        sp->p2.ry() = note2->y() + note2->get_cipherHeigth() * 0.5 + note2->get_cipherHeigth() * ctx.conf().styleD(Sid::cipherSlurShift);
+        return;
+
+    }
     sp->system1 = scr->measure()->system();
     sp->system2 = ecr->measure()->system();
 
@@ -414,6 +430,12 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
 
     sp->p1 = scr->pos() + scr->segment()->pos() + scr->measure()->pos();
     sp->p2 = ecr->pos() + ecr->segment()->pos() + ecr->measure()->pos();
+    if (scr->isGrace()) {
+        sp->p1 += scr->parentItem()->pos();
+    }
+    if (ecr->isGrace()) {
+        sp->p2 += ecr->parentItem()->pos();
+    }
 
     // adjust for cross-staff
     if (scr->vStaffIdx() != item->vStaffIdx() && sp->system1) {
@@ -572,7 +594,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
         TremoloTwoChord* trem = sc ? sc->tremoloTwoChord() : nullptr;
         if (stem1 || trem) {     //sc not null
             Beam* beam1 = sc->beam();
-            if (beam1 && (beam1->elements().back() != sc) && (sc->up() == item->up())) {
+            if (stem1 && beam1 && (beam1->elements().back() != sc) && (sc->up() == item->up())) {
                 TLayout::layoutBeam(beam1, ctx);
                 // start chord is beamed but not the last chord of beam group
                 // and slur direction is same as start chord (stem side)
@@ -660,7 +682,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
                     yd *= .5;
 
                     // float along stem according to differential
-                    double sh = stem1->height();
+                    double sh = stem1 ? stem1->height() : 0.0;
                     if (item->up() && yd < 0.0) {
                         po.ry() = std::max(po.y() + yd, sc->downNote()->pos().y() - sh - _spatium);
                     } else if (!item->up() && yd > 0.0) {
@@ -795,7 +817,7 @@ void SlurTieLayout::slurPos(Slur* item, SlurTiePos* sp, LayoutContext& ctx)
                         double yd = n2->pos().y() - (n1 ? n1->pos().y() : item->startCR()->pos().y());
                         yd *= .5;
 
-                        double mh = stem2->height();
+                        double mh = stem2 ? stem2->height() : 0.0;
                         if (item->up() && yd > 0.0) {
                             po.ry() = std::max(po.y() - yd, ec->downNote()->pos().y() - mh - _spatium);
                         } else if (!item->up() && yd < 0.0) {
@@ -1153,7 +1175,7 @@ Shape SlurTieLayout::getSegmentShapes(SlurSegment* slurSeg, ChordRest* startCR, 
     }
 
     for (Segment* seg = startSeg; seg && (seg->isBefore(endSeg) || seg == endSeg); seg = seg->next1enabled()) {
-        if (seg->isType(SegmentType::BarLineType) || seg->isBreathType() || seg->hasTimeSigAboveStaves()) {
+        if (seg->isType(SegmentType::BarLineType) || seg->isBreathType() || seg->hasTimeSigAboveStaves() || seg->isTimeTickType()) {
             continue;
         }
         segShapes.add(getSegmentShape(slurSeg, seg, startCR, endCR));
@@ -1183,7 +1205,7 @@ Shape SlurTieLayout::getSegmentShape(SlurSegment* slurSeg, Segment* seg, ChordRe
     }
 
     for (track_idx_t track = staff2track(startStaffIdx); track < staff2track(endStaffIdx, VOICES); ++track) {
-        EngravingItem* e = seg->elementAt(track);
+        EngravingItem* e = seg->element(track);
         if (!e || !e->isChordRest()) {
             continue;
         }
@@ -1223,7 +1245,8 @@ Shape SlurTieLayout::getSegmentShape(SlurSegment* slurSeg, Segment* seg, ChordRe
         const EngravingItem* item = shapeEl.item();
         const EngravingItem* parent = item->parentItem();
         // Don't remove arpeggio starting on a different voice and ending on the same voice as endCR when slur is on the outside
-        if (item->isArpeggio() && (endCR->track() == toArpeggio(item)->endTrack()) && endCR->tick() == item->tick()
+        if ((item->isArpeggio() || item->isChordBracket()) && (endCR->track() == toArpeggio(item)->endTrack())
+            && endCR->tick() == item->tick()
             && (!slur->up() && toArpeggio(item)->span() > 1)) {
             return false;
         }
@@ -1252,7 +1275,8 @@ Shape SlurTieLayout::getSegmentShape(SlurSegment* slurSeg, Segment* seg, ChordRe
             return true;
         }
         // Remove arpeggios spanning more than 1 voice starting on endCR's voice when the slur is on the inside
-        if (item->isArpeggio() && (endCR->track() != item->track() || (!slur->up() && toArpeggio(item)->span() > 1))) {
+        if ((item->isArpeggio() || item->isChordBracket())
+            && (endCR->track() != item->track() || (!slur->up() && toArpeggio(item)->span() > 1))) {
             return true;
         }
         // Ignore big time signatures
@@ -1464,9 +1488,9 @@ void SlurTieLayout::avoidPreBendsOnTab(const Chord* sc, const Chord* ec, SlurTie
         for (Note* note : sc->notes()) {
             GuitarBend* bf = note->bendFor();
             GuitarBend* bb = note->bendBack();
-            if (bf && !bf->segmentsEmpty() && bf->type() == GuitarBendType::PRE_BEND && !bf->angledPreBend()) {
+            if (bf && !bf->segmentsEmpty() && bf->bendType() == GuitarBendType::PRE_BEND && !bf->angledPreBend()) {
                 bendOnStart = bf;
-            } else if (bb && !bb->segmentsEmpty() && bb->type() == GuitarBendType::PRE_BEND && !bb->angledPreBend()) {
+            } else if (bb && !bb->segmentsEmpty() && bb->bendType() == GuitarBendType::PRE_BEND && !bb->angledPreBend()) {
                 bendOnStart = bb;
             }
             if (bendOnStart) {
@@ -1478,9 +1502,9 @@ void SlurTieLayout::avoidPreBendsOnTab(const Chord* sc, const Chord* ec, SlurTie
         for (Note* note : ec->notes()) {
             GuitarBend* bf = note->bendFor();
             GuitarBend* bb = note->bendBack();
-            if (bf && !bf->segmentsEmpty() && bf->type() == GuitarBendType::PRE_BEND && !bf->angledPreBend()) {
+            if (bf && !bf->segmentsEmpty() && bf->bendType() == GuitarBendType::PRE_BEND && !bf->angledPreBend()) {
                 bendOnEnd = bf;
-            } else if (bb && !bb->segmentsEmpty() && bb->type() == GuitarBendType::PRE_BEND && !bb->angledPreBend()) {
+            } else if (bb && !bb->segmentsEmpty() && bb->bendType() == GuitarBendType::PRE_BEND && !bb->angledPreBend()) {
                 bendOnEnd = bb;
             }
             if (bendOnEnd) {
@@ -1574,9 +1598,24 @@ TieSegment* SlurTieLayout::layoutTieFor(Tie* item, System* system)
 
     adjustYforLedgerLines(segment, sPos);
 
+    if (item->staff()->isCipherStaff(item->tick())) {
+        item->set_cipherHeigth(item->startNote()->get_cipherHeigth());
+        Note* note1 = item->startNote();
+        Note* note2 = item->endNote();
+        sPos.p1 = note1->chord()->pos() + note1->chord()->segment()->pos() + note1->chord()->measure()->pos();
+        sPos.p2 = note2->chord()->pos() + note2->chord()->segment()->pos() + note2->chord()->measure()->pos();
+        sPos.p1.rx() += note1->get_cipherTextPos().x() - item->get_cipherHeigth() * item->style().styleD(Sid::cipherSlurUberhang);
+        sPos.p1.ry() = note1->y() + item->get_cipherHeigth() * 0.5 + item->get_cipherHeigth() * item->style().styleD(Sid::cipherSlurShift);
+        sPos.p2.rx() += note2->get_cipherTextPos().x() + note2->get_cipherWidth() + item->get_cipherHeigth() * item->style().styleD(Sid::cipherSlurUberhang);
+        sPos.p2.ry() = note2->y() + item->get_cipherHeigth() * 0.5 + item->get_cipherHeigth() * item->style().styleD(Sid::cipherSlurShift);
+        segment->ups(Grip::START).p = sPos.p1;
+        segment->ups(Grip::END).p = sPos.p2;
+        computeBezier(segment);
+        addLineAttachPoints(segment); // add attach points to start and end note
+        return segment;
+    }
     segment->ups(Grip::START).p = sPos.p1;
     segment->ups(Grip::END).p = sPos.p2;
-
     if (segment->autoplace() && !segment->isEdited()) {
         adjustY(segment);
     } else {
@@ -1901,8 +1940,16 @@ void SlurTieLayout::calculateLaissezVibY(LaissezVibSegment* segment, SlurTiePos&
 
     adjustYforLedgerLines(segment, sPos);
 
-    Parenthesis* paren = lv->parentItem()->leftParen();
-    Chord* chord = lv->startNote()->chord();
+    Note* note = lv->startNote();
+    Chord* chord = note->chord();
+
+    const NoteParenthesisInfo* noteParenInfo = chord->findNoteParenthesisInfo(note);
+
+    Parenthesis* paren = nullptr;
+    if (noteParenInfo) {
+        paren = noteParenInfo->leftParen();
+    }
+
     const bool avoidStem = chord->stem() && chord->stem()->visible() && chord->up() == lv->up();
     if (paren && (!lv->isOuterTieOfChord(Grip::START) || avoidStem)) {
         RectF parenBbox = paren->ldata()->bbox().translated(paren->systemPos());
@@ -2055,7 +2102,7 @@ void SlurTieLayout::layoutLaissezVibChord(Chord* chord, LayoutContext& ctx)
 
     for (auto& segWithPos : lvSegmentsWithPositions) {
         LaissezVibSegment* lvSeg = segWithPos.first;
-        const Note* note = lvSeg->laissezVib()->startNote();
+        Note* note = lvSeg->laissezVib()->startNote();
         SlurTiePos sPos = segWithPos.second;
         const double xDiff = chordLvEndPoint - sPos.p2.x();
         sPos.p2.setX(chordLvEndPoint);
@@ -2072,9 +2119,15 @@ void SlurTieLayout::layoutLaissezVibChord(Chord* chord, LayoutContext& ctx)
             ldata->setPos(sPos.p1);
         }
 
-        const PointF chordPos = chord->pos() + chord->segment()->pos() + chord->measure()->pos();
+        double yOrigin = sPos.system1->staff(chord->staffIdx())->y();
+        double yMoved = sPos.system1->staff(chord->vStaffIdx())->y();
+        double yDiff = yMoved - yOrigin;
+
+        const PointF chordPos = chord->pos() + chord->segment()->pos() + chord->measure()->pos() + PointF(0.0, yDiff);
         const PointF notePos = chordPos + note->pos();
         ldata->posRelativeToNote = sPos.p1 - notePos;
+
+        TLayout::fillNoteShape(note, note->mutldata());
     }
 }
 
@@ -2228,7 +2281,7 @@ void SlurTieLayout::adjustX(TieSegment* tieSegment, SlurTiePos& sPos, Grip start
                       || (s.item()->isNoteDot() && ignoreDot)
                       || (s.item()->isAccidental() && ignoreAccidental(toAccidental(s.item())))
                       || (s.item()->isLaissezVibSegment() && ignoreLvSeg)
-                      || (s.item()->isArpeggio() && ignoreArpeggio)
+                      || ((s.item()->isArpeggio() || s.item()->isChordBracket()) && ignoreArpeggio)
                       || (s.item()->isParenthesis() && ignoreParen)
                       || !s.item()->addToSkyline();
         return remove;
@@ -2541,6 +2594,10 @@ void SlurTieLayout::resolveVerticalTieCollisions(const std::vector<TieSegment*>&
 
 void SlurTieLayout::computeUp(Slur* slur, LayoutContext& ctx)
 {
+    if (slur->staff() && slur->staff()->isCipherStaff(slur->tick())) {
+        slur->setUp(false);
+        return;
+    }
     switch (slur->slurDirection()) {
     case DirectionV::UP:
         slur->setUp(true);
@@ -2615,6 +2672,9 @@ void SlurTieLayout::computeBezier(TieSegment* tieSeg, PointF shoulderOffset)
 {
     const PointF tieStart = tieSeg->ups(Grip::START).p + tieSeg->ups(Grip::START).off;
     const PointF tieEnd = tieSeg->ups(Grip::END).p + tieSeg->ups(Grip::END).off;
+    if (!muse::RealIsEqualOrMore(tieEnd.x(), tieStart.x())) {
+        return;
+    }
 
     PointF tieEndNormalized = tieEnd - tieStart;  // normalize to zero
     if (muse::RealIsNull(tieEndNormalized.x())) {
@@ -2647,6 +2707,10 @@ void SlurTieLayout::computeBezier(TieSegment* tieSeg, PointF shoulderOffset)
 
     double shoulderW = 0.6; // TODO: style
 
+    if (tieSeg->staffType() && tieSeg->staffType()->isCipherStaff()) {
+        shoulderH = -(tieSeg->tie()->get_cipherHeigth() * tieSeg->style().styleD(Sid::cipherSlurHeigth));
+        shoulderW = (tieEndNormalized.x() - tieSeg->tie()->get_cipherHeigth() * tieSeg->style().styleD(Sid::cipherSlurEckenform)) / tieEndNormalized.x();
+    }
     const double tieWidth = tieEndNormalized.x();
     const double bezier1X = (tieWidth - tieWidth * shoulderW) * .5 + shoulderOffset.x();
     const double bezier2X = bezier1X + tieWidth * shoulderW + shoulderOffset.x();
@@ -2673,7 +2737,7 @@ void SlurTieLayout::computeBezier(TieSegment* tieSeg, PointF shoulderOffset)
     PainterPath path = PainterPath();
     path.moveTo(PointF());
     path.cubicTo(bezier1 + bezier1Offset - tieThickness, bezier2 + bezier2Offset - tieThickness, tieEndNormalized);
-    if (tieSeg->tie()->styleType() == SlurStyleType::Solid) {
+    if (tieSeg->tie()->styleType() == SlurStyleType::Solid&&!tieSeg->staff()->isCipherStaff(tieSeg->tick())) {
         path.cubicTo(bezier2 + bezier2Offset + tieThickness, bezier1 + bezier1Offset + tieThickness, PointF());
     }
 
@@ -2762,6 +2826,10 @@ void SlurTieLayout::computeBezier(SlurSegment* slurSeg, PointF shoulderOffset)
     double shoulderH = computeShoulderHeight(slurSeg, d, shoulderOffset);
 
     double c    = p2.x();
+    if (slurSeg->staffType() && slurSeg->staffType()->isCipherStaff()) {
+        shoulderH = -(slurSeg->slur()->get_cipherHeigth() * slurSeg->style().styleD(Sid::cipherSlurHeigth));
+        shoulderW = (c - slurSeg->slur()->get_cipherHeigth() * slurSeg->style().styleD(Sid::cipherSlurEckenform)) / c;
+    }
     double c1   = (c - c * shoulderW) * .5 + shoulderOffset.x();
     double c2   = c1 + c * shoulderW + shoulderOffset.x();
     PointF p3(c1, -shoulderH);
@@ -2824,7 +2892,7 @@ void SlurTieLayout::computeBezier(SlurSegment* slurSeg, PointF shoulderOffset)
     PainterPath path = PainterPath();
     path.moveTo(PointF());
     path.cubicTo(p3 - thick, p4 - thick, p2);
-    if (slurSeg->slur()->styleType() == SlurStyleType::Solid) {
+    if (slurSeg->slur()->styleType() == SlurStyleType::Solid && !slurSeg->staff()->isCipherStaff(slurSeg->tick())) {
         path.cubicTo(p4 + thick, p3 + thick, PointF());
     }
 
@@ -2989,6 +3057,11 @@ void SlurTieLayout::calculateDirection(Tie* item)
     const Note* secondaryNote = tieHasBothNotes ? item->endNote() : nullptr;
     const Chord* secondaryChord = secondaryNote ? secondaryNote->chord() : nullptr;
     const Measure* secondaryMeasure = secondaryChord ? secondaryChord->measure() : nullptr;
+    if (primaryNote->staff()->isCipherStaff(primaryNote->tick())) {
+
+        item->setUp(false);
+        return;
+    }
 
     if (item->slurDirection() == DirectionV::AUTO) {
         std::vector<Note*> notes = primaryChord->notes();
@@ -3098,6 +3171,10 @@ void SlurTieLayout::calculateDirection(Tie* item)
 
 void SlurTieLayout::calculateIsInside(Tie* item)
 {
+    if (item->staff()->isCipherStaff(item->tick())) {
+        return;
+        item->setIsInside(false);
+    }
     if (item->tiePlacement() != TiePlacement::AUTO) {
         item->setIsInside(item->tiePlacement() == TiePlacement::INSIDE);
         return;

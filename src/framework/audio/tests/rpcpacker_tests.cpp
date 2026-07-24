@@ -258,11 +258,17 @@ TEST_F(Audio_RpcPackerTests, SoundTrackFormat)
     origin.outputSpec.samplesPerChannel = 256;
     origin.outputSpec.audioChannelCount = 2;
     origin.bitRate = 196;
+    origin.sampleFormat = AudioSampleFormat::Float32;
+    origin.leadingSilenceDuration = 3000000;
+    origin.trailingSilenceDuration = 5000000;
 
     KNOWN_FIELDS(origin,
                  origin.type,
                  origin.outputSpec,
-                 origin.bitRate);
+                 origin.bitRate,
+                 origin.sampleFormat,
+                 origin.leadingSilenceDuration,
+                 origin.trailingSilenceDuration);
 
     ByteArray data = rpc::RpcPacker::pack(origin);
 
@@ -295,11 +301,9 @@ TEST_F(Audio_RpcPackerTests, AudioSourceParams)
 TEST_F(Audio_RpcPackerTests, AudioSignalVal)
 {
     AudioSignalVal origin;
-    origin.amplitude = 0.6f;
     origin.pressure = 0.5;
 
     KNOWN_FIELDS(origin,
-                 origin.amplitude,
                  origin.pressure);
 
     ByteArray data = rpc::RpcPacker::pack(origin);
@@ -367,11 +371,14 @@ TEST_F(Audio_RpcPackerTests, InputProcessingProgress)
         origin.status = InputProcessingProgress::Status::Started;
         origin.errorCode = 73;
         origin.errorText = "Some error";
+        origin.data["key1"] = "AAAA";
+        origin.data["key2"] = "BBBB";
 
         KNOWN_FIELDS(origin,
                      origin.status,
                      origin.errorCode,
-                     origin.errorText);
+                     origin.errorText,
+                     origin.data);
 
         ByteArray data = rpc::RpcPacker::pack(origin);
 
@@ -382,6 +389,7 @@ TEST_F(Audio_RpcPackerTests, InputProcessingProgress)
         EXPECT_TRUE(origin.status == unpacked.status);
         EXPECT_TRUE(origin.errorCode == unpacked.errorCode);
         EXPECT_TRUE(origin.errorText == unpacked.errorText);
+        EXPECT_TRUE(origin.data == unpacked.data);
     }
 }
 

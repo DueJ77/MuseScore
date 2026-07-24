@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -177,6 +177,7 @@ QVariant PropertyValue::toQVariant() const
     case P_TYPE::CHORD_PRESET_TYPE: return static_cast<int>(value<ChordStylePreset>());
     case P_TYPE::LH_TAPPING_SYMBOL: return static_cast<int>(value<LHTappingSymbol>());
     case P_TYPE::RH_TAPPING_SYMBOL: return static_cast<int>(value<RHTappingSymbol>());
+    case P_TYPE::VIBRATO_LINE_TYPE: return static_cast<int>(value<VibratoType>());
     case P_TYPE::PARENTHESES_MODE: return static_cast<int>(value<ParenthesesMode>());
     case P_TYPE::PLAY_COUNT_PRESET: return static_cast<int>(value<RepeatPlayCountPreset>());
     case P_TYPE::MARKER_TYPE: return static_cast<int>(value<MarkerType>());
@@ -185,6 +186,7 @@ QVariant PropertyValue::toQVariant() const
     case P_TYPE::AUTO_ON_OFF:       return static_cast<int>(value<AutoOnOff>());
     case P_TYPE::AUTO_CUSTOM_HIDE:  return static_cast<int>(value<AutoCustomHide>());
     case P_TYPE::MEASURE_NUMBER_PLACEMENT: return static_cast<int>(value<MeasureNumberPlacement>());
+    case P_TYPE::CAPO_TRANSPOSE_MODE:  return static_cast<int>(value<CapoParams::TransposeMode>());
 
     // Other
     case P_TYPE::GROUPS: {
@@ -301,10 +303,12 @@ PropertyValue PropertyValue::fromQVariant(const QVariant& v, P_TYPE type)
     case P_TYPE::CHORD_PRESET_TYPE:   return PropertyValue(ChordStylePreset(v.toInt()));
     case P_TYPE::LH_TAPPING_SYMBOL: return PropertyValue(LHTappingSymbol(v.toInt()));
     case P_TYPE::RH_TAPPING_SYMBOL: return PropertyValue(RHTappingSymbol(v.toInt()));
+    case P_TYPE::VIBRATO_LINE_TYPE: return PropertyValue(VibratoType(v.toInt()));
     case P_TYPE::PARENTHESES_MODE:   return PropertyValue(ParenthesesMode(v.toInt()));
     case P_TYPE::PLAY_COUNT_PRESET:   return PropertyValue(RepeatPlayCountPreset(v.toInt()));
     case P_TYPE::MARKER_TYPE:         return PropertyValue(MarkerType(v.toInt()));
     case P_TYPE::MEASURE_NUMBER_PLACEMENT: return PropertyValue(MeasureNumberPlacement(v.toInt()));
+    case P_TYPE::CAPO_TRANSPOSE_MODE: return PropertyValue(CapoParams::TransposeMode(v.toInt()));
 
     // Other
     case P_TYPE::GROUPS: {

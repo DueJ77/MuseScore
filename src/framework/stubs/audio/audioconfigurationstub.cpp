@@ -29,9 +29,14 @@ AudioEngineConfig AudioConfigurationStub::engineConfig() const
     return {};
 }
 
+std::string AudioConfigurationStub::defaultAudioApi() const
+{
+    return {};
+}
+
 std::string AudioConfigurationStub::currentAudioApi() const
 {
-    return std::string();
+    return {};
 }
 
 void AudioConfigurationStub::setCurrentAudioApi(const std::string&)
@@ -76,16 +81,6 @@ async::Notification AudioConfigurationStub::driverBufferSizeChanged() const
     return async::Notification();
 }
 
-samples_t AudioConfigurationStub::samplesToPreallocate() const
-{
-    return 0;
-}
-
-async::Channel<samples_t> AudioConfigurationStub::samplesToPreallocateChanged() const
-{
-    return async::Channel<samples_t>();
-}
-
 unsigned int AudioConfigurationStub::sampleRate() const
 {
     return 0;
@@ -98,6 +93,16 @@ void AudioConfigurationStub::setSampleRate(unsigned int)
 async::Notification AudioConfigurationStub::sampleRateChanged() const
 {
     return async::Notification();
+}
+
+OutputSpec AudioConfigurationStub::defaultOutputSpec() const
+{
+    return OutputSpec();
+}
+
+OutputSpec AudioConfigurationStub::desiredOutputSpec() const
+{
+    return OutputSpec();
 }
 
 // synthesizers
@@ -130,6 +135,20 @@ void AudioConfigurationStub::setAutoProcessOnlineSoundsInBackground(bool)
 }
 
 async::Channel<bool> AudioConfigurationStub::autoProcessOnlineSoundsInBackgroundChanged() const
+{
+    return {};
+}
+
+bool AudioConfigurationStub::useSoundFontLowPassFilter() const
+{
+    return false;
+}
+
+void AudioConfigurationStub::setUseSoundFontLowPassFilter(bool)
+{
+}
+
+async::Channel<bool> AudioConfigurationStub::useSoundFontLowPassFilterChanged() const
 {
     return {};
 }

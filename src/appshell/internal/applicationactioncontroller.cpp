@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@
 #include <QFileOpenEvent>
 #include <QWindow>
 #include <QMimeData>
+#include <QTimer>
 
 #include "async/async.h"
 #include "audio/common/soundfonttypes.h"
@@ -51,7 +52,10 @@ void ApplicationActionController::init()
     dispatcher()->reg(this, "quit", [this](const ActionData& args) {
         bool isAllInstances = args.count() > 0 ? args.arg<bool>(0) : true;
         muse::io::path_t installatorPath = args.count() > 1 ? args.arg<muse::io::path_t>(1) : "";
-        quit(isAllInstances, installatorPath);
+
+        QTimer::singleShot(0, [this, isAllInstances, installatorPath]() {
+            quit(isAllInstances, installatorPath);
+        });
     });
 
     dispatcher()->reg(this, "restart", [this]() {
@@ -65,6 +69,7 @@ void ApplicationActionController::init()
     dispatcher()->reg(this, "about-musicxml", this, &ApplicationActionController::openAboutMusicXMLDialog);
     dispatcher()->reg(this, "online-handbook", this, &ApplicationActionController::openOnlineHandbookPage);
     dispatcher()->reg(this, "ask-help", this, &ApplicationActionController::openAskForHelpPage);
+    dispatcher()->reg(this, "accessibility-statement", this, &ApplicationActionController::openAccessibilityStatementPage);
     dispatcher()->reg(this, "preference-dialog", this, &ApplicationActionController::openPreferencesDialog);
 
     dispatcher()->reg(this, "revert-factory", this, &ApplicationActionController::revertToFactorySettings);
@@ -85,7 +90,7 @@ void ApplicationActionController::init()
 
 bool ApplicationActionController::eventFilter(QObject* watched, QEvent* event)
 {
-    if ((event->type() == QEvent::Close && watched == mainWindow()->qWindow())
+    if ((event->type() == QEvent::Close && watched == qWindow())
         || event->type() == QEvent::Quit) {
         bool accepted = quit(false);
         event->setAccepted(accepted);
@@ -110,7 +115,7 @@ bool ApplicationActionController::eventFilter(QObject* watched, QEvent* event)
         }
     }
 
-    if (watched == mainWindow()->qWindow()) {
+    if (watched == qWindow()) {
         if (event->type() == QEvent::DragEnter) {
             if (onDragEnterEvent(static_cast<QDragEnterEvent*>(event))) {
                 return true;
@@ -127,6 +132,11 @@ bool ApplicationActionController::eventFilter(QObject* watched, QEvent* event)
     }
 
     return QObject::eventFilter(watched, event);
+}
+
+QWindow* ApplicationActionController::qWindow() const
+{
+    return mainWindow() ? mainWindow()->qWindow() : nullptr;
 }
 
 ApplicationActionController::DragTarget ApplicationActionController::dragTarget(const QUrl& url) const
@@ -229,10 +239,10 @@ bool ApplicationActionController::quit(bool isAllInstances, const muse::io::path
     }
 
     if (isAllInstances) {
-        multiInstancesProvider()->quitForAll();
+        multiwindowsProvider()->quitForAll();
     }
 
-    if (multiInstancesProvider()->instances().size() == 1 && !installerPath.empty()) {
+    if (multiwindowsProvider()->windowCount() == 1 && !installerPath.empty()) {
 #if defined(Q_OS_LINUX)
         interactive()->revealInFileBrowser(installerPath);
 #else
@@ -240,8 +250,8 @@ bool ApplicationActionController::quit(bool isAllInstances, const muse::io::path
 #endif
     }
 
-    if (multiInstancesProvider()->instances().size() > 1) {
-        multiInstancesProvider()->notifyAboutInstanceWasQuited();
+    if (multiwindowsProvider()->windowCount() > 1) {
+        multiwindowsProvider()->notifyAboutWindowWasQuited();
     }
 
     QCoreApplication::exit();
@@ -251,10 +261,10 @@ bool ApplicationActionController::quit(bool isAllInstances, const muse::io::path
 void ApplicationActionController::restart()
 {
     if (projectFilesController()->closeOpenedProject(false)) {
-        if (multiInstancesProvider()->instances().size() == 1) {
+        if (multiwindowsProvider()->windowCount() == 1) {
             application()->restart();
         } else {
-            multiInstancesProvider()->quitAllAndRestartLast();
+            multiwindowsProvider()->quitAllAndRestartLast();
 
             QCoreApplication::exit();
         }
@@ -293,6 +303,12 @@ void ApplicationActionController::openAskForHelpPage()
     interactive()->openUrl(askForHelpUrl);
 }
 
+void ApplicationActionController::openAccessibilityStatementPage()
+{
+    std::string accessibilityStatementUrl = configuration()->accessibilityStatementUrl();
+    interactive()->openUrl(accessibilityStatementUrl);
+}
+
 void ApplicationActionController::openPreferencesDialog()
 {
     const context::IPlaybackStatePtr state = globalContext()->playbackState();
@@ -314,8 +330,8 @@ void ApplicationActionController::openPreferencesDialog()
 
 void ApplicationActionController::doOpenPreferencesDialog()
 {
-    if (multiInstancesProvider()->isPreferencesAlreadyOpened()) {
-        multiInstancesProvider()->activateWindowWithOpenedPreferences();
+    if (multiwindowsProvider()->isPreferencesAlreadyOpened()) {
+        multiwindowsProvider()->activateWindowWithOpenedPreferences();
         return;
     }
 

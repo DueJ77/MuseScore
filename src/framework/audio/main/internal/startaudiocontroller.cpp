@@ -56,11 +56,12 @@ static void measureInputLag(const float* buf, const size_t size)
     }
 }
 
-StartAudioController::StartAudioController(std::shared_ptr<rpc::IRpcChannel> rpcChannel)
-    : m_rpcChannel(rpcChannel)
+StartAudioController::StartAudioController(std::shared_ptr<rpc::IRpcChannel> rpcChannel,
+                                           const muse::modularity::ContextPtr& iocCtx)
+    : muse::Contextable(iocCtx), m_rpcChannel(rpcChannel)
 {
 #ifndef Q_OS_WASM
-    m_engineController = std::make_shared<engine::EngineController>(rpcChannel);
+    m_engineController = std::make_shared<engine::EngineController>(rpcChannel, iocCtx);
 #endif
 }
 
@@ -164,21 +165,20 @@ async::Channel<bool> StartAudioController::isAudioStartedChanged() const
 void StartAudioController::startAudioProcessing(const IApplication::RunMode& mode)
 {
     IAudioDriver::Spec requiredSpec;
-    requiredSpec.format = IAudioDriver::Format::AudioF32;
-    requiredSpec.output.sampleRate = configuration()->sampleRate();
-    requiredSpec.output.audioChannelCount = configuration()->audioChannelsCount();
-    requiredSpec.output.samplesPerChannel = configuration()->driverBufferSize();
+    requiredSpec.deviceId = configuration()->audioOutputDeviceId();
+    requiredSpec.output = configuration()->desiredOutputSpec();
 
 #ifndef Q_OS_WASM
 
     m_requiredSamplesTotal = requiredSpec.output.samplesPerChannel * requiredSpec.output.audioChannelCount;
-    audioDriver()->activeSpecChanged().onReceive(this, [this](const IAudioDriver::Spec& spec) {
+
+    audioDriverController()->activeSpecChanged().onReceive(this, [this](const IAudioDriver::Spec& spec) {
         m_requiredSamplesTotal = spec.output.samplesPerChannel * spec.output.audioChannelCount;
     });
 
     bool shouldMeasureInputLag = configuration()->shouldMeasureInputLag();
     requiredSpec.callback = [this, shouldMeasureInputLag]
-                            (void* /*userdata*/, uint8_t* stream, int byteCount) {
+                            (uint8_t* stream, int byteCount) {
         std::memset(stream, 0, byteCount);
         // driver metrics
         const size_t driverSamplesTotal = byteCount / sizeof(float);
@@ -207,8 +207,8 @@ void StartAudioController::startAudioProcessing(const IApplication::RunMode& mod
             if (!m_alignmentBuffer || m_alignmentBuffer->capacity() != capacity) {
                 m_alignmentBuffer = std::make_shared<AlignmentBuffer>(capacity);
             }
-            alignbuf = m_alignmentBuffer.get(); // minor optimization and easier debugging
-            static thread_local std::vector<float> proc_buf; // temp buffer
+            alignbuf = m_alignmentBuffer.get();     // minor optimization and easier debugging
+            static thread_local std::vector<float> proc_buf;     // temp buffer
             if (proc_buf.size() != requiredSamplesTotal) {
                 proc_buf.resize(requiredSamplesTotal);
             }
@@ -262,11 +262,7 @@ void StartAudioController::startAudioProcessing(const IApplication::RunMode& mod
 
     IAudioDriver::Spec activeSpec;
     if (mode == IApplication::RunMode::GuiApp) {
-        audioDriver()->init();
-
-        audioDriver()->selectOutputDevice(configuration()->audioOutputDeviceId());
-
-        if (!audioDriver()->open(requiredSpec, &activeSpec)) {
+        if (!audioDriverController()->open(requiredSpec, &activeSpec)) {
             return;
         }
     } else {
@@ -293,19 +289,32 @@ void StartAudioController::startAudioProcessing(const IApplication::RunMode& mod
 
 void StartAudioController::stopAudioProcessing()
 {
-    m_isAudioStarted.set(false);
-
-    if (audioDriver()->isOpened()) {
-        audioDriver()->close();
-    }
 #ifndef Q_OS_WASM
+    m_rpcChannel->send(rpc::make_request(Method::EngineDeinit), [this](const Msg&) {
+        if (m_isAudioStarted.val) {
+            m_isAudioStarted.set(false);
+        }
+    });
+
+    do {
+        // Ensure that RPC process() is called at least once
+        m_rpcChannel->process();
+
+        if (!m_isAudioStarted.val) {
+            break;
+        }
+
+        std::this_thread::yield();
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for(10ms);
+    } while (m_isAudioStarted.val);
+
+    audioDriverController()->close();
+
     if (m_worker && m_worker->isRunning()) {
         m_worker->stop();
     }
-#endif
-}
 
-IAudioDriverPtr StartAudioController::audioDriver() const
-{
-    return audioDriverController()->audioDriver();
+    m_engineController->unregisterExports();
+#endif
 }

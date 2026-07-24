@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2023 MuseScore Limited
+ * Copyright (C) 2023 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,8 +19,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MU_ENGRAVING_TLAYOUT_DEV_H
-#define MU_ENGRAVING_TLAYOUT_DEV_H
+
+#pragma once
 
 #include "layoutcontext.h"
 
@@ -36,6 +36,7 @@
 #include "../../dom/bracket.h"
 #include "../../dom/breath.h"
 
+#include "../../dom/chordbracket.h"
 #include "../../dom/chordline.h"
 #include "../../dom/clef.h"
 #include "../../dom/capo.h"
@@ -204,8 +205,8 @@ public:
     static void layoutAccidental(const Accidental* item, Accidental::LayoutData* ldata, const LayoutConfiguration& conf);
     static void layoutActionIcon(const ActionIcon* item, ActionIcon::LayoutData* ldata);
     static void layoutAmbitus(const Ambitus* item, Ambitus::LayoutData* ldata, const LayoutContext& ctx);
-    static void layoutArpeggio(const Arpeggio* item, Arpeggio::LayoutData* ldata, const LayoutConfiguration& conf,
-                               bool includeCrossStaffHeight = false);
+    static void layoutArpeggio(const Arpeggio* item, Arpeggio::LayoutData* ldata, const LayoutConfiguration& conf);
+    static void layoutChordBracket(const ChordBracket* item, ChordBracket::LayoutData* ldata, const LayoutConfiguration& conf);
     static void layoutArticulation(Articulation* item, Articulation::LayoutData* ldata);
     static void fillArticulationShape(const Articulation* item, Articulation::LayoutData* ldata);
 
@@ -253,7 +254,6 @@ public:
     static void layoutHammerOnPullOff(HammerOnPullOff* item, LayoutContext& ctx);
     static void layoutHammerOnPullOffSegment(HammerOnPullOffSegment* item, LayoutContext& ctx);
     static void layoutHammerOnPullOffText(HammerOnPullOffText* item, LayoutContext& ctx);
-    static void fillHairpinSegmentShape(const HairpinSegment* item, HairpinSegment::LayoutData* ldata);
     static void layoutHarpPedalDiagram(const HarpPedalDiagram* item, HarpPedalDiagram::LayoutData* ldata);
     static void layoutHarmonicMarkSegment(HarmonicMarkSegment* item, LayoutContext& ctx);
     static void layoutHarmony(Harmony* item, Harmony::LayoutData* ldata, const LayoutContext& ctx);
@@ -268,6 +268,7 @@ public:
     static void layoutJump(const Jump* item, Jump::LayoutData* ldata);
 
     static void layoutKeySig(const KeySig* item, KeySig::LayoutData* ldata, const LayoutConfiguration& conf);
+    static void layoutKeySig2(KeySig* item, KeySig::LayoutData* ldata);
 
     static void layoutLaissezVib(LaissezVib* item);
     static void layoutLayoutBreak(const LayoutBreak* item, LayoutBreak::LayoutData* ldata);
@@ -276,7 +277,7 @@ public:
     static void layoutLetRingSegment(LetRingSegment* item, LayoutContext& ctx);
     static void layoutLineSegment(LineSegment* item, LayoutContext& ctx);  // factory
     static void layoutLyrics(Lyrics* item, LayoutContext& ctx);
-    static void layoutLyricsLine(LyricsLine* item, LayoutContext& ctx);
+    static void layoutLyricsLine(LyricsLine* item);
     static void layoutLyricsLineSegment(LyricsLineSegment* item, LayoutContext& ctx);
 
     static void layoutMarker(Marker* item, Marker::LayoutData* ldata, LayoutContext& ctx);
@@ -289,6 +290,7 @@ public:
     static void layoutMMRestRange(MMRestRange* item, MMRestRange::LayoutData* ldata, const LayoutContext& ctx);
 
     static void layoutNote(const Note* item, Note::LayoutData* ldata);
+    static void layoutNoteCipherAccidental(Note* item, Note::LayoutData* ldata);
     static void fillNoteShape(const Note* item, Note::LayoutData* ldata);
     static void layoutNoteDot(const NoteDot* item, NoteDot::LayoutData* ldata);
     static void layoutNoteAnchoredLine(SLine* item, SLine::LayoutData* ldata, LayoutContext& ctx);
@@ -347,8 +349,11 @@ public:
     static void layoutTextLineSegment(TextLineSegment* item, LayoutContext& ctx);
     static void layoutTextLineBase(TextLineBase* item, LayoutContext& ctx);
     static void layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext& ctx); // base class
+    static Shape recalculateTextLineBaseSegmentShape(const TextLineBaseSegment* item);
+
     static void layoutTie(Tie* item, LayoutContext& ctx);
-    static void layoutTimeSig(const TimeSig* item, TimeSig::LayoutData* ldata, const LayoutContext& ctx);
+    static void layoutTimeSig(TimeSig* item, TimeSig::LayoutData* ldata, const LayoutContext& ctx);
+    static void layoutTimeSig2(TimeSig* item, TimeSig::LayoutData* ldata, const LayoutContext& ctx);
     static void layoutTimeTickAnchor(TimeTickAnchor* item, LayoutContext&);
     static void layoutTremoloSingle(TremoloSingleChord* item, LayoutContext& ctx);
     static void layoutTremoloTwo(TremoloTwoChord* item, LayoutContext& ctx);
@@ -387,15 +392,13 @@ private:
     static SpannerSegment* getNextLayoutSystemSegment(Spanner* spanner, System* system,
                                                       std::function<SpannerSegment* (System* parent)> createSegment);
 
-    static Shape textLineBaseSegmentShape(const TextLineBaseSegment* item);
-
     static void manageHairpinSnapping(HairpinSegment* item, LayoutContext& ctx);
 
     static void checkRehearsalMarkVSBigTimeSig(const RehearsalMark* item, RehearsalMark::LayoutData* ldata);
 
     static void manageTempoChangeSnapping(GradualTempoChangeSegment* item, LayoutContext& ctx);
     static void doLayoutGradualTempoChangeSegment(GradualTempoChangeSegment* item, LayoutContext& ctx);
+
+    static void alignTabGraceNotesToMainStave(GraceNotesGroup* graceNotes, const Staff* notationStaff);
 };
 }
-
-#endif // MU_ENGRAVING_TLAYOUT_DEV_H

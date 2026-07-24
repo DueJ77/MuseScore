@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -48,6 +48,7 @@ class Breath;
 
 class Capo;
 class Chord;
+class ChordBracket;
 class ChordLine;
 class Clef;
 
@@ -142,6 +143,8 @@ class Tapping;
 class TempoText;
 class Text;
 class TextBase;
+class TextBlock;
+class TextFragment;
 class TextLine;
 class TextLineSegment;
 class TextLineBaseSegment;
@@ -175,6 +178,7 @@ private:
     static void draw(const ActionIcon* item, muse::draw::Painter* painter, const PaintOptions& opt);
     static void draw(const Ambitus* item, muse::draw::Painter* painter, const PaintOptions& opt);
     static void draw(const Arpeggio* item, muse::draw::Painter* painter, const PaintOptions& opt);
+    static void draw(const ChordBracket* item, muse::draw::Painter* painter, const PaintOptions& opt);
     static void draw(const Articulation* item, muse::draw::Painter* painter, const PaintOptions& opt);
 
     static void draw(const BagpipeEmbellishment* item, muse::draw::Painter* painter, const PaintOptions& opt);
@@ -281,6 +285,8 @@ private:
     static void draw(const WhammyBarSegment* item, muse::draw::Painter* painter, const PaintOptions& opt);
 
     static void drawTextBase(const TextBase* item, muse::draw::Painter* painter, const PaintOptions& opt);
+    static void draw(const TextBlock& textBlock, const TextBase* item, muse::draw::Painter* painter);
+    static void draw(const TextFragment& textFragment, const TextBase* item, muse::draw::Painter* painter);
     static void drawTextLineBaseSegment(const TextLineBaseSegment* item, muse::draw::Painter* painter, const PaintOptions& opt);
 };
 }

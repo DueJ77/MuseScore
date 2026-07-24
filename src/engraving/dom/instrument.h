@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,7 +54,6 @@ public:
     StaffName(const String& xmlText, int pos = 0);
 
     String toPlainText() const;
-    static StaffName fromPlainText(const String& plainText, int pos = 0);
 
     bool operator==(const StaffName&) const;
     String toString() const;
@@ -399,6 +398,8 @@ public:
 
     GlissandoStyle glissandoStyle() const;
     void setGlissandoStyle(GlissandoStyle style);
+
+    String instrumentId() const { return id(); }
 
 private:
 

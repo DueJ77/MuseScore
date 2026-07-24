@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -91,10 +91,20 @@ void PaletteActionsController::toggleSpecialCharactersDialog()
 
 void PaletteActionsController::openTimeSignaturePropertiesDialog()
 {
+    const engraving::EngravingItem* element = interaction() ? interaction()->hitElementContext().element : nullptr;
+    if (!element || !element->isTimeSig()) {
+        return;
+    }
     interactive()->open(TIME_SIGNATURE_PROPERTIES_URI);
 }
 
 void PaletteActionsController::openCustomizeKitDialog()
 {
     interactive()->open(CUSTOMIZE_KIT_URI);
+}
+
+mu::notation::INotationInteractionPtr PaletteActionsController::interaction() const
+{
+    const notation::INotationPtr notation = globalContext()->currentNotation();
+    return notation ? notation->interaction() : nullptr;
 }

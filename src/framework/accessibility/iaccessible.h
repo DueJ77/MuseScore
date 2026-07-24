@@ -59,6 +59,12 @@ public:
         SpinBox,
         Range,
         Group,
+        Table,
+        ColumnHeader,
+        RowHeader,
+        Column,
+        Row,
+        Cell,
 
         // Custom roles
         Information, // just text
@@ -122,7 +128,7 @@ public:
 
     virtual const IAccessible* accessibleParent() const = 0;
     virtual size_t accessibleChildCount() const = 0;
-    virtual const IAccessible* accessibleChild(size_t i) const = 0;
+    virtual IAccessible* accessibleChild(size_t i) const = 0;
     virtual QWindow* accessibleWindow() const = 0;
     virtual muse::modularity::ContextPtr iocContext() const = 0;
 
